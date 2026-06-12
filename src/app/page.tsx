@@ -19,9 +19,13 @@ export default function Home() {
   const emailsTotal = useCielStore((s) => s.emailsTotal);
   const emailsPage = useCielStore((s) => s.emailsPage);
   const emailsPerPage = useCielStore((s) => s.emailsPerPage);
+  const emailsHasMore = useCielStore((s) => s.emailsHasMore);
   const fetchEmails = useCielStore((s) => s.fetchEmails);
   const calendarEvents = useCielStore((s) => s.calendarEvents);
   const fetchCalendarEvents = useCielStore((s) => s.fetchCalendarEvents);
+
+  const startRange = emailsTotal > 0 ? (emailsPage - 1) * emailsPerPage + 1 : 0;
+  const endRange = Math.min(emailsPage * emailsPerPage, emailsTotal);
   
   const searchQuery = useCielStore((s) => s.searchQuery);
   const setSearchQuery = useCielStore((s) => s.setSearchQuery);
@@ -54,7 +58,11 @@ export default function Home() {
   useEffect(() => {
     if (status === "authenticated") {
       fetchIntegrationStatus();
-      fetchEmails();
+      // Fetch cached emails instantly from database
+      fetchEmails().then(() => {
+        // Trigger background sync to pull new and remaining emails
+        fetchEmails(true);
+      });
       fetchCalendarEvents();
     }
   }, [status, fetchIntegrationStatus, fetchEmails, fetchCalendarEvents]);
@@ -334,8 +342,7 @@ export default function Home() {
             <div className="space-y-4">
               <div className="flex justify-between items-center pb-2 border-b border-gray-900">
                 <span className="text-xs uppercase tracking-wider text-gray-500">
-                  Inbox Sync Log (Showing {emailsTotal > 0 ? (emailsPage - 1) * emailsPerPage + 1 : 0}-
-                  {Math.min(emailsPage * emailsPerPage, emailsTotal)} of {emailsTotal} entries)
+                  Inbox Sync Log (Showing {startRange}-{endRange} of {emailsTotal} entries)
                 </span>
                 
                 {/* Pagination Controls */}
@@ -344,26 +351,34 @@ export default function Home() {
                     onClick={(e) => {
                       e.stopPropagation();
                       if (emailsPage > 1) {
-                        fetchEmails(false, emailsPage - 1);
+                        const prevPage = emailsPage - 1;
+                        fetchEmails(false, prevPage).then(() => {
+                          fetchEmails(true, prevPage);
+                        });
                       }
                     }}
                     disabled={emailsPage <= 1}
-                    className="px-2 py-1 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-950 disabled:text-gray-700 text-white rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed uppercase"
+                    className="px-2 py-1 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 disabled:bg-gray-950 disabled:text-gray-700 text-white rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed uppercase"
                   >
                     &lt; Prev
                   </button>
                   <span className="text-xs text-gray-400 font-bold">
-                    {emailsPage} / {Math.max(1, Math.ceil(emailsTotal / emailsPerPage))}
+                    {startRange}-{endRange}
                   </span>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (emailsPage < Math.ceil(emailsTotal / emailsPerPage)) {
-                        fetchEmails(false, emailsPage + 1);
+                      const nextPage = emailsPage + 1;
+                      if (nextPage <= Math.ceil(emailsTotal / emailsPerPage)) {
+                        fetchEmails(false, nextPage).then(() => {
+                          fetchEmails(true, nextPage);
+                        });
+                      } else {
+                        fetchEmails(true, nextPage);
                       }
                     }}
-                    disabled={emailsPage >= Math.ceil(emailsTotal / emailsPerPage)}
-                    className="px-2 py-1 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-950 disabled:text-gray-700 text-white rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed uppercase"
+                    disabled={!emailsHasMore && emailsPage >= Math.ceil(emailsTotal / emailsPerPage)}
+                    className="px-2 py-1 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 disabled:bg-gray-950 disabled:text-gray-700 text-white rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed uppercase"
                   >
                     Next &gt;
                   </button>

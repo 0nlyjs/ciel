@@ -52,6 +52,7 @@ interface CielState {
   emailsTotal: number;
   emailsPage: number;
   emailsPerPage: number;
+  emailsHasMore: boolean;
   selectedEmailIndex: number | null;
   searchQuery: string;
   setEmails: (emails: Email[]) => void;
@@ -99,6 +100,7 @@ export const useCielStore = create<CielState>((set) => ({
     emails: [],
     emailsTotal: 0,
     emailsPage: 1,
+    emailsHasMore: true,
     calendarEvents: [],
     selectedEmailIndex: null,
     searchQuery: "",
@@ -123,6 +125,7 @@ export const useCielStore = create<CielState>((set) => ({
   emailsTotal: 0,
   emailsPage: 1,
   emailsPerPage: 50,
+  emailsHasMore: true,
   selectedEmailIndex: null,
   searchQuery: "",
   setEmails: (emails) => set({ emails, selectedEmailIndex: emails.length > 0 ? 0 : null }),
@@ -198,6 +201,7 @@ export const useCielStore = create<CielState>((set) => ({
       if (forceSync) queryParams.set("sync", "true");
       queryParams.set("limit", limit.toString());
       queryParams.set("offset", offset.toString());
+      queryParams.set("sync_limit", ((targetPage * limit) + limit).toString());
 
       const res = await fetch(`/api/emails?${queryParams.toString()}`);
       if (res.ok) {
@@ -207,6 +211,7 @@ export const useCielStore = create<CielState>((set) => ({
             emails: data.emails,
             emailsTotal: data.total ?? data.emails.length,
             emailsPage: targetPage,
+            emailsHasMore: data.hasMore !== undefined ? !!data.hasMore : true,
             selectedEmailIndex: data.emails.length > 0 ? 0 : null,
           });
         }
