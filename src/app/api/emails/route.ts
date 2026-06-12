@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { dbInit, query } from "@/lib/db";
 
-// GET /api/emails - Fetch all cached emails
+// GET /api/emails - Fetch all cached emails from database
 export async function GET() {
   try {
     await dbInit();

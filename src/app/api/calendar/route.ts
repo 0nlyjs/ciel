@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { dbInit, query } from "@/lib/db";
 import { getEmbedding, formatVector } from "@/lib/embeddings";
 
-// GET /api/calendar - List all cached calendar events
+// GET /api/calendar - List all cached calendar events from database
 export async function GET() {
   try {
     await dbInit();

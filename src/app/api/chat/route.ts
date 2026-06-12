@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { NextResponse } from "next/server";
-import { generateText } from "ai";
+import { generateText, tool, jsonSchema } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { dbInit, query as queryDb } from "@/lib/db";
 import { getEmbedding, formatVector } from "@/lib/embeddings";
@@ -115,7 +115,7 @@ export async function POST(req: Request) {
 
     await dbInit();
 
-    // run vercel ai sdk with tools using raw JSON Schemas to bypass bundler instanceof mismatch
+    // run vercel ai sdk with tools using tool() and jsonSchema() wrappers
     const response = await generateText({
       model: openaiClient("gpt-4o-mini"),
       system: `You are Ciel, the sentient AI workspace mind from Tempest. 
@@ -125,9 +125,9 @@ When the user asks you to perform actions like sending emails or creating calend
 Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
       messages: messages,
       tools: {
-        search_emails: {
+        search_emails: tool({
           description: "Search for emails in the user's Gmail inbox by query keyword or intent using vector search.",
-          parameters: {
+          inputSchema: jsonSchema({
             type: "object",
             properties: {
               query: {
@@ -136,7 +136,7 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
               }
             },
             required: ["query"]
-          },
+          }),
           execute: async ({ query }: any) => {
             console.log("[Tool] Searching emails for:", query);
             try {
@@ -168,10 +168,10 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
               return { success: false, error: err.message };
             }
           },
-        },
-        send_email: {
+        }),
+        send_email: tool({
           description: "Send an email to a recipient",
-          parameters: {
+          inputSchema: jsonSchema({
             type: "object",
             properties: {
               to: {
@@ -188,7 +188,7 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
               }
             },
             required: ["to", "subject", "body"]
-          },
+          }),
           execute: async ({ to, subject, body }: any) => {
             console.log("[Tool] Sending email to:", to);
             try {
@@ -213,10 +213,10 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
               return { success: false, error: err.message };
             }
           },
-        },
-        create_calendar_invite: {
+        }),
+        create_calendar_invite: tool({
           description: "Create a new event invite on Google Calendar",
-          parameters: {
+          inputSchema: jsonSchema({
             type: "object",
             properties: {
               title: {
@@ -248,7 +248,7 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
               }
             },
             required: ["title", "start", "end"]
-          },
+          }),
           execute: async ({ title, start, end, location, description, attendees }: any) => {
             console.log("[Tool] Creating calendar event:", title);
             try {
@@ -288,7 +288,7 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
               return { success: false, error: err.message };
             }
           },
-        },
+        }),
       },
       maxSteps: 3,
     } as any);
