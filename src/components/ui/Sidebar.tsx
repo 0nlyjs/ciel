@@ -1,13 +1,15 @@
 "use client";
 
 import { useCielStore } from "@/store/useCielStore";
+import { signOut } from "next-auth/react";
 import {
   LayoutDashboard,
   Inbox,
   Calendar,
   Bot,
   Settings,
-  Plus
+  Plus,
+  LogOut
 } from "lucide-react";
 import Image from "next/image";
 
@@ -15,6 +17,7 @@ export default function Sidebar() {
   const activeTab = useCielStore((s) => s.activeTab);
   const setActiveTab = useCielStore((s) => s.setActiveTab);
   const emails = useCielStore((s) => s.emails);
+  const user = useCielStore((s) => s.user);
 
   const unreadCount = emails.filter((e) => !e.read).length;
 
@@ -101,8 +104,36 @@ export default function Sidebar() {
         </nav>
       </div>
 
-      {/* Bottom Health Section */}
-      <div className="w-full">
+      {/* Bottom Health/User Section */}
+      <div className="w-full space-y-3.5">
+        {user && (
+          <div className="flex flex-col gap-2 w-full">
+            {/* Profile VCard */}
+            <div className="p-3.5 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-3 w-full shadow-md backdrop-blur-md">
+              <div className="w-8.5 h-8.5 rounded-full bg-cyan-glow/10 border border-cyan-glow/20 flex items-center justify-center shrink-0 text-cyan-glow font-bold text-xs uppercase">
+                {user.name.charAt(0)}
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs font-bold text-crisp-white truncate leading-tight">
+                  {user.name}
+                </span>
+                <span className="text-[9px] text-silvery-gray/50 truncate mt-1 font-mono">
+                  {user.email}
+                </span>
+              </div>
+            </div>
+            
+            {/* Sign Out Button */}
+            <button
+              onClick={() => signOut()}
+              className="w-full h-9 border border-white/10 hover:border-crimson/30 hover:bg-crimson/5 hover:text-crimson text-silvery-gray text-[10px] font-bold tracking-wider uppercase rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer font-mono"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Sign Out
+            </button>
+          </div>
+        )}
+
         <div className="p-4 bg-abyssal/40 border border-white/10 rounded-2xl flex items-center gap-3.5 w-full shadow-lg">
           <span className="relative flex h-2.5 w-2.5 shrink-0">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-glow opacity-75"></span>
