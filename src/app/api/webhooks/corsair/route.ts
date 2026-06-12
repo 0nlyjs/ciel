@@ -3,6 +3,7 @@ import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { dbInit, query } from "@/lib/db";
 import { getEmbedding, formatVector } from "@/lib/embeddings";
+import { CorsairClient } from "@/lib/corsair";
 
 // lazy load openai
 const getOpenAIClient = () => {
@@ -104,16 +105,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Data payload is missing" }, { status: 400 });
     }
 
-    const tenantId = payload.tenantId || data.tenantId || "unknown@domain.com";
+    const tenantId = payload.tenantId || data.tenantId || data.emailAddress || "unknown@domain.com";
 
     // 3. Process Event
-    if (event === "gmail.received") {
-      const emailId = data.id || Math.random().toString();
-      const fromName = data.from || "Unknown Sender";
-      const fromEmail = data.fromEmail || "unknown@domain.com";
-      const subject = data.subject || "(No Subject)";
-      const body = data.body || "";
-      const dateStr = data.date || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (event === "gmail.webhooks.messageChanged") {
+      if (data.type !== "messageReceived") {
+        return NextResponse.json({ success: true, message: `Gmail event ignored: ${data.type}` });
+      }
+
+      const rawMsg = data.message;
+      if (!rawMsg) {
+        return NextResponse.json({ error: "Message details missing in payload" }, { status: 400 });
+      }
+
+      const parsed = CorsairClient.parseGmailMessage(rawMsg);
+      if (!parsed) {
+        return NextResponse.json({ error: "Failed to parse Gmail message" }, { status: 400 });
+      }
+
+      const emailId = parsed.id;
+      const fromName = parsed.from;
+      const fromEmail = parsed.fromEmail;
+      const subject = parsed.subject;
+      const body = parsed.body;
+      const dateStr = parsed.date;
 
       // Run AI categorization
       const { priority, category } = await classifyEmail(subject, body);
@@ -138,7 +153,7 @@ export async function POST(req: Request) {
            priority = EXCLUDED.priority,
            category = EXCLUDED.category,
            embedding = EXCLUDED.embedding`,
-        [emailId, tenantId, fromName, fromEmail, subject, body, dateStr, false, priority, category, formattedEmbedding]
+        [emailId, tenantId, fromName, fromEmail, subject, body, dateStr, parsed.read, priority, category, formattedEmbedding]
       );
 
       console.log(`[Corsair Webhook] Cached email "${subject}" for ${tenantId} [Priority: ${priority.toUpperCase()}]`);
@@ -146,18 +161,46 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         message: "Email received, classified, embedded, and stored.",
-        email: { id: emailId, user_email: tenantId, from: fromName, fromEmail, subject, body, date: dateStr, read: false, priority, category },
+        email: { id: emailId, user_email: tenantId, from: fromName, fromEmail, subject, body, date: dateStr, read: parsed.read, priority, category },
       });
     }
 
-    if (event === "calendar.invite") {
-      const eventId = data.id || Math.random().toString();
-      const title = data.title || "Meeting Invite";
-      const start = data.start || new Date().toISOString();
-      const end = data.end || new Date(Date.now() + 1800000).toISOString();
-      const location = data.location || "";
-      const attendees = data.attendees || [];
-      const description = data.description || "";
+    if (event === "googlecalendar.webhooks.onEventChanged") {
+      if (data.type === "eventDeleted") {
+        const eventId = data.eventId;
+        if (!eventId) {
+          return NextResponse.json({ error: "Event ID is missing for deletion" }, { status: 400 });
+        }
+
+        await query(
+          "DELETE FROM calendar_events WHERE id = $1 AND user_email = $2",
+          [eventId, tenantId]
+        );
+
+        console.log(`[Corsair Webhook] Deleted calendar event "${eventId}" for ${tenantId}`);
+        return NextResponse.json({
+          success: true,
+          message: "Calendar event deleted.",
+          eventDeleted: eventId
+        });
+      }
+
+      if (data.type !== "eventCreated" && data.type !== "eventUpdated") {
+        return NextResponse.json({ success: true, message: `Calendar event ignored: ${data.type}` });
+      }
+
+      const item = data.event;
+      if (!item) {
+        return NextResponse.json({ error: "Event details missing in payload" }, { status: 400 });
+      }
+
+      const eventId = item.id || Math.random().toString();
+      const title = item.summary || "Meeting Invite";
+      const start = item.start?.dateTime || item.start?.date || new Date().toISOString();
+      const end = item.end?.dateTime || item.end?.date || new Date(Date.now() + 1800000).toISOString();
+      const location = item.location || "";
+      const attendees = (item.attendees || []).map((a: any) => a.email || a.displayName || "");
+      const description = item.description || "";
 
       // Generate embedding vector
       const textToEmbed = `Title: ${title}\nLocation: ${location}\nDescription: ${description}`;
@@ -189,7 +232,7 @@ export async function POST(req: Request) {
       });
     }
 
-    return NextResponse.json({ success: true, message: "Unhandled webhook event type" });
+    return NextResponse.json({ success: true, message: "Unhandled webhook event type: " + event });
   } catch (error: any) {
     console.error("[Corsair Webhook Error]", error);
     return NextResponse.json(
