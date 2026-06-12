@@ -156,6 +156,32 @@ const handler = NextAuth({
   },
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider === "google") {
+        const email = user.email;
+        const name = user.name;
+        if (email) {
+          try {
+            const checkUser = await query("SELECT id FROM users WHERE email = $1", [email]);
+            if (checkUser.rows.length === 0) {
+              await query(
+                "INSERT INTO users (name, email, password, verified) VALUES ($1, $2, NULL, TRUE)",
+                [name || "Google User", email]
+              );
+              console.log(`[NextAuth Callback] Successfully registered new Google user: ${email}`);
+            } else {
+              await query(
+                "UPDATE users SET verified = TRUE WHERE email = $1",
+                [email]
+              );
+            }
+          } catch (error) {
+            console.error("[NextAuth Callback] Error registering Google user:", error);
+          }
+        }
+      }
+      return true;
+    },
     async session({ session, token }) {
       return session;
     },

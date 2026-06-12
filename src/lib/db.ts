@@ -65,7 +65,7 @@ export async function dbInit() {
         id SERIAL PRIMARY KEY,
         name VARCHAR(255),
         email VARCHAR(255) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL,
+        password VARCHAR(255),
         verified BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -73,6 +73,8 @@ export async function dbInit() {
 
     // Ensure verified column exists
     await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE;");
+    // Ensure password column is nullable
+    await pool.query("ALTER TABLE users ALTER COLUMN password DROP NOT NULL;");
 
     // 5. Create verification codes table
     await pool.query(`
