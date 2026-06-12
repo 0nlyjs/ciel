@@ -38,8 +38,8 @@ interface CielState {
   logout: () => void;
 
   // view state
-  activeTab: "inbox" | "calendar" | "chat" | "sent" | "trash";
-  setActiveTab: (tab: "inbox" | "calendar" | "chat" | "sent" | "trash") => void;
+  activeTab: "overview" | "inbox" | "calendar" | "chat" | "settings";
+  setActiveTab: (tab: "overview" | "inbox" | "calendar" | "chat" | "settings") => void;
 
   // mock email data
   emails: Email[];
@@ -154,10 +154,10 @@ export const useCielStore = create<CielState>((set) => ({
   // auth state
   user: null,
   login: (name, email) => set({ user: { name, email } }),
-  logout: () => set({ user: null, activeTab: "inbox" }),
+  logout: () => set({ user: null, activeTab: "overview" }),
 
   // view state
-  activeTab: "inbox",
+  activeTab: "overview",
   setActiveTab: (tab) => set({ activeTab: tab }),
 
   // email data

@@ -1,60 +1,76 @@
 "use client";
 
 import { useCielStore } from "@/store/useCielStore";
-import { Inbox, Calendar, MessageSquare, Send, Trash, LogOut, Terminal } from "lucide-react";
-import CielCanvas from "../3d/CielCanvas";
+import {
+  LayoutDashboard,
+  Inbox,
+  Calendar,
+  Bot,
+  Settings,
+  Plus
+} from "lucide-react";
+import Image from "next/image";
 
 export default function Sidebar() {
   const activeTab = useCielStore((s) => s.activeTab);
   const setActiveTab = useCielStore((s) => s.setActiveTab);
-  const user = useCielStore((s) => s.user);
-  const logout = useCielStore((s) => s.logout);
   const emails = useCielStore((s) => s.emails);
-  const cielStatus = useCielStore((s) => s.cielStatus);
 
   const unreadCount = emails.filter((e) => !e.read).length;
 
   const navItems = [
+    { id: "overview", label: "Overview", icon: LayoutDashboard, badge: undefined },
     { id: "inbox", label: "Inbox", icon: Inbox, badge: unreadCount },
     { id: "calendar", label: "Calendar", icon: Calendar, badge: undefined },
-    { id: "chat", label: "Ciel Chat", icon: MessageSquare, badge: undefined },
-    { id: "sent", label: "Sent", icon: Send, badge: undefined },
-    { id: "trash", label: "Trash", icon: Trash, badge: undefined },
+    { id: "chat", label: "AI Assistant", icon: Bot, badge: undefined },
+    { id: "settings", label: "Settings", icon: Settings, badge: undefined },
   ] as const;
 
   return (
-    <aside className="w-64 bg-zinc-950 border-r border-zinc-900 flex flex-col justify-between h-full select-none">
+    <aside className="w-60 cyber-glass flex flex-col justify-between h-full p-5 select-none shrink-0 font-sans border-r border-white/10">
       
-      {/* top brand and 3d core */}
-      <div className="flex flex-col items-center pt-8 px-4 w-full">
-        {/* app name */}
-        <div className="flex items-center gap-2 mb-6">
-          <Terminal className="w-5 h-5 text-cyan-400" />
-          <span className="text-lg font-bold font-mono tracking-widest text-white">
-            CIEL
-          </span>
-        </div>
-
-        {/* 3d visualizer */}
-        <div className="relative w-40 h-40 rounded-full border border-zinc-800/80 bg-zinc-950/40 overflow-hidden shadow-[0_0_20px_-8px_rgba(0,240,255,0.15)] mb-8 flex items-center justify-center group">
-          <div className="absolute inset-0 z-0">
-            <CielCanvas scene="dashboard" />
+      {/* Top Brand Section */}
+      <div className="flex flex-col w-full">
+        {/* Assistant Header Avatar */}
+        <div className="flex items-center gap-3.5 pb-6 border-b border-white/10">
+          <div className="relative w-10 h-10 rounded-full overflow-hidden border border-white/10 bg-void flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(0,240,255,0.15)]">
+            <Image
+              src="/ciel_avatar.png"
+              alt="Ciel Avatar"
+              fill
+              className="object-cover"
+              sizes="40px"
+              priority
+            />
           </div>
-          
-          {/* status label */}
-          <div className="absolute bottom-2 inset-x-0 text-center z-10 pointer-events-none">
-            <span className="text-[10px] font-mono tracking-wider font-semibold uppercase px-2 py-0.5 rounded-full bg-zinc-900/80 border border-zinc-800 text-zinc-400">
-              {cielStatus === "listening" && "Listening..."}
-              {cielStatus === "thinking" && "Thinking..."}
-              {cielStatus === "speaking" && "Speaking..."}
-              {cielStatus === "error" && "Error"}
-              {cielStatus === "idle" && "Sync Active"}
+          <div className="flex flex-col">
+            <span className="text-sm font-bold text-crisp-white tracking-wide leading-tight">
+              Ciel
+            </span>
+            <span className="text-[10px] font-semibold text-ice-blue tracking-wider uppercase mt-0.5">
+              AI Assistant
             </span>
           </div>
         </div>
 
-        {/* nav menu */}
-        <nav className="w-full space-y-1">
+        {/* New Command Action Button */}
+        <button
+          onClick={() => {
+            setActiveTab("chat");
+            // Trigger voice or chat compose focuses
+            setTimeout(() => {
+              const chatInput = document.querySelector('input[placeholder*="Ask Ciel"]') as HTMLInputElement;
+              chatInput?.focus();
+            }, 100);
+          }}
+          className="w-full h-11 bg-gradient-to-r from-cyan-glow to-cyber-magenta hover:opacity-90 active:scale-[0.98] text-void text-xs font-bold rounded-xl flex items-center justify-center gap-2 mt-6 cursor-pointer border border-cyan-glow/20 shadow-[0_0_20px_rgba(0,240,255,0.2)] transition-all"
+        >
+          <Plus className="w-4 h-4 text-void stroke-[3]" />
+          New Command
+        </button>
+
+        {/* Nav Navigation Menu */}
+        <nav className="w-full mt-8 space-y-1.5">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -62,19 +78,19 @@ export default function Sidebar() {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`w-full h-10 px-3 rounded-lg flex items-center justify-between text-sm transition-all cursor-pointer ${
+                className={`w-full h-11 px-3.5 rounded-xl flex items-center justify-between text-xs transition-all cursor-pointer border ${
                   isActive
-                    ? "bg-zinc-900 border border-zinc-800/80 text-white font-medium shadow-[0_1px_3px_rgba(0,0,0,0.2)]"
-                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/30"
+                    ? "bg-abyssal/60 border-cyan-glow/20 text-cyan-glow font-bold shadow-[0_0_15px_rgba(0,240,255,0.08)]"
+                    : "text-silvery-gray hover:text-crisp-white hover:bg-white/5 border-transparent"
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <Icon className={`w-4 h-4 ${isActive ? "text-cyan-400" : "text-zinc-500"}`} />
+                  <Icon className={`w-4.5 h-4.5 ${isActive ? "text-cyan-glow" : "text-silvery-gray"}`} />
                   <span>{item.label}</span>
                 </div>
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                    isActive ? "bg-cyan-500/20 text-cyan-400" : "bg-zinc-800 text-zinc-400"
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                    isActive ? "bg-cyan-glow/20 text-cyan-glow" : "bg-white/5 text-silvery-gray border border-white/10"
                   }`}>
                     {item.badge}
                   </span>
@@ -85,23 +101,22 @@ export default function Sidebar() {
         </nav>
       </div>
 
-      {/* user details & logout */}
-      <div className="p-4 border-t border-zinc-900 w-full flex items-center justify-between">
-        <div className="flex flex-col min-w-0 pr-2">
-          <span className="text-xs font-bold text-white truncate font-sans">
-            {user?.name || "User"}
+      {/* Bottom Health Section */}
+      <div className="w-full">
+        <div className="p-4 bg-abyssal/40 border border-white/10 rounded-2xl flex items-center gap-3.5 w-full shadow-lg">
+          <span className="relative flex h-2.5 w-2.5 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-glow opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-glow"></span>
           </span>
-          <span className="text-[10px] text-zinc-500 truncate font-mono">
-            {user?.email || "user@ciel.app"}
-          </span>
+          <div className="flex flex-col min-w-0">
+            <span className="text-[10px] font-bold text-silvery-gray uppercase tracking-widest leading-none">
+              Workspace Health
+            </span>
+            <span className="text-[9px] font-medium text-cyan-glow/85 mt-1 truncate">
+              All Systems Clear
+            </span>
+          </div>
         </div>
-        <button
-          onClick={logout}
-          title="Sign Out"
-          className="w-8 h-8 rounded-md bg-zinc-900 hover:bg-red-500/10 hover:text-red-400 border border-zinc-800 flex items-center justify-center text-zinc-400 transition-all cursor-pointer"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-        </button>
       </div>
 
     </aside>
