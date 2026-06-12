@@ -31,6 +31,7 @@ export async function dbInit() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS emails (
         id VARCHAR(255) PRIMARY KEY,
+        user_email VARCHAR(255),
         from_name VARCHAR(255),
         from_email VARCHAR(255),
         subject VARCHAR(255),
@@ -44,10 +45,14 @@ export async function dbInit() {
       );
     `);
 
+    // Ensure user_email column exists in emails
+    await pool.query("ALTER TABLE emails ADD COLUMN IF NOT EXISTS user_email VARCHAR(255);");
+
     // 3. Create calendar_events table with embedding vector
     await pool.query(`
       CREATE TABLE IF NOT EXISTS calendar_events (
         id VARCHAR(255) PRIMARY KEY,
+        user_email VARCHAR(255),
         title VARCHAR(255),
         start_time TIMESTAMP,
         end_time TIMESTAMP,
@@ -58,6 +63,9 @@ export async function dbInit() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // Ensure user_email column exists in calendar_events
+    await pool.query("ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS user_email VARCHAR(255);");
 
     // 4. Create users table for credentials auth
     await pool.query(`

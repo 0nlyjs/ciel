@@ -17,6 +17,13 @@ import {
 
 export default function SettingsView() {
   const user = useCielStore((s) => s.user);
+  const gmailConnected = useCielStore((s) => s.gmailConnected);
+  const calendarConnected = useCielStore((s) => s.calendarConnected);
+  const fetchIntegrationStatus = useCielStore((s) => s.fetchIntegrationStatus);
+  const updateUserName = useCielStore((s) => s.updateUserName);
+
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newName, setNewName] = useState(user?.name || "");
 
   // Settings mock state
   const [render3D, setRender3D] = useState(true);
@@ -50,7 +57,42 @@ export default function SettingsView() {
           <div className="space-y-4">
             <div className="flex flex-col gap-1">
               <span className="text-[10px] text-silvery-gray/50 uppercase font-bold tracking-wider">Full Name</span>
-              <span className="text-sm font-bold text-crisp-white">{user?.name || "Alexander"}</span>
+              {isEditingName ? (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!newName.trim()) return;
+                    try {
+                      const res = await fetch("/api/auth/profile/update", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name: newName })
+                      });
+                      if (res.ok) {
+                        updateUserName(newName);
+                        setIsEditingName(false);
+                      }
+                    } catch (err) {
+                      console.error(err);
+                    }
+                  }}
+                  className="flex gap-2 mt-1"
+                >
+                  <input
+                    type="text"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    className="flex-1 bg-void border border-white/10 text-xs text-crisp-white px-2 py-1.5 rounded-lg outline-none focus:border-cyan-glow/40"
+                  />
+                  <button type="submit" className="px-3 py-1 bg-cyan-glow text-void font-bold text-[10px] rounded-lg cursor-pointer">Save</button>
+                  <button type="button" onClick={() => setIsEditingName(false)} className="px-3 py-1 bg-white/5 border border-white/10 text-crisp-white text-[10px] rounded-lg cursor-pointer">Cancel</button>
+                </form>
+              ) : (
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-bold text-crisp-white">{user?.name || "Alexander"}</span>
+                  <button onClick={() => { setNewName(user?.name || ""); setIsEditingName(true); }} className="text-[10px] font-bold text-cyan-glow hover:underline cursor-pointer">Edit</button>
+                </div>
+              )}
             </div>
             
             <div className="flex flex-col gap-1">
@@ -58,21 +100,94 @@ export default function SettingsView() {
               <span className="text-sm font-bold text-silvery-gray font-mono">{user?.email || "alexander@ciel.app"}</span>
             </div>
 
-            <div className="pt-4 border-t border-white/10 flex justify-between items-center">
-              <div>
-                <span className="text-[10px] text-silvery-gray/50 uppercase font-bold tracking-wider block">Status</span>
-                <span className="text-[11px] font-bold text-cyan-glow flex items-center gap-1.5 mt-0.5 animate-pulse">
-                  <Check className="w-3.5 h-3.5" />
-                  Active Session
-                </span>
-              </div>
-              
-              <button
-                onClick={() => signOut()}
-                className="px-4 py-2 bg-crimson/15 border border-crimson/30 text-crimson hover:bg-crimson/25 hover:text-crisp-white text-xs font-bold rounded-lg transition-all cursor-pointer shadow-[0_0_10px_rgba(255,42,85,0.1)]"
+            <div className="flex flex-col gap-1.5 mt-2">
+              <span className="text-[10px] text-silvery-gray/50 uppercase font-bold tracking-wider">Account Operations</span>
+              <select
+                defaultValue=""
+                onChange={async (e) => {
+                  const val = e.target.value;
+                  if (!val) return;
+                  
+                  // Reset select value to default so user can trigger it again
+                  e.target.value = "";
+
+                  if (val === "change_name") {
+                    setNewName(user?.name || "");
+                    setIsEditingName(true);
+                  } else if (val === "remove_gmail") {
+                    if (confirm("Are you sure you want to disconnect Gmail?")) {
+                      try {
+                        const res = await fetch("/api/auth/corsair/disconnect", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ plugin: "gmail" })
+                        });
+                        if (res.ok) fetchIntegrationStatus();
+                      } catch (err) {
+                        console.error(err);
+                      }
+                    }
+                  } else if (val === "remove_calendar") {
+                    if (confirm("Are you sure you want to disconnect Google Calendar?")) {
+                      try {
+                        const res = await fetch("/api/auth/corsair/disconnect", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ plugin: "googlecalendar" })
+                        });
+                        if (res.ok) fetchIntegrationStatus();
+                      } catch (err) {
+                        console.error(err);
+                      }
+                    }
+                  } else if (val === "delete_account") {
+                    if (confirm("Are you absolutely sure you want to delete your account? This will permanently delete all your data and integration configurations. This action cannot be undone.")) {
+                      try {
+                        const res = await fetch("/api/auth/profile/delete", { method: "POST" });
+                        if (res.ok) {
+                          signOut();
+                        }
+                      } catch (err) {
+                        console.error(err);
+                      }
+                    }
+                  }
+                }}
+                className="w-full bg-abyssal border border-white/10 hover:border-white/20 text-xs text-crisp-white px-3 py-2 rounded-xl outline-none focus:border-cyan-glow/40 cursor-pointer font-semibold transition-all"
               >
-                Sign Out
-              </button>
+                <option value="" disabled>Select profile option...</option>
+                <option value="change_name">Change User Name</option>
+                <option value="remove_gmail" disabled={!gmailConnected}>
+                  {gmailConnected ? "Remove Gmail Integration" : "Remove Gmail Integration (Offline)"}
+                </option>
+                <option value="remove_calendar" disabled={!calendarConnected}>
+                  {calendarConnected ? "Remove Calendar Integration" : "Remove Calendar Integration (Offline)"}
+                </option>
+                <option value="delete_account" className="text-crimson font-bold">
+                  Delete Account
+                </option>
+              </select>
+            </div>
+
+            <div className="pt-4 border-t border-white/10 flex flex-col gap-3">
+              <div className="flex justify-between items-center">
+                <div>
+                  <span className="text-[10px] text-silvery-gray/50 uppercase font-bold tracking-wider block">Status</span>
+                  <span className="text-[11px] font-bold text-cyan-glow flex items-center gap-1.5 mt-0.5 animate-pulse">
+                    <Check className="w-3.5 h-3.5" />
+                    Active Session
+                  </span>
+                </div>
+                
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => signOut()}
+                    className="px-4 py-2 bg-white/5 border border-white/10 text-crisp-white hover:bg-white/10 text-xs font-bold rounded-lg transition-all cursor-pointer"
+                  >
+                    Sign Out
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -85,26 +200,100 @@ export default function SettingsView() {
           </h2>
 
           <div className="space-y-4">
-            {/* Google workspace sync */}
+            {/* Gmail sync */}
             <div className="flex items-center justify-between p-3 bg-abyssal/40 border border-white/10 rounded-xl">
               <div>
-                <span className="text-xs font-bold text-crisp-white block">Google Workspace</span>
-                <span className="text-[10px] text-silvery-gray/50 block mt-0.5">Syncing Gmail & Google Calendar</span>
+                <span className="text-xs font-bold text-crisp-white block">Gmail Connection</span>
+                <span className="text-[10px] text-silvery-gray/50 block mt-0.5">Secure mail orchestration via Corsair</span>
               </div>
-              <span className="text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 bg-cyan-glow/10 border border-cyan-glow/20 text-cyan-glow rounded-full shadow-[0_0_8px_rgba(0,240,255,0.1)]">
-                Connected
-              </span>
+              <div className="flex items-center gap-3">
+                <span className={`text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full border shadow-[0_0_8px_rgba(0,240,255,0.05)] ${
+                  gmailConnected 
+                    ? "bg-cyan-glow/10 border-cyan-glow/20 text-cyan-glow" 
+                    : "bg-white/5 border-white/10 text-silvery-gray/40"
+                }`}>
+                  {gmailConnected ? "Connected" : "Inactive"}
+                </span>
+                <button
+                  onClick={async () => {
+                    if (gmailConnected) {
+                      try {
+                        const res = await fetch("/api/auth/corsair/disconnect", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ plugin: "gmail" })
+                        });
+                        if (res.ok) fetchIntegrationStatus();
+                      } catch (e) {
+                        console.error("Disconnect gmail error:", e);
+                      }
+                    } else {
+                      try {
+                        const res = await fetch("/api/auth/corsair/connect?plugin=gmail");
+                        const data = await res.json();
+                        if (data.authorizeUrl) window.location.href = data.authorizeUrl;
+                      } catch (e) {
+                        console.error("Connect gmail error:", e);
+                      }
+                    }
+                  }}
+                  className={`px-3 py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                    gmailConnected 
+                      ? "bg-crimson/10 border-crimson/25 text-crimson hover:bg-crimson/20" 
+                      : "bg-cyan-glow/10 border-cyan-glow/20 text-cyan-glow hover:bg-cyan-glow/20"
+                  }`}
+                >
+                  {gmailConnected ? "Disconnect" : "Connect"}
+                </button>
+              </div>
             </div>
 
-            {/* Corsair dev integration */}
+            {/* Google Calendar sync */}
             <div className="flex items-center justify-between p-3 bg-abyssal/40 border border-white/10 rounded-xl">
               <div>
-                <span className="text-xs font-bold text-crisp-white block">Corsair Integration Layer</span>
-                <span className="text-[10px] text-silvery-gray/50 block mt-0.5">API Webhooks & MCP Server active</span>
+                <span className="text-xs font-bold text-crisp-white block">Google Calendar Connection</span>
+                <span className="text-[10px] text-silvery-gray/50 block mt-0.5">Meeting and coordinates syncing</span>
               </div>
-              <span className="text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 bg-cyan-glow/10 border border-cyan-glow/20 text-cyan-glow rounded-full shadow-[0_0_8px_rgba(0,240,255,0.1)]">
-                Synchronized
-              </span>
+              <div className="flex items-center gap-3">
+                <span className={`text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full border shadow-[0_0_8px_rgba(0,240,255,0.05)] ${
+                  calendarConnected 
+                    ? "bg-cyan-glow/10 border-cyan-glow/20 text-cyan-glow" 
+                    : "bg-white/5 border-white/10 text-silvery-gray/40"
+                }`}>
+                  {calendarConnected ? "Connected" : "Inactive"}
+                </span>
+                <button
+                  onClick={async () => {
+                    if (calendarConnected) {
+                      try {
+                        const res = await fetch("/api/auth/corsair/disconnect", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ plugin: "googlecalendar" })
+                        });
+                        if (res.ok) fetchIntegrationStatus();
+                      } catch (e) {
+                        console.error("Disconnect calendar error:", e);
+                      }
+                    } else {
+                      try {
+                        const res = await fetch("/api/auth/corsair/connect?plugin=googlecalendar");
+                        const data = await res.json();
+                        if (data.authorizeUrl) window.location.href = data.authorizeUrl;
+                      } catch (e) {
+                        console.error("Connect calendar error:", e);
+                      }
+                    }
+                  }}
+                  className={`px-3 py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                    calendarConnected 
+                      ? "bg-crimson/10 border-crimson/25 text-crimson hover:bg-crimson/20" 
+                      : "bg-cyan-glow/10 border-cyan-glow/20 text-cyan-glow hover:bg-cyan-glow/20"
+                  }`}
+                >
+                  {calendarConnected ? "Disconnect" : "Connect"}
+                </button>
+              </div>
             </div>
           </div>
         </section>

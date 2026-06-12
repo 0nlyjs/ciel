@@ -36,6 +36,12 @@ interface CielState {
   user: { name: string; email: string } | null;
   login: (name: string, email: string) => void;
   logout: () => void;
+  updateUserName: (name: string) => void;
+
+  // integration state
+  gmailConnected: boolean;
+  calendarConnected: boolean;
+  fetchIntegrationStatus: () => Promise<void>;
 
   // view state
   activeTab: "overview" | "inbox" | "calendar" | "chat" | "settings";
@@ -77,10 +83,15 @@ interface CielState {
 export const useCielStore = create<CielState>((set) => ({
   // auth state
   user: null,
+  gmailConnected: false,
+  calendarConnected: false,
   login: (name, email) => set({ user: { name, email } }),
+  updateUserName: (name) => set((state) => ({ user: state.user ? { ...state.user, name } : null })),
   logout: () => set({
     user: null,
     activeTab: "overview",
+    gmailConnected: false,
+    calendarConnected: false,
     emails: [],
     calendarEvents: [],
     selectedEmailIndex: null,
@@ -232,6 +243,22 @@ export const useCielStore = create<CielState>((set) => ({
       ],
     })),
   clearChat: () => set({ chatMessages: [] }),
+
+  // integration status action
+  fetchIntegrationStatus: async () => {
+    try {
+      const res = await fetch("/api/auth/corsair/status");
+      if (res.ok) {
+        const data = await res.json();
+        set({
+          gmailConnected: !!data.gmailConnected,
+          calendarConnected: !!data.calendarConnected,
+        });
+      }
+    } catch (error) {
+      console.error("[Store] Failed to fetch integration status:", error);
+    }
+  },
 
   // 3D face animation state
   cielStatus: "idle",

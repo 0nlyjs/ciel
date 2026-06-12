@@ -16,7 +16,8 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  ShieldAlert
+  ShieldAlert,
+  Globe
 } from "lucide-react";
 
 export default function Overview() {
@@ -28,9 +29,17 @@ export default function Overview() {
   const cielStatus = useCielStore((s) => s.cielStatus);
   const setCielStatus = useCielStore((s) => s.setCielStatus);
   const setSelectedEmailIndex = useCielStore((s) => s.setSelectedEmailIndex);
+  const gmailConnected = useCielStore((s) => s.gmailConnected);
+  const calendarConnected = useCielStore((s) => s.calendarConnected);
+  const fetchIntegrationStatus = useCielStore((s) => s.fetchIntegrationStatus);
 
   const [input, setInput] = useState("");
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
+
+  // Fetch status on load
+  useEffect(() => {
+    fetchIntegrationStatus();
+  }, [fetchIntegrationStatus]);
 
   // Set date client-side to avoid hydration mismatch
   useEffect(() => {
@@ -194,145 +203,181 @@ export default function Overview() {
 
       {/* Main Grid Columns */}
       <main className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full">
-        
-        {/* Priority Inbox Column */}
-        <section className="cyber-glass rounded-2xl p-6 flex flex-col h-[400px] shadow-2xl relative overflow-hidden group">
-          <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-4">
-            <div className="flex items-center gap-2">
-              <Inbox className="w-5 h-5 text-cyan-glow" />
-              <h2 className="text-sm font-semibold tracking-wider uppercase text-crisp-white">
-                Priority Inbox
-              </h2>
+        {!(gmailConnected && calendarConnected) ? (
+          <section className="cyber-glass rounded-2xl p-8 flex flex-col items-center justify-center text-center shadow-2xl col-span-1 lg:col-span-2 min-h-[350px] relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-cyber-magenta/10 rounded-full blur-3xl -mr-24 -mt-24 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-cyan-glow/10 rounded-full blur-3xl -ml-24 -mb-24 pointer-events-none" />
+
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-glow/20 to-cyber-magenta/20 border border-white/10 flex items-center justify-center mb-6 shadow-inner animate-pulse">
+              <Globe className="w-8 h-8 text-cyan-glow" />
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-glow/10 border border-cyan-glow/20 text-cyan-glow">
-                {unreadEmails.length} Unread
-              </span>
+
+            <h2 className="text-crisp-white text-lg font-bold tracking-wide uppercase">Workspace coordinates offline</h2>
+            <p className="text-silvery-gray/60 text-xs mt-3 max-w-md leading-relaxed">
+              Integrate Gmail and Google Calendar to enable intelligence coordination routing, unread email classifications, semantic search, and meetings orchestrations.
+            </p>
+
+            <div className="flex justify-center mt-8 w-full max-w-sm">
               <button
-                onClick={() => setActiveTab("inbox")}
-                className="text-xs text-cyan-glow hover:text-ice-blue font-bold transition-colors cursor-pointer"
+                onClick={async () => {
+                  try {
+                    const targetPlugin = !gmailConnected ? "gmail" : "googlecalendar";
+                    const res = await fetch(`/api/auth/corsair/connect?plugin=${targetPlugin}`);
+                    const data = await res.json();
+                    if (data.authorizeUrl) window.location.href = data.authorizeUrl;
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }}
+                className="w-full h-11 bg-gradient-to-r from-cyan-glow to-cyber-magenta hover:opacity-90 active:scale-[0.98] text-void font-bold rounded-xl text-xs tracking-wider uppercase shadow-[0_0_15px_rgba(0,240,255,0.1)] transition-all cursor-pointer border border-cyan-glow/10 flex items-center justify-center gap-2"
               >
-                Open Gmail
+                {!gmailConnected && !calendarConnected && "Connect Gmail & Calendar"}
+                {gmailConnected && !calendarConnected && "Connect Calendar"}
+                {!gmailConnected && calendarConnected && "Connect Gmail"}
               </button>
             </div>
-          </div>
-
-          {/* Email list */}
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-            {priorityList.map((email, idx) => (
-              <div
-                key={email.id}
-                onClick={() => {
-                  setSelectedEmailIndex(emails.findIndex(e => e.id === email.id));
-                  setActiveTab("inbox");
-                }}
-                className="flex items-start gap-4 p-3 rounded-xl border border-transparent hover:border-white/10 hover:bg-white/5 transition-all cursor-pointer"
-              >
-                {getEmailIcon(email)}
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-baseline mb-0.5">
-                    <h3 className="text-xs font-bold text-crisp-white truncate max-w-[140px]">
-                      {email.from}
-                    </h3>
-                    <span className="text-[10px] font-mono text-silvery-gray/60">{email.date}</span>
-                  </div>
-                  <h4 className="text-xs font-semibold text-silvery-gray truncate">
-                    {email.subject}
-                  </h4>
-                  <p className="text-[11px] text-silvery-gray/45 line-clamp-1 mt-0.5">
-                    {email.body}
-                  </p>
+          </section>
+        ) : (
+          <>
+            {/* Priority Inbox Column */}
+            <section className="cyber-glass rounded-2xl p-6 flex flex-col h-[400px] shadow-2xl relative overflow-hidden group">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-4">
+                <div className="flex items-center gap-2">
+                  <Inbox className="w-5 h-5 text-cyan-glow" />
+                  <h2 className="text-sm font-semibold tracking-wider uppercase text-crisp-white">
+                    Priority Inbox
+                  </h2>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-glow/10 border border-cyan-glow/20 text-cyan-glow">
+                    {unreadEmails.length} Unread
+                  </span>
+                  <button
+                    onClick={() => setActiveTab("inbox")}
+                    className="text-xs text-cyan-glow hover:text-ice-blue font-bold transition-colors cursor-pointer"
+                  >
+                    Open Gmail
+                  </button>
                 </div>
               </div>
-            ))}
-            {priorityList.length === 0 && (
-              <div className="h-full flex flex-col items-center justify-center text-center text-silvery-gray/50">
-                <Inbox className="w-8 h-8 text-silvery-gray/30 mb-2" />
-                <p className="text-xs font-medium">Your priority inbox is empty.</p>
-              </div>
-            )}
-          </div>
-        </section>
 
-        {/* Upcoming Meetings Column */}
-        <section className="cyber-glass rounded-2xl p-6 flex flex-col h-[400px] shadow-2xl relative overflow-hidden group">
-          <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-4">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-cyan-glow" />
-              <h2 className="text-sm font-semibold tracking-wider uppercase text-crisp-white">
-                Upcoming Meetings
-              </h2>
-            </div>
-            <button
-              onClick={() => setActiveTab("calendar")}
-              className="text-xs text-cyan-glow hover:text-ice-blue font-bold transition-colors cursor-pointer"
-            >
-              View Calendar
-            </button>
-          </div>
-
-          {/* Calendar Calendar Widget */}
-          <div className="flex-1 flex flex-col justify-center">
-            {/* Widget Header */}
-            <div className="flex items-center justify-between px-2 mb-4">
-              <span className="text-xs font-bold text-crisp-white">
-                {monthNames[currentMonth]} {currentYear}
-              </span>
-              <div className="flex items-center gap-1">
-                <button className="p-1 rounded hover:bg-white/5 text-silvery-gray hover:text-crisp-white transition-colors cursor-pointer">
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button className="p-1 rounded hover:bg-white/5 text-silvery-gray hover:text-crisp-white transition-colors cursor-pointer">
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Calendar Days Names */}
-            <div className="grid grid-cols-7 text-center mb-2">
-              {["S", "M", "T", "W", "T", "F", "S"].map((day, i) => (
-                <span key={i} className="text-[10px] font-bold font-mono text-silvery-gray/40">
-                  {day}
-                </span>
-              ))}
-            </div>
-
-            {/* Days Grid */}
-            <div className="grid grid-cols-7 gap-y-2 text-center">
-              {calendarCells.map((day, idx) => {
-                if (day === null) {
-                  return <div key={`empty-${idx}`} />;
-                }
-                const isToday = day === today.getDate();
-                const hasEvent = hasEventOnDay(day);
-
-                return (
+              {/* Email list */}
+              <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                {priorityList.map((email, idx) => (
                   <div
-                    key={`day-${day}`}
-                    className="flex flex-col items-center justify-center h-9 relative"
+                    key={email.id}
+                    onClick={() => {
+                      setSelectedEmailIndex(emails.findIndex(e => e.id === email.id));
+                      setActiveTab("inbox");
+                    }}
+                    className="flex items-start gap-4 p-3 rounded-xl border border-transparent hover:border-white/10 hover:bg-white/5 transition-all cursor-pointer"
                   >
-                    <span
-                      className={`text-xs font-mono w-7 h-7 flex items-center justify-center rounded-lg transition-all ${
-                        isToday
-                          ? "bg-cyan-glow text-void font-bold shadow-[0_0_12px_rgba(0,240,255,0.4)]"
-                          : "text-silvery-gray hover:bg-white/5 hover:text-crisp-white cursor-pointer"
-                      }`}
-                    >
+                    {getEmailIcon(email)}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-baseline mb-0.5">
+                        <h3 className="text-xs font-bold text-crisp-white truncate max-w-[140px]">
+                          {email.from}
+                        </h3>
+                        <span className="text-[10px] font-mono text-silvery-gray/60">{email.date}</span>
+                      </div>
+                      <h4 className="text-xs font-semibold text-silvery-gray truncate">
+                        {email.subject}
+                      </h4>
+                      <p className="text-[11px] text-silvery-gray/45 line-clamp-1 mt-0.5">
+                        {email.body}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {priorityList.length === 0 && (
+                  <div className="h-full flex flex-col items-center justify-center text-center text-silvery-gray/50">
+                    <Inbox className="w-8 h-8 text-silvery-gray/30 mb-2" />
+                    <p className="text-xs font-medium">Your priority inbox is empty.</p>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Upcoming Meetings Column */}
+            <section className="cyber-glass rounded-2xl p-6 flex flex-col h-[400px] shadow-2xl relative overflow-hidden group">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-4">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-cyan-glow" />
+                  <h2 className="text-sm font-semibold tracking-wider uppercase text-crisp-white">
+                    Upcoming Meetings
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setActiveTab("calendar")}
+                  className="text-xs text-cyan-glow hover:text-ice-blue font-bold transition-colors cursor-pointer"
+                >
+                  View Calendar
+                </button>
+              </div>
+
+              {/* Calendar Calendar Widget */}
+              <div className="flex-1 flex flex-col justify-center">
+                {/* Widget Header */}
+                <div className="flex items-center justify-between px-2 mb-4">
+                  <span className="text-xs font-bold text-crisp-white">
+                    {monthNames[currentMonth]} {currentYear}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button className="p-1 rounded hover:bg-white/5 text-silvery-gray hover:text-crisp-white transition-colors cursor-pointer">
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button className="p-1 rounded hover:bg-white/5 text-silvery-gray hover:text-crisp-white transition-colors cursor-pointer">
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Calendar Days Names */}
+                <div className="grid grid-cols-7 text-center mb-2">
+                  {["S", "M", "T", "W", "T", "F", "S"].map((day, i) => (
+                    <span key={i} className="text-[10px] font-bold font-mono text-silvery-gray/40">
                       {day}
                     </span>
-                    {hasEvent && !isToday && (
-                      <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-cyan-glow" />
-                    )}
-                    {hasEvent && isToday && (
-                      <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-void" />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
+                  ))}
+                </div>
 
+                {/* Days Grid */}
+                <div className="grid grid-cols-7 gap-y-2 text-center">
+                  {calendarCells.map((day, idx) => {
+                    if (day === null) {
+                      return <div key={`empty-${idx}`} />;
+                    }
+                    const isToday = day === today.getDate();
+                    const hasEvent = hasEventOnDay(day);
+
+                    return (
+                      <div
+                        key={`day-${day}`}
+                        className="flex flex-col items-center justify-center h-9 relative"
+                      >
+                        <span
+                          className={`text-xs font-mono w-7 h-7 flex items-center justify-center rounded-lg transition-all ${
+                            isToday
+                              ? "bg-cyan-glow text-void font-bold shadow-[0_0_12px_rgba(0,240,255,0.4)]"
+                              : "text-silvery-gray hover:bg-white/5 hover:text-crisp-white cursor-pointer"
+                          }`}
+                        >
+                          {day}
+                        </span>
+                        {hasEvent && !isToday && (
+                          <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-cyan-glow" />
+                        )}
+                        {hasEvent && isToday && (
+                          <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-void" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+          </>
+        )}
       </main>
 
       {/* Bottom Assistant Section */}

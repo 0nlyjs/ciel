@@ -6,6 +6,8 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { dbInit, query as queryDb } from "@/lib/db";
 import { getEmbedding, formatVector } from "@/lib/embeddings";
 import { CorsairClient } from "@/lib/corsair";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 // lazy load openai
 const getOpenAIClient = () => {
@@ -15,7 +17,7 @@ const getOpenAIClient = () => {
 };
 
 // regex fallback for simple commands when offline/no api key
-const handleFallbackAI = async (prompt: string): Promise<{ text: string; actionTriggered?: string }> => {
+const handleFallbackAI = async (prompt: string, tenantId: string): Promise<{ text: string; actionTriggered?: string }> => {
   const queryText = prompt.toLowerCase();
   await dbInit();
 
@@ -30,7 +32,7 @@ const handleFallbackAI = async (prompt: string): Promise<{ text: string; actionT
     const startISO = start.toISOString();
     const endISO = end.toISOString();
 
-    const event = await CorsairClient.createCalendarInvite(title, [email], startISO, endISO, "Online", "Meeting scheduled via Ciel Console");
+    const event = await CorsairClient.createCalendarInvite(title, [email], startISO, endISO, "Online", "Meeting scheduled via Ciel Console", tenantId);
 
     // Cache in DB
     const textToEmbed = `Title: ${title}\nLocation: Online\nDescription: Meeting scheduled via Ciel Console`;
@@ -38,10 +40,10 @@ const handleFallbackAI = async (prompt: string): Promise<{ text: string; actionT
     const formattedEmbedding = formatVector(embedding);
 
     await queryDb(
-      `INSERT INTO calendar_events (id, title, start_time, end_time, location, attendees, description, embedding)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector)
+      `INSERT INTO calendar_events (id, user_email, title, start_time, end_time, location, attendees, description, embedding)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::vector)
        ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title`,
-      [event.id, title, startISO, endISO, "Online", JSON.stringify([email]), "Meeting scheduled via Ciel Console", formattedEmbedding]
+      [event.id, tenantId, title, startISO, endISO, "Online", JSON.stringify([email]), "Meeting scheduled via Ciel Console", formattedEmbedding]
     );
 
     return {
@@ -56,7 +58,7 @@ const handleFallbackAI = async (prompt: string): Promise<{ text: string; actionT
     const subject = "Sync Confirmation";
     const body = "Hi there, confirming our scheduled coordinates. Let's sync up as planned.";
 
-    await CorsairClient.sendEmail(email, subject, body);
+    await CorsairClient.sendEmail(email, subject, body, tenantId);
 
     // Cache in DB
     const textToEmbed = `To: ${email}\nSubject: ${subject}\nBody: ${body}`;
@@ -64,13 +66,14 @@ const handleFallbackAI = async (prompt: string): Promise<{ text: string; actionT
     const formattedEmbedding = formatVector(embedding);
 
     await queryDb(
-      `INSERT INTO emails (id, from_name, from_email, subject, body, date, read, priority, category, embedding)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::vector)
+      `INSERT INTO emails (id, user_email, from_name, from_email, subject, body, date, read, priority, category, embedding)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)
        ON CONFLICT (id) DO UPDATE SET subject = EXCLUDED.subject`,
       [
         Math.random().toString(),
+        tenantId,
         "You",
-        "user@ciel.app",
+        tenantId || "user@ciel.app",
         subject,
         body,
         new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -101,6 +104,12 @@ const handleFallbackAI = async (prompt: string): Promise<{ text: string; actionT
 
 export async function POST(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const tenantId = session.user.email;
     const { messages } = await req.json();
     const lastUserMessage = messages[messages.length - 1];
 
@@ -109,7 +118,7 @@ export async function POST(req: Request) {
     // no api key? use local regex fallback
     if (!openaiClient) {
       console.warn("[Ciel Chat API] OPENAI_API_KEY is not configured. Falling back to local AI simulation.");
-      const fallbackResult = await handleFallbackAI(lastUserMessage.content);
+      const fallbackResult = await handleFallbackAI(lastUserMessage.content, tenantId);
       return NextResponse.json({ text: fallbackResult.text, fallback: true });
     }
 
@@ -138,7 +147,7 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
             required: ["query"]
           }),
           execute: async ({ query }: any) => {
-            console.log("[Tool] Searching emails for:", query);
+            console.log("[Tool] Searching emails for:", query, "(user:", tenantId, ")");
             try {
               const embedding = await getEmbedding(query);
               let rows = [];
@@ -147,18 +156,19 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
                 const res = await queryDb(
                   `SELECT id, from_name as "from", from_email as "fromEmail", subject, body, date, read, priority, category 
                    FROM emails 
+                   WHERE user_email = $2
                    ORDER BY embedding <=> $1::vector 
                    LIMIT 5`,
-                  [formattedEmbedding]
+                  [formattedEmbedding, tenantId]
                 );
                 rows = res.rows;
               } else {
                 const res = await queryDb(
                   `SELECT id, from_name as "from", from_email as "fromEmail", subject, body, date, read, priority, category 
                    FROM emails 
-                   WHERE subject ILIKE $1 OR body ILIKE $1 OR from_name ILIKE $1 OR from_email ILIKE $1 
+                   WHERE (subject ILIKE $1 OR body ILIKE $1 OR from_name ILIKE $1 OR from_email ILIKE $1) AND user_email = $2
                    ORDER BY created_at DESC LIMIT 5`,
-                  [`%${query}%`]
+                  [`%${query}%`, tenantId]
                 );
                 rows = res.rows;
               }
@@ -190,9 +200,9 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
             required: ["to", "subject", "body"]
           }),
           execute: async ({ to, subject, body }: any) => {
-            console.log("[Tool] Sending email to:", to);
+            console.log("[Tool] Sending email to:", to, "(user:", tenantId, ")");
             try {
-              const sent = await CorsairClient.sendEmail(to, subject, body);
+              const sent = await CorsairClient.sendEmail(to, subject, body, tenantId);
 
               // Cache in DB
               const emailId = Math.random().toString();
@@ -202,9 +212,9 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
               const formattedEmbedding = formatVector(embedding);
 
               await queryDb(
-                `INSERT INTO emails (id, from_name, from_email, subject, body, date, read, priority, category, embedding)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::vector)`,
-                [emailId, "You", "user@ciel.app", subject, body, dateStr, true, "medium", "work", formattedEmbedding]
+                `INSERT INTO emails (id, user_email, from_name, from_email, subject, body, date, read, priority, category, embedding)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)`,
+                [emailId, tenantId, "You", tenantId || "user@ciel.app", subject, body, dateStr, true, "medium", "work", formattedEmbedding]
               );
 
               return { success: sent, message: "Email sent and cached locally." };
@@ -250,7 +260,7 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
             required: ["title", "start", "end"]
           }),
           execute: async ({ title, start, end, location, description, attendees }: any) => {
-            console.log("[Tool] Creating calendar event:", title);
+            console.log("[Tool] Creating calendar event:", title, "(user:", tenantId, ")");
             try {
               const cleanAttendees = attendees || [];
               const event = await CorsairClient.createCalendarInvite(
@@ -259,7 +269,8 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
                 start,
                 end,
                 location,
-                description
+                description,
+                tenantId
               );
 
               // Cache in DB
@@ -268,10 +279,11 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
               const formattedEmbedding = formatVector(embedding);
 
               await queryDb(
-                `INSERT INTO calendar_events (id, title, start_time, end_time, location, attendees, description, embedding)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector)`,
+                `INSERT INTO calendar_events (id, user_email, title, start_time, end_time, location, attendees, description, embedding)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::vector)`,
                 [
                   event.id,
+                  tenantId,
                   title,
                   start,
                   end,

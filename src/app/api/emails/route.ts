@@ -1,15 +1,24 @@
 import { NextResponse } from "next/server";
 import { dbInit, query } from "@/lib/db";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 // GET /api/emails - Fetch all cached emails from database
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     await dbInit();
 
     const { rows } = await query(
       `SELECT id, from_name as "from", from_email as "fromEmail", subject, body, date, read, priority, category 
        FROM emails 
-       ORDER BY created_at DESC LIMIT 100`
+       WHERE user_email = $1
+       ORDER BY created_at DESC LIMIT 100`,
+      [session.user.email]
     );
 
     return NextResponse.json({ emails: rows });
@@ -22,6 +31,11 @@ export async function GET() {
 // POST /api/emails - Perform operations (mark read, archive)
 export async function POST(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     await dbInit();
 
     const { action, id } = await req.json();
@@ -31,12 +45,12 @@ export async function POST(req: Request) {
     }
 
     if (action === "mark_read") {
-      await query("UPDATE emails SET read = TRUE WHERE id = $1", [id]);
+      await query("UPDATE emails SET read = TRUE WHERE id = $1 AND user_email = $2", [id, session.user.email]);
       return NextResponse.json({ success: true, message: "Email marked as read" });
     }
 
     if (action === "archive") {
-      await query("DELETE FROM emails WHERE id = $1", [id]);
+      await query("DELETE FROM emails WHERE id = $1 AND user_email = $2", [id, session.user.email]);
       return NextResponse.json({ success: true, message: "Email archived" });
     }
 

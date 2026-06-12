@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { dbInit, query } from "@/lib/db";
 import { getEmbedding, formatVector } from "@/lib/embeddings";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function GET(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     await dbInit();
 
     const { searchParams } = new URL(req.url);
@@ -21,7 +28,9 @@ export async function GET(req: Request) {
               await query(
                 `SELECT id, from_name as "from", from_email as "fromEmail", subject, body, date, read, priority, category 
                  FROM emails 
-                 ORDER BY created_at DESC LIMIT 50`
+                 WHERE user_email = $1
+                 ORDER BY created_at DESC LIMIT 50`,
+                [session.user.email]
               )
             ).rows;
 
@@ -32,7 +41,9 @@ export async function GET(req: Request) {
               await query(
                 `SELECT id, title, start_time as "start", end_time as "end", location, attendees, description 
                  FROM calendar_events 
-                 ORDER BY start_time ASC LIMIT 50`
+                 WHERE user_email = $1
+                 ORDER BY start_time ASC LIMIT 50`,
+                [session.user.email]
               )
             ).rows.map((row) => ({
               ...row,
@@ -49,7 +60,7 @@ export async function GET(req: Request) {
     const embedding = await getEmbedding(lowerQuery);
 
     if (embedding) {
-      console.log(`[Search API] Performing fast vector search for: "${lowerQuery}"`);
+      console.log(`[Search API] Performing fast vector search for: "${lowerQuery}" (user: ${session.user.email})`);
       const formattedEmbedding = formatVector(embedding);
 
       const emailResult =
@@ -59,9 +70,10 @@ export async function GET(req: Request) {
               await query(
                 `SELECT id, from_name as "from", from_email as "fromEmail", subject, body, date, read, priority, category 
                  FROM emails 
+                 WHERE user_email = $2
                  ORDER BY embedding <=> $1::vector 
                  LIMIT 20`,
-                [formattedEmbedding]
+                [formattedEmbedding, session.user.email]
               )
             ).rows;
 
@@ -72,9 +84,10 @@ export async function GET(req: Request) {
               await query(
                 `SELECT id, title, start_time as "start", end_time as "end", location, attendees, description 
                  FROM calendar_events 
+                 WHERE user_email = $2
                  ORDER BY embedding <=> $1::vector 
                  LIMIT 20`,
-                [formattedEmbedding]
+                [formattedEmbedding, session.user.email]
               )
             ).rows.map((row) => ({
               ...row,
@@ -87,7 +100,7 @@ export async function GET(req: Request) {
     }
 
     // 3. Fall back to standard ILIKE keyword search if embedding fails/OpenAI not configured
-    console.log(`[Search API] Falling back to SQL ILIKE search for: "${lowerQuery}"`);
+    console.log(`[Search API] Falling back to SQL ILIKE search for: "${lowerQuery}" (user: ${session.user.email})`);
     const searchPattern = `%${lowerQuery}%`;
 
     const emailResult =
@@ -97,10 +110,10 @@ export async function GET(req: Request) {
             await query(
               `SELECT id, from_name as "from", from_email as "fromEmail", subject, body, date, read, priority, category 
                FROM emails 
-               WHERE subject ILIKE $1 OR body ILIKE $1 OR from_name ILIKE $1 OR from_email ILIKE $1 
+               WHERE (subject ILIKE $1 OR body ILIKE $1 OR from_name ILIKE $1 OR from_email ILIKE $1) AND user_email = $2
                ORDER BY created_at DESC 
                LIMIT 20`,
-              [searchPattern]
+              [searchPattern, session.user.email]
             )
           ).rows;
 
@@ -111,10 +124,10 @@ export async function GET(req: Request) {
             await query(
               `SELECT id, title, start_time as "start", end_time as "end", location, attendees, description 
                FROM calendar_events 
-               WHERE title ILIKE $1 OR description ILIKE $1 OR location ILIKE $1 
+               WHERE (title ILIKE $1 OR description ILIKE $1 OR location ILIKE $1) AND user_email = $2
                ORDER BY start_time ASC 
                LIMIT 20`,
-              [searchPattern]
+              [searchPattern, session.user.email]
             )
           ).rows.map((row) => ({
             ...row,

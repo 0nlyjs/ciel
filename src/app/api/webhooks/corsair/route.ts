@@ -104,6 +104,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Data payload is missing" }, { status: 400 });
     }
 
+    const tenantId = payload.tenantId || data.tenantId || "unknown@domain.com";
+
     // 3. Process Event
     if (event === "gmail.received") {
       const emailId = data.id || Math.random().toString();
@@ -123,9 +125,10 @@ export async function POST(req: Request) {
 
       // Save to database
       await query(
-        `INSERT INTO emails (id, from_name, from_email, subject, body, date, read, priority, category, embedding)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::vector)
+        `INSERT INTO emails (id, user_email, from_name, from_email, subject, body, date, read, priority, category, embedding)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)
          ON CONFLICT (id) DO UPDATE SET 
+           user_email = EXCLUDED.user_email,
            from_name = EXCLUDED.from_name,
            from_email = EXCLUDED.from_email,
            subject = EXCLUDED.subject,
@@ -135,15 +138,15 @@ export async function POST(req: Request) {
            priority = EXCLUDED.priority,
            category = EXCLUDED.category,
            embedding = EXCLUDED.embedding`,
-        [emailId, fromName, fromEmail, subject, body, dateStr, false, priority, category, formattedEmbedding]
+        [emailId, tenantId, fromName, fromEmail, subject, body, dateStr, false, priority, category, formattedEmbedding]
       );
 
-      console.log(`[Corsair Webhook] Cached email "${subject}" [Priority: ${priority.toUpperCase()}]`);
+      console.log(`[Corsair Webhook] Cached email "${subject}" for ${tenantId} [Priority: ${priority.toUpperCase()}]`);
 
       return NextResponse.json({
         success: true,
         message: "Email received, classified, embedded, and stored.",
-        email: { id: emailId, from: fromName, fromEmail, subject, body, date: dateStr, read: false, priority, category },
+        email: { id: emailId, user_email: tenantId, from: fromName, fromEmail, subject, body, date: dateStr, read: false, priority, category },
       });
     }
 
@@ -163,9 +166,10 @@ export async function POST(req: Request) {
 
       // Save to database
       await query(
-        `INSERT INTO calendar_events (id, title, start_time, end_time, location, attendees, description, embedding)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector)
+        `INSERT INTO calendar_events (id, user_email, title, start_time, end_time, location, attendees, description, embedding)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::vector)
          ON CONFLICT (id) DO UPDATE SET
+           user_email = EXCLUDED.user_email,
            title = EXCLUDED.title,
            start_time = EXCLUDED.start_time,
            end_time = EXCLUDED.end_time,
@@ -173,10 +177,10 @@ export async function POST(req: Request) {
            attendees = EXCLUDED.attendees,
            description = EXCLUDED.description,
            embedding = EXCLUDED.embedding`,
-        [eventId, title, start, end, location, JSON.stringify(attendees), description, formattedEmbedding]
+        [eventId, tenantId, title, start, end, location, JSON.stringify(attendees), description, formattedEmbedding]
       );
 
-      console.log(`[Corsair Webhook] Cached calendar event "${title}"`);
+      console.log(`[Corsair Webhook] Cached calendar event "${title}" for ${tenantId}`);
 
       return NextResponse.json({
         success: true,

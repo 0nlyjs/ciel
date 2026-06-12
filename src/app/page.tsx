@@ -33,6 +33,9 @@ export default function Home() {
   const performSearch = useCielStore((s) => s.performSearch);
   const login = useCielStore((s) => s.login);
   const logout = useCielStore((s) => s.logout);
+  const fetchIntegrationStatus = useCielStore((s) => s.fetchIntegrationStatus);
+  const gmailConnected = useCielStore((s) => s.gmailConnected);
+  const calendarConnected = useCielStore((s) => s.calendarConnected);
 
   const { data: session, status } = useSession();
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -60,10 +63,11 @@ export default function Home() {
   // Load initial data from Postgres on load / when dashboard is active
   useEffect(() => {
     if (view === "dashboard") {
+      fetchIntegrationStatus();
       fetchEmails();
       fetchCalendarEvents();
     }
-  }, [view, fetchEmails, fetchCalendarEvents]);
+  }, [view, fetchEmails, fetchCalendarEvents, fetchIntegrationStatus]);
 
   // Debounce search input to query the database using vector matching
   useEffect(() => {
@@ -393,18 +397,92 @@ export default function Home() {
 
               {/* inbox tab */}
               {activeTab === "inbox" && (
-                <div className="flex-1 flex overflow-hidden h-full">
-                  <div className="w-80 border-r border-white/10 flex-shrink-0 h-full">
-                    <EmailList />
+                gmailConnected ? (
+                  <div className="flex-1 flex overflow-hidden h-full">
+                    <div className="w-80 border-r border-white/10 flex-shrink-0 h-full">
+                      <EmailList />
+                    </div>
+                    <div className="flex-grow h-full">
+                      <EmailView key={selectedIndex ?? "none"} isComposing={isComposing} setIsComposing={setIsComposing} />
+                    </div>
                   </div>
-                  <div className="flex-grow h-full">
-                    <EmailView key={selectedIndex ?? "none"} isComposing={isComposing} setIsComposing={setIsComposing} />
+                ) : (
+                  <div className="flex-grow h-full flex flex-col items-center justify-center p-8 bg-void select-none">
+                    <div className="max-w-md w-full cyber-glass rounded-2xl p-8 border border-white/10 shadow-2xl text-center relative overflow-hidden flex flex-col items-center">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-cyber-magenta/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
+                      <div className="absolute bottom-0 left-0 w-32 h-32 bg-cyan-glow/10 rounded-full blur-2xl -ml-16 -mb-16 pointer-events-none" />
+                      
+                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyber-magenta/20 to-cyan-glow/20 border border-white/10 flex items-center justify-center mb-6 shadow-inner relative group">
+                        <div className="absolute inset-0 bg-gradient-to-r from-cyan-glow to-cyber-magenta opacity-0 group-hover:opacity-10 rounded-2xl transition-opacity duration-300" />
+                        <span className="font-mono text-2xl font-bold bg-gradient-to-r from-cyan-glow to-cyber-magenta bg-clip-text text-transparent">M</span>
+                      </div>
+                      
+                      <h2 className="text-crisp-white text-lg font-bold tracking-wide uppercase">Gmail Integration Needed</h2>
+                      <p className="text-silvery-gray/60 text-xs mt-3 leading-relaxed">
+                        To synchronize your communications with Ciel mind coordinates, please authorize Gmail access using the Corsair integration layer.
+                      </p>
+                      
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch("/api/auth/corsair/connect?plugin=gmail");
+                            const data = await res.json();
+                            if (data.authorizeUrl) {
+                              window.location.href = data.authorizeUrl;
+                            }
+                          } catch (e) {
+                            console.error("Failed to connect gmail:", e);
+                          }
+                        }}
+                        className="w-full mt-8 h-11 bg-gradient-to-r from-cyan-glow to-cyber-magenta hover:opacity-90 active:scale-[0.98] text-void font-bold rounded-xl text-xs tracking-wider uppercase shadow-[0_0_15px_rgba(0,240,255,0.15)] transition-all cursor-pointer border border-cyan-glow/10 flex items-center justify-center gap-2"
+                      >
+                        Authorize Gmail Connection
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )
               )}
 
               {/* calendar tab */}
-              {activeTab === "calendar" && <CalendarView />}
+              {activeTab === "calendar" && (
+                calendarConnected ? (
+                  <CalendarView />
+                ) : (
+                  <div className="flex-grow h-full flex flex-col items-center justify-center p-8 bg-void select-none">
+                    <div className="max-w-md w-full cyber-glass rounded-2xl p-8 border border-white/10 shadow-2xl text-center relative overflow-hidden flex flex-col items-center">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-cyber-magenta/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
+                      <div className="absolute bottom-0 left-0 w-32 h-32 bg-cyan-glow/10 rounded-full blur-2xl -ml-16 -mb-16 pointer-events-none" />
+                      
+                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-glow/20 to-cyber-magenta/20 border border-white/10 flex items-center justify-center mb-6 shadow-inner relative group">
+                        <div className="absolute inset-0 bg-gradient-to-r from-cyan-glow to-cyber-magenta opacity-0 group-hover:opacity-10 rounded-2xl transition-opacity duration-300" />
+                        <span className="font-mono text-2xl font-bold bg-gradient-to-r from-cyan-glow to-cyber-magenta bg-clip-text text-transparent">C</span>
+                      </div>
+                      
+                      <h2 className="text-crisp-white text-lg font-bold tracking-wide uppercase">Google Calendar Needed</h2>
+                      <p className="text-silvery-gray/60 text-xs mt-3 leading-relaxed">
+                        To coordinate meetings, schedule invitations, and orchestrate calendar events, please link Google Calendar via Corsair.
+                      </p>
+                      
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch("/api/auth/corsair/connect?plugin=googlecalendar");
+                            const data = await res.json();
+                            if (data.authorizeUrl) {
+                              window.location.href = data.authorizeUrl;
+                            }
+                          } catch (e) {
+                            console.error("Failed to connect calendar:", e);
+                          }
+                        }}
+                        className="w-full mt-8 h-11 bg-gradient-to-r from-cyan-glow to-cyber-magenta hover:opacity-90 active:scale-[0.98] text-void font-bold rounded-xl text-xs tracking-wider uppercase shadow-[0_0_15px_rgba(0,240,255,0.15)] transition-all cursor-pointer border border-cyan-glow/10 flex items-center justify-center gap-2"
+                      >
+                        Authorize Calendar Connection
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
 
               {/* chat tab */}
               {activeTab === "chat" && <ChatPanel />}

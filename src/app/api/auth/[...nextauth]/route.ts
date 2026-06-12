@@ -77,7 +77,7 @@ async function sendVerificationEmail(to: string, code: string) {
   }
 }
 
-const handler = NextAuth({
+export const authOptions = {
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -152,11 +152,11 @@ const handler = NextAuth({
     }),
   ],
   session: {
-    strategy: "jwt",
+    strategy: "jwt" as const,
   },
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
-    async signIn({ user, account }) {
+    async signIn({ user, account }: any) {
       if (account?.provider === "google") {
         const email = user.email;
         const name = user.name;
@@ -182,10 +182,23 @@ const handler = NextAuth({
       }
       return true;
     },
-    async session({ session, token }) {
+    async session({ session }: any) {
+      if (session?.user?.email) {
+        try {
+          await dbInit();
+          const res = await query("SELECT name FROM users WHERE email = $1", [session.user.email]);
+          if (res.rows.length > 0 && res.rows[0].name) {
+            session.user.name = res.rows[0].name;
+          }
+        } catch (e) {
+          console.error("Session callback error fetching user name:", e);
+        }
+      }
       return session;
     },
   },
-});
+};
+
+const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };

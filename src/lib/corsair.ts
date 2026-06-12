@@ -10,13 +10,16 @@ export class CorsairClient {
   }
 
   // gmail operations
-  static async searchEmails(query: string): Promise<Email[]> {
-    console.log(`[Corsair] Searching emails for query: "${query}"`);
+  static async searchEmails(query: string, tenantId?: string): Promise<Email[]> {
+    console.log(`[Corsair] Searching emails for query: "${query}" (tenant: ${tenantId})`);
     
     if (this.apiKey) {
       try {
         const res = await fetch(`https://api.corsair.dev/v1/gmail/search?q=${encodeURIComponent(query)}`, {
-          headers: { Authorization: `Bearer ${this.apiKey}` }
+          headers: { 
+            Authorization: `Bearer ${this.apiKey}`,
+            ...(tenantId ? { "X-Corsair-Tenant-Id": tenantId } : {})
+          }
         });
         if (res.ok) {
           const data = await res.json();
@@ -41,8 +44,8 @@ export class CorsairClient {
     );
   }
 
-  static async sendEmail(to: string, subject: string, body: string): Promise<boolean> {
-    console.log(`[Corsair] Sending email to: ${to}, subject: "${subject}"`);
+  static async sendEmail(to: string, subject: string, body: string, tenantId?: string): Promise<boolean> {
+    console.log(`[Corsair] Sending email to: ${to}, subject: "${subject}" (tenant: ${tenantId})`);
 
     if (this.apiKey) {
       try {
@@ -50,7 +53,8 @@ export class CorsairClient {
           method: "POST",
           headers: { 
             Authorization: `Bearer ${this.apiKey}`, 
-            "Content-Type": "application/json" 
+            "Content-Type": "application/json",
+            ...(tenantId ? { "X-Corsair-Tenant-Id": tenantId } : {})
           },
           body: JSON.stringify({ to, subject, body })
         });
@@ -80,8 +84,8 @@ export class CorsairClient {
     return true;
   }
 
-  static async createDraft(to: string, subject: string, body: string): Promise<Email> {
-    console.log(`[Corsair] Creating draft for: ${to}`);
+  static async createDraft(to: string, subject: string, body: string, tenantId?: string): Promise<Email> {
+    console.log(`[Corsair] Creating draft for: ${to} (tenant: ${tenantId})`);
 
     if (this.apiKey) {
       try {
@@ -89,7 +93,8 @@ export class CorsairClient {
           method: "POST",
           headers: { 
             Authorization: `Bearer ${this.apiKey}`, 
-            "Content-Type": "application/json" 
+            "Content-Type": "application/json",
+            ...(tenantId ? { "X-Corsair-Tenant-Id": tenantId } : {})
           },
           body: JSON.stringify({ to, subject, body })
         });
@@ -119,12 +124,15 @@ export class CorsairClient {
   }
 
   // calendar operations
-  static async listCalendarEvents(): Promise<CalendarEvent[]> {
-    console.log("[Corsair] Listing calendar events");
+  static async listCalendarEvents(tenantId?: string): Promise<CalendarEvent[]> {
+    console.log(`[Corsair] Listing calendar events (tenant: ${tenantId})`);
     if (this.apiKey) {
       try {
         const res = await fetch("https://api.corsair.dev/v1/calendar/events", {
-          headers: { Authorization: `Bearer ${this.apiKey}` }
+          headers: { 
+            Authorization: `Bearer ${this.apiKey}`,
+            ...(tenantId ? { "X-Corsair-Tenant-Id": tenantId } : {})
+          }
         });
         if (res.ok) {
           const data = await res.json();
@@ -143,9 +151,10 @@ export class CorsairClient {
     start: string,
     end: string,
     location?: string,
-    description?: string
+    description?: string,
+    tenantId?: string
   ): Promise<CalendarEvent> {
-    console.log(`[Corsair] Creating invite: "${title}" on ${start} - ${end}`);
+    console.log(`[Corsair] Creating invite: "${title}" on ${start} - ${end} (tenant: ${tenantId})`);
 
     if (this.apiKey) {
       try {
@@ -153,7 +162,8 @@ export class CorsairClient {
           method: "POST",
           headers: { 
             Authorization: `Bearer ${this.apiKey}`, 
-            "Content-Type": "application/json" 
+            "Content-Type": "application/json",
+            ...(tenantId ? { "X-Corsair-Tenant-Id": tenantId } : {})
           },
           body: JSON.stringify({ title, start, end, location, description, attendees })
         });

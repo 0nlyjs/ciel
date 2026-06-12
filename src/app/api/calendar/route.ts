@@ -1,16 +1,25 @@
 import { NextResponse } from "next/server";
 import { dbInit, query } from "@/lib/db";
 import { getEmbedding, formatVector } from "@/lib/embeddings";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 // GET /api/calendar - List all cached calendar events from database
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     await dbInit();
 
     const { rows } = await query(
       `SELECT id, title, start_time as "start", end_time as "end", location, attendees, description 
        FROM calendar_events 
-       ORDER BY start_time ASC LIMIT 100`
+       WHERE user_email = $1
+       ORDER BY start_time ASC LIMIT 100`,
+      [session.user.email]
     );
 
     const formattedEvents = rows.map((row) => ({
@@ -30,6 +39,11 @@ export async function GET() {
 // POST /api/calendar - Cache a new local event
 export async function POST(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     await dbInit();
 
     const { id, title, start, end, location, attendees, description } = await req.json();
@@ -48,9 +62,10 @@ export async function POST(req: Request) {
     const formattedEmbedding = formatVector(embedding);
 
     await query(
-      `INSERT INTO calendar_events (id, title, start_time, end_time, location, attendees, description, embedding)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector)
+      `INSERT INTO calendar_events (id, user_email, title, start_time, end_time, location, attendees, description, embedding)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::vector)
        ON CONFLICT (id) DO UPDATE SET
+         user_email = EXCLUDED.user_email,
          title = EXCLUDED.title,
          start_time = EXCLUDED.start_time,
          end_time = EXCLUDED.end_time,
@@ -60,6 +75,7 @@ export async function POST(req: Request) {
          embedding = EXCLUDED.embedding`,
       [
         eventId,
+        session.user.email,
         cleanTitle,
         cleanStart,
         cleanEnd,
