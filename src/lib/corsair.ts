@@ -4,7 +4,9 @@ import { useCielStore, Email, CalendarEvent } from "@/store/useCielStore";
 // falls back to local zustand state if credentials are missing
 export class CorsairClient {
   private static get apiKey() {
-    return typeof process !== "undefined" ? process.env.CORSAIR_API_KEY : null;
+    return typeof process !== "undefined"
+      ? (process.env.CORSAIR_API_KEY || process.env.CORSAIR_DEV_KEY)
+      : null;
   }
 
   // gmail operations

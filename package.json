@@ -9,7 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/mcp": "^1.0.47",
     "@ai-sdk/openai": "^3.0.69",
+    "@corsair-dev/app": "^0.1.5",
     "@neondatabase/serverless": "^1.1.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
@@ -23,7 +25,7 @@
     "react-dom": "19.2.4",
     "react-hotkeys-hook": "^5.3.2",
     "three": "^0.184.0",
-    "zod": "^4.4.3",
+    "zod": "^3.25.76",
     "zustand": "^5.0.14"
   },
   "devDependencies": {

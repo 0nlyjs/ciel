@@ -3,8 +3,7 @@
 import { NextResponse } from "next/server";
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
-import { z } from "zod";
-import { dbInit, query } from "@/lib/db";
+import { dbInit, query as queryDb } from "@/lib/db";
 import { getEmbedding, formatVector } from "@/lib/embeddings";
 import { CorsairClient } from "@/lib/corsair";
 
@@ -38,7 +37,7 @@ const handleFallbackAI = async (prompt: string): Promise<{ text: string; actionT
     const embedding = await getEmbedding(textToEmbed);
     const formattedEmbedding = formatVector(embedding);
 
-    await query(
+    await queryDb(
       `INSERT INTO calendar_events (id, title, start_time, end_time, location, attendees, description, embedding)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector)
        ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title`,
@@ -64,7 +63,7 @@ const handleFallbackAI = async (prompt: string): Promise<{ text: string; actionT
     const embedding = await getEmbedding(textToEmbed);
     const formattedEmbedding = formatVector(embedding);
 
-    await query(
+    await queryDb(
       `INSERT INTO emails (id, from_name, from_email, subject, body, date, read, priority, category, embedding)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::vector)
        ON CONFLICT (id) DO UPDATE SET subject = EXCLUDED.subject`,
@@ -116,8 +115,8 @@ export async function POST(req: Request) {
 
     await dbInit();
 
-    // run vercel ai sdk with tools
-    const response = await (generateText as any)({
+    // run vercel ai sdk with tools using raw JSON Schemas to bypass bundler instanceof mismatch
+    const response = await generateText({
       model: openaiClient("gpt-4o-mini"),
       system: `You are Ciel, the sentient AI workspace mind from Tempest. 
 Your task is to help the user manage their email and calendar workflows.
@@ -128,17 +127,24 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
       tools: {
         search_emails: {
           description: "Search for emails in the user's Gmail inbox by query keyword or intent using vector search.",
-          parameters: z.object({
-            query: z.string().describe("The search term or phrase"),
-          }),
-          execute: async ({ query: q }: any) => {
-            console.log("[Tool] Searching emails for:", q);
+          parameters: {
+            type: "object",
+            properties: {
+              query: {
+                type: "string",
+                description: "The search term or phrase to look up"
+              }
+            },
+            required: ["query"]
+          },
+          execute: async ({ query }: any) => {
+            console.log("[Tool] Searching emails for:", query);
             try {
-              const embedding = await getEmbedding(q);
+              const embedding = await getEmbedding(query);
               let rows = [];
               if (embedding) {
                 const formattedEmbedding = formatVector(embedding);
-                const res = await query(
+                const res = await queryDb(
                   `SELECT id, from_name as "from", from_email as "fromEmail", subject, body, date, read, priority, category 
                    FROM emails 
                    ORDER BY embedding <=> $1::vector 
@@ -147,12 +153,12 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
                 );
                 rows = res.rows;
               } else {
-                const res = await query(
+                const res = await queryDb(
                   `SELECT id, from_name as "from", from_email as "fromEmail", subject, body, date, read, priority, category 
                    FROM emails 
                    WHERE subject ILIKE $1 OR body ILIKE $1 OR from_name ILIKE $1 OR from_email ILIKE $1 
                    ORDER BY created_at DESC LIMIT 5`,
-                  [`%${q}%`]
+                  [`%${query}%`]
                 );
                 rows = res.rows;
               }
@@ -165,11 +171,24 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
         },
         send_email: {
           description: "Send an email to a recipient",
-          parameters: z.object({
-            to: z.string().email().describe("Recipient email address"),
-            subject: z.string().describe("Subject of the email"),
-            body: z.string().describe("Plain text body content"),
-          }),
+          parameters: {
+            type: "object",
+            properties: {
+              to: {
+                type: "string",
+                description: "Recipient email address"
+              },
+              subject: {
+                type: "string",
+                description: "Subject of the email"
+              },
+              body: {
+                type: "string",
+                description: "Plain text body content"
+              }
+            },
+            required: ["to", "subject", "body"]
+          },
           execute: async ({ to, subject, body }: any) => {
             console.log("[Tool] Sending email to:", to);
             try {
@@ -182,7 +201,7 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
               const embedding = await getEmbedding(textToEmbed);
               const formattedEmbedding = formatVector(embedding);
 
-              await query(
+              await queryDb(
                 `INSERT INTO emails (id, from_name, from_email, subject, body, date, read, priority, category, embedding)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::vector)`,
                 [emailId, "You", "user@ciel.app", subject, body, dateStr, true, "medium", "work", formattedEmbedding]
@@ -197,14 +216,39 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
         },
         create_calendar_invite: {
           description: "Create a new event invite on Google Calendar",
-          parameters: z.object({
-            title: z.string().describe("Meeting title"),
-            start: z.string().describe("ISO datetime string for the start (e.g. 2026-06-18T09:00:00)"),
-            end: z.string().describe("ISO datetime string for the end (e.g. 2026-06-18T09:30:00)"),
-            location: z.string().optional().describe("Physical location or online meeting link"),
-            description: z.string().optional().describe("Description details"),
-            attendees: z.array(z.string().email()).optional().describe("List of attendee email addresses"),
-          }),
+          parameters: {
+            type: "object",
+            properties: {
+              title: {
+                type: "string",
+                description: "Meeting title"
+              },
+              start: {
+                type: "string",
+                description: "ISO datetime string for the start (e.g. 2026-06-18T09:00:00)"
+              },
+              end: {
+                type: "string",
+                description: "ISO datetime string for the end (e.g. 2026-06-18T09:30:00)"
+              },
+              location: {
+                type: "string",
+                description: "Physical location or online meeting link"
+              },
+              description: {
+                type: "string",
+                description: "Description details"
+              },
+              attendees: {
+                type: "array",
+                items: {
+                  type: "string"
+                },
+                description: "List of attendee email addresses"
+              }
+            },
+            required: ["title", "start", "end"]
+          },
           execute: async ({ title, start, end, location, description, attendees }: any) => {
             console.log("[Tool] Creating calendar event:", title);
             try {
@@ -223,7 +267,7 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
               const embedding = await getEmbedding(textToEmbed);
               const formattedEmbedding = formatVector(embedding);
 
-              await query(
+              await queryDb(
                 `INSERT INTO calendar_events (id, title, start_time, end_time, location, attendees, description, embedding)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector)`,
                 [
@@ -245,9 +289,9 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
             }
           },
         },
-      } as any,
+      },
       maxSteps: 3,
-    });
+    } as any);
 
     return NextResponse.json({ text: response.text });
   } catch (error: any) {
