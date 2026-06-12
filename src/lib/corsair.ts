@@ -12,11 +12,17 @@ export class CorsairClient {
     console.log(`[Corsair] Searching emails for query: "${query}"`);
     
     if (this.apiKey) {
-      // real api call would look like this:
-      // const res = await fetch(`https://api.corsair.dev/v1/gmail/search?q=${encodeURIComponent(query)}`, {
-      //   headers: { Authorization: `Bearer ${this.apiKey}` }
-      // });
-      // return res.json();
+      try {
+        const res = await fetch(`https://api.corsair.dev/v1/gmail/search?q=${encodeURIComponent(query)}`, {
+          headers: { Authorization: `Bearer ${this.apiKey}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return data.emails || data;
+        }
+      } catch (error) {
+        console.error("[Corsair API] searchEmails error, falling back:", error);
+      }
     }
 
     // local fallback search
@@ -37,12 +43,21 @@ export class CorsairClient {
     console.log(`[Corsair] Sending email to: ${to}, subject: "${subject}"`);
 
     if (this.apiKey) {
-      // todo: send via real endpoint
-      // await fetch("https://api.corsair.dev/v1/gmail/send", {
-      //   method: "POST",
-      //   headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
-      //   body: JSON.stringify({ to, subject, body })
-      // });
+      try {
+        const res = await fetch("https://api.corsair.dev/v1/gmail/send", {
+          method: "POST",
+          headers: { 
+            Authorization: `Bearer ${this.apiKey}`, 
+            "Content-Type": "application/json" 
+          },
+          body: JSON.stringify({ to, subject, body })
+        });
+        if (res.ok) {
+          return true;
+        }
+      } catch (error) {
+        console.error("[Corsair API] sendEmail error, falling back:", error);
+      }
     }
 
     // append to local emails list
@@ -66,6 +81,25 @@ export class CorsairClient {
   static async createDraft(to: string, subject: string, body: string): Promise<Email> {
     console.log(`[Corsair] Creating draft for: ${to}`);
 
+    if (this.apiKey) {
+      try {
+        const res = await fetch("https://api.corsair.dev/v1/gmail/draft", {
+          method: "POST",
+          headers: { 
+            Authorization: `Bearer ${this.apiKey}`, 
+            "Content-Type": "application/json" 
+          },
+          body: JSON.stringify({ to, subject, body })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return data.draft || data;
+        }
+      } catch (error) {
+        console.error("[Corsair API] createDraft error, falling back:", error);
+      }
+    }
+
     const draftEmail: Email = {
       id: Math.random().toString(),
       from: "Draft",
@@ -86,8 +120,17 @@ export class CorsairClient {
   static async listCalendarEvents(): Promise<CalendarEvent[]> {
     console.log("[Corsair] Listing calendar events");
     if (this.apiKey) {
-      // const res = await fetch("https://api.corsair.dev/v1/calendar/events", { ... });
-      // return res.json();
+      try {
+        const res = await fetch("https://api.corsair.dev/v1/calendar/events", {
+          headers: { Authorization: `Bearer ${this.apiKey}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return data.events || data;
+        }
+      } catch (error) {
+        console.error("[Corsair API] listCalendarEvents error, falling back:", error);
+      }
     }
     return useCielStore.getState().calendarEvents;
   }
@@ -103,7 +146,22 @@ export class CorsairClient {
     console.log(`[Corsair] Creating invite: "${title}" on ${start} - ${end}`);
 
     if (this.apiKey) {
-      // const res = await fetch("https://api.corsair.dev/v1/calendar/events", { ... });
+      try {
+        const res = await fetch("https://api.corsair.dev/v1/calendar/events", {
+          method: "POST",
+          headers: { 
+            Authorization: `Bearer ${this.apiKey}`, 
+            "Content-Type": "application/json" 
+          },
+          body: JSON.stringify({ title, start, end, location, description, attendees })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return data.event || data;
+        }
+      } catch (error) {
+        console.error("[Corsair API] createCalendarInvite error, falling back:", error);
+      }
     }
 
     const newEvent: CalendarEvent = {

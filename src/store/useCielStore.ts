@@ -41,21 +41,26 @@ interface CielState {
   activeTab: "overview" | "inbox" | "calendar" | "chat" | "settings";
   setActiveTab: (tab: "overview" | "inbox" | "calendar" | "chat" | "settings") => void;
 
-  // mock email data
+  // email data
   emails: Email[];
   selectedEmailIndex: number | null;
   searchQuery: string;
   setEmails: (emails: Email[]) => void;
   setSelectedEmailIndex: (index: number | null) => void;
   setSearchQuery: (query: string) => void;
-  markAsRead: (id: string) => void;
-  archiveEmail: (id: string) => void;
+  markAsRead: (id: string) => Promise<void>;
+  archiveEmail: (id: string) => Promise<void>;
   addEmail: (email: Email) => void;
 
-  // mock calendar data
+  // calendar data
   calendarEvents: CalendarEvent[];
   setCalendarEvents: (events: CalendarEvent[]) => void;
   addCalendarEvent: (event: CalendarEvent) => void;
+
+  // db synchronization actions
+  fetchEmails: () => Promise<void>;
+  fetchCalendarEvents: () => Promise<void>;
+  performSearch: (query: string) => Promise<void>;
 
   // chat state
   chatMessages: ChatMessage[];
@@ -69,7 +74,7 @@ interface CielState {
   setCurrentVolume: (vol: number) => void;
 }
 
-// initial mock emails
+// initial mock emails (used if DB is empty or during loading)
 const initialEmails: Email[] = [
   {
     id: "1",
@@ -167,13 +172,26 @@ export const useCielStore = create<CielState>((set) => ({
   setEmails: (emails) => set({ emails, selectedEmailIndex: emails.length > 0 ? 0 : null }),
   setSelectedEmailIndex: (index) => set({ selectedEmailIndex: index }),
   setSearchQuery: (query) => set({ searchQuery: query }),
-  markAsRead: (id) =>
+  markAsRead: async (id) => {
+    // update local state first
     set((state) => ({
       emails: state.emails.map((email) =>
         email.id === id ? { ...email, read: true } : email
       ),
-    })),
-  archiveEmail: (id) =>
+    }));
+    // push to database
+    try {
+      await fetch("/api/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark_read", id }),
+      });
+    } catch (error) {
+      console.error("[Store] Error marking email read in DB:", error);
+    }
+  },
+  archiveEmail: async (id) => {
+    // update local state first
     set((state) => {
       const filtered = state.emails.filter((email) => email.id !== id);
       return {
@@ -183,7 +201,18 @@ export const useCielStore = create<CielState>((set) => ({
             ? Math.min(state.selectedEmailIndex ?? 0, filtered.length - 1)
             : null,
       };
-    }),
+    });
+    // push delete to database
+    try {
+      await fetch("/api/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "archive", id }),
+      });
+    } catch (error) {
+      console.error("[Store] Error archiving email in DB:", error);
+    }
+  },
   addEmail: (email) =>
     set((state) => ({
       emails: [email, ...state.emails],
@@ -199,6 +228,51 @@ export const useCielStore = create<CielState>((set) => ({
         (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
       ),
     })),
+
+  // db synchronization actions
+  fetchEmails: async () => {
+    try {
+      const res = await fetch("/api/emails");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.emails && data.emails.length > 0) {
+          set({ emails: data.emails, selectedEmailIndex: 0 });
+        }
+      }
+    } catch (error) {
+      console.error("[Store] Failed to fetch emails from database:", error);
+    }
+  },
+
+  fetchCalendarEvents: async () => {
+    try {
+      const res = await fetch("/api/calendar");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.calendarEvents && data.calendarEvents.length > 0) {
+          set({ calendarEvents: data.calendarEvents });
+        }
+      }
+    } catch (error) {
+      console.error("[Store] Failed to fetch calendar events from database:", error);
+    }
+  },
+
+  performSearch: async (queryStr) => {
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(queryStr)}`);
+      if (res.ok) {
+        const data = await res.json();
+        set({
+          emails: data.emails || [],
+          calendarEvents: data.calendarEvents || [],
+          selectedEmailIndex: data.emails && data.emails.length > 0 ? 0 : null,
+        });
+      }
+    } catch (error) {
+      console.error("[Store] Vector/ILIKE Search failed:", error);
+    }
+  },
 
   // chat data
   chatMessages: [

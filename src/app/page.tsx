@@ -27,12 +27,40 @@ export default function Home() {
   const searchQuery = useCielStore((s) => s.searchQuery);
   const setSearchQuery = useCielStore((s) => s.setSearchQuery);
 
+  const fetchEmails = useCielStore((s) => s.fetchEmails);
+  const fetchCalendarEvents = useCielStore((s) => s.fetchCalendarEvents);
+  const performSearch = useCielStore((s) => s.performSearch);
+
   const [isSigningIn, setIsSigningIn] = useState(false);
   const view = user ? "dashboard" : (isSigningIn ? "login" : "landing");
   const [isComposing, setIsComposing] = useState(false);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Load initial data from Postgres on load / when dashboard is active
+  useEffect(() => {
+    if (view === "dashboard") {
+      fetchEmails();
+      fetchCalendarEvents();
+    }
+  }, [view, fetchEmails, fetchCalendarEvents]);
+
+  // Debounce search input to query the database using vector matching
+  useEffect(() => {
+    if (view !== "dashboard") return;
+
+    const delayDebounceFn = setTimeout(() => {
+      if (searchQuery.trim()) {
+        performSearch(searchQuery);
+      } else {
+        fetchEmails();
+        fetchCalendarEvents();
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery, view, performSearch, fetchEmails, fetchCalendarEvents]);
 
   // voice control setup
   const { speak, stop: stopSpeech } = useTextToSpeech();
