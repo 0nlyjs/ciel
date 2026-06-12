@@ -16,7 +16,15 @@ export class CorsairClient {
     return createClient({ apiKey: key });
   }
 
+  private static cachedTenant: any = null;
+  private static cachedTenantId: string = "";
+
   private static async getTenant(tenantId?: string) {
+    const resolvedTenantId = tenantId || "guest@ciel.app";
+    if (this.cachedTenant && this.cachedTenantId === resolvedTenantId) {
+      return this.cachedTenant;
+    }
+
     const client = this.getClient();
     if (!client) return null;
     try {
@@ -37,7 +45,10 @@ export class CorsairClient {
       }
       
       if (!targetInstance) return null;
-      return client.instance(targetInstance.id).tenant(tenantId || "guest@ciel.app");
+      const tenant = client.instance(targetInstance.id).tenant(resolvedTenantId);
+      this.cachedTenant = tenant;
+      this.cachedTenantId = resolvedTenantId;
+      return tenant;
     } catch (e) {
       console.error("[Corsair SDK] Failed to get tenant:", e);
       return null;
@@ -225,10 +236,10 @@ export class CorsairClient {
           ]
         } : undefined;
 
-        const res = await tenant.run<any[]>("gmail.db.messages.search", {
+        const res = (await tenant.run("gmail.db.messages.search", {
           data: filter,
           limit: 100
-        });
+        })) as any;
 
         if (res.success && res.data) {
           const emails: Email[] = [];
@@ -400,13 +411,13 @@ export class CorsairClient {
     if (tenant) {
       try {
         const timeMin = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(); // 90 days ago
-        const res = await tenant.run<{ items?: any[] }>("googlecalendar.api.events.getMany", {
+        const res = (await tenant.run("googlecalendar.api.events.getMany", {
           calendarId: "primary",
           timeMin: timeMin,
           singleEvents: true,
           orderBy: "startTime",
           maxResults: 100
-        });
+        })) as any;
         if (res.success && res.data && res.data.items) {
           const events: CalendarEvent[] = res.data.items.map((item: any) => {
             const attendees = (item.attendees || []).map((a: any) => a.email || a.displayName || "");
@@ -497,11 +508,11 @@ export class CorsairClient {
     const tenant = await this.getTenant(tenantId);
     if (!tenant) return [];
     try {
-      const res = await tenant.run<{ messages?: any[] }>("gmail.api.messages.list", {
+      const res = (await tenant.run("gmail.api.messages.list", {
         userId: "me",
         maxResults: maxResults,
         includeSpamTrash: true
-      });
+      })) as any;
       if (res.success && res.data && res.data.messages) {
         return res.data.messages;
       }

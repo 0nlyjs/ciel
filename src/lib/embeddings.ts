@@ -1,4 +1,4 @@
-import { embed } from "ai";
+import { embed, embedMany } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 
 const getOpenAIClient = () => {
@@ -25,6 +25,26 @@ export async function getEmbedding(text: string): Promise<number[] | null> {
     return embedding;
   } catch (error) {
     console.error("[Embeddings] Error generating embedding:", error);
+    return null;
+  }
+}
+
+/**
+ * Generates bulk 1536-dimensional embeddings in a single HTTP request.
+ */
+export async function getEmbeddingsBatch(texts: string[]): Promise<number[][] | null> {
+  const client = getOpenAIClient();
+  if (!client) return null;
+  if (texts.length === 0) return [];
+
+  try {
+    const { embeddings } = await embedMany({
+      model: client.embedding("text-embedding-3-small"),
+      values: texts.map((t) => t.replace(/\n/g, " ")),
+    });
+    return embeddings;
+  } catch (error) {
+    console.error("[Embeddings] Error generating batch embeddings:", error);
     return null;
   }
 }

@@ -40,6 +40,11 @@ export default function Home() {
   const [chatInput, setChatInput] = useState("");
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Sync NextAuth session state with Zustand store
   useEffect(() => {
@@ -351,10 +356,7 @@ export default function Home() {
                     onClick={(e) => {
                       e.stopPropagation();
                       if (emailsPage > 1) {
-                        const prevPage = emailsPage - 1;
-                        fetchEmails(false, prevPage).then(() => {
-                          fetchEmails(true, prevPage);
-                        });
+                        fetchEmails(false, emailsPage - 1);
                       }
                     }}
                     disabled={emailsPage <= 1}
@@ -369,10 +371,8 @@ export default function Home() {
                     onClick={(e) => {
                       e.stopPropagation();
                       const nextPage = emailsPage + 1;
-                      if (nextPage <= Math.ceil(emailsTotal / emailsPerPage)) {
-                        fetchEmails(false, nextPage).then(() => {
-                          fetchEmails(true, nextPage);
-                        });
+                      if (nextPage * emailsPerPage <= emailsTotal) {
+                        fetchEmails(false, nextPage);
                       } else {
                         fetchEmails(true, nextPage);
                       }
@@ -391,6 +391,7 @@ export default function Home() {
                   {emails.map((email) => {
                     const isExpanded = expandedEmailId === email.id;
                     const displayDate = (() => {
+                      if (!mounted) return "";
                       try {
                         return new Date(email.date).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
                       } catch (e) {
@@ -471,7 +472,7 @@ export default function Home() {
                       <div className="flex flex-col sm:flex-row justify-between mb-2 pb-1.5 border-b border-gray-900/50">
                         <span className="font-bold text-white">{evt.title}</span>
                         <span className="text-gray-500">
-                          {new Date(evt.start).toLocaleString()} - {new Date(evt.end).toLocaleString()}
+                          {mounted ? `${new Date(evt.start).toLocaleString()} - ${new Date(evt.end).toLocaleString()}` : ""}
                         </span>
                       </div>
                       {evt.location && <p className="mb-1 text-gray-400">Location: {evt.location}</p>}

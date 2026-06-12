@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { NextResponse } from "next/server";
-import { generateText, tool, jsonSchema } from "ai";
+import { generateText, tool, jsonSchema, stepCountIs } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { dbInit, query as queryDb } from "@/lib/db";
 import { getEmbedding, formatVector } from "@/lib/embeddings";
@@ -126,7 +126,7 @@ export async function POST(req: Request) {
 
     // run vercel ai sdk with tools using tool() and jsonSchema() wrappers
     const response = await generateText({
-      model: openaiClient("gpt-4o-mini"),
+      model: openaiClient.chat("gpt-4o-mini"),
       system: `You are Ciel, the sentient AI workspace mind from Tempest. 
 Your task is to help the user manage their email and calendar workflows.
 You have access to tools that connect to Gmail and Google Calendar.
@@ -134,6 +134,56 @@ When the user asks you to perform actions like sending emails or creating calend
 Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
       messages: messages,
       tools: {
+        list_emails: tool({
+          description: "List the most recent emails in the user's inbox, optionally filtered by read/unread status, category, or pagination limit.",
+          inputSchema: jsonSchema({
+            type: "object",
+            properties: {
+              limit: {
+                type: "number",
+                description: "Number of emails to retrieve (default: 10, max: 50)"
+              },
+              category: {
+                type: "string",
+                description: "Filter by category (work, personal, updates, promotions)"
+              },
+              unreadOnly: {
+                type: "boolean",
+                description: "Filter to show only unread emails"
+              }
+            }
+          }),
+          execute: async ({ limit = 10, category, unreadOnly }: any) => {
+            console.log("[Tool] Listing emails with options:", { limit, category, unreadOnly }, "(user:", tenantId, ")");
+            try {
+              const maxLimit = Math.min(limit, 50);
+              let sql = `SELECT id, from_name as "from", from_email as "fromEmail", subject, LEFT(body, 300) as body, date, read, priority, category 
+                         FROM emails 
+                         WHERE user_email = $1`;
+              const params: any[] = [tenantId];
+              let paramIndex = 2;
+
+              if (category) {
+                sql += ` AND category = $${paramIndex}`;
+                params.push(category);
+                paramIndex++;
+              }
+
+              if (unreadOnly) {
+                sql += ` AND read = FALSE`;
+              }
+
+              sql += ` ORDER BY date DESC LIMIT $${paramIndex}`;
+              params.push(maxLimit);
+
+              const res = await queryDb(sql, params);
+              return { success: true, count: res.rows.length, emails: res.rows };
+            } catch (err: any) {
+              console.error("[Tool list_emails error]", err);
+              return { success: false, error: err.message };
+            }
+          }
+        }),
         search_emails: tool({
           description: "Search for emails in the user's Gmail inbox by query keyword or intent using vector search.",
           inputSchema: jsonSchema({
@@ -154,7 +204,7 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
               if (embedding) {
                 const formattedEmbedding = formatVector(embedding);
                 const res = await queryDb(
-                  `SELECT id, from_name as "from", from_email as "fromEmail", subject, body, date, read, priority, category 
+                  `SELECT id, from_name as "from", from_email as "fromEmail", subject, LEFT(body, 1000) as body, date, read, priority, category 
                    FROM emails 
                    WHERE user_email = $2
                    ORDER BY embedding <=> $1::vector 
@@ -164,7 +214,7 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
                 rows = res.rows;
               } else {
                 const res = await queryDb(
-                  `SELECT id, from_name as "from", from_email as "fromEmail", subject, body, date, read, priority, category 
+                  `SELECT id, from_name as "from", from_email as "fromEmail", subject, LEFT(body, 1000) as body, date, read, priority, category 
                    FROM emails 
                    WHERE (subject ILIKE $1::text OR body ILIKE $1::text OR from_name ILIKE $1::text OR from_email ILIKE $1::text) AND user_email = $2
                    ORDER BY created_at DESC LIMIT 5`,
@@ -302,8 +352,8 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
           },
         }),
       },
-      maxSteps: 3,
-    } as any);
+      stopWhen: stepCountIs(5),
+    });
 
     return NextResponse.json({ text: response.text || "I have processed your request." });
   } catch (error: any) {

@@ -5,7 +5,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
-import { getEmbedding, formatVector } from "@/lib/embeddings";
+import { getEmbedding, getEmbeddingsBatch, formatVector } from "@/lib/embeddings";
 
 const getOpenAIClient = () => {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -89,6 +89,85 @@ Respond with a raw JSON object containing exactly two keys: "priority" and "cate
   }
 }
 
+async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
+  if (skeletons.length === 0) return;
+
+  // 1. Fetch raw messages in parallel from Gmail
+  const rawMessages = await Promise.all(
+    skeletons.map(async (skeleton) => {
+      try {
+        return await CorsairClient.getGmailMessageDirectly(skeleton.id, userEmail);
+      } catch (err) {
+        console.error(`[Sync] Failed to fetch message ${skeleton.id}:`, err);
+        return null;
+      }
+    })
+  );
+  const filteredMessages = rawMessages.filter(m => m !== null);
+
+  // 2. Parse messages and prepare texts for batch embedding
+  const parsedEmails: any[] = [];
+  const textsToEmbed: string[] = [];
+
+  for (const rawMsg of filteredMessages) {
+    const email = CorsairClient.parseGmailMessage(rawMsg);
+    if (email) {
+      const fromName = email.from || "Unknown Sender";
+      const fromEmail = email.fromEmail || "unknown@domain.com";
+      const subject = email.subject || "(No Subject)";
+      const body = email.body || "";
+      const textToEmbed = `From: ${fromName} <${fromEmail}>\nSubject: ${subject}\nBody: ${body}`;
+      
+      parsedEmails.push({
+        id: email.id,
+        fromName,
+        fromEmail,
+        subject,
+        body,
+        date: email.date || new Date().toISOString(),
+        read: email.read ?? false,
+        textToEmbed,
+      });
+      textsToEmbed.push(textToEmbed);
+    }
+  }
+
+  // 3. Generate batch embeddings in a single OpenAI request
+  let embeddings: number[][] | null = [];
+  if (textsToEmbed.length > 0) {
+    try {
+      embeddings = await getEmbeddingsBatch(textsToEmbed);
+    } catch (embErr) {
+      console.error("[Sync] Error in batch embeddings, proceeding without embeddings:", embErr);
+    }
+  }
+
+  // 4. Save to DB concurrently with fast keyword-based fallback classification
+  await Promise.all(
+    parsedEmails.map(async (email, i) => {
+      const embedding = embeddings && embeddings[i] ? embeddings[i] : null;
+      const formattedEmbedding = formatVector(embedding);
+      
+      // Fast classification using keyword fallback
+      const { priority, category } = runKeywordFallback(email.subject, email.body);
+
+      try {
+        await query(
+          `INSERT INTO emails (id, user_email, from_name, from_email, subject, body, date, read, priority, category, embedding)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)
+           ON CONFLICT (id) DO UPDATE SET 
+             read = EXCLUDED.read,
+             priority = EXCLUDED.priority,
+             category = EXCLUDED.category`,
+          [email.id, userEmail, email.fromName, email.fromEmail, email.subject, email.body, email.date, email.read, priority, category, formattedEmbedding]
+        );
+      } catch (err: any) {
+        console.error(`[Sync] Failed to insert email ${email.id} into database:`, err.message);
+      }
+    })
+  );
+}
+
 async function runBackgroundSyncForRemaining(
   skeletons: any[],
   userEmail: string,
@@ -97,65 +176,10 @@ async function runBackgroundSyncForRemaining(
     `[Background Sync] Starting background fetch for ${skeletons.length} remaining emails for ${userEmail}`,
   );
   try {
-    // Process in chunks of 10 parallel requests
-    for (let i = 0; i < skeletons.length; i += 10) {
-      const chunk = skeletons.slice(i, i + 10);
-      await Promise.all(
-        chunk.map(async (skeleton) => {
-          try {
-            const rawMsg = await CorsairClient.getGmailMessageDirectly(
-              skeleton.id,
-              userEmail,
-            );
-            if (rawMsg) {
-              const email = CorsairClient.parseGmailMessage(rawMsg);
-              if (email) {
-                const emailId = email.id;
-                const fromName = email.from || "Unknown Sender";
-                const fromEmail = email.fromEmail || "unknown@domain.com";
-                const subject = email.subject || "(No Subject)";
-                const body = email.body || "";
-                const dateStr = email.date || new Date().toISOString();
-
-                const { priority, category } = await classifyEmail(
-                  subject,
-                  body,
-                );
-                const textToEmbed = `From: ${fromName} <${fromEmail}>\nSubject: ${subject}\nBody: ${body}`;
-                const embedding = await getEmbedding(textToEmbed);
-                const formattedEmbedding = formatVector(embedding);
-
-                await query(
-                  `INSERT INTO emails (id, user_email, from_name, from_email, subject, body, date, read, priority, category, embedding)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)
-                 ON CONFLICT (id) DO UPDATE SET 
-                   read = EXCLUDED.read,
-                   priority = EXCLUDED.priority,
-                   category = EXCLUDED.category`,
-                  [
-                    emailId,
-                    userEmail,
-                    fromName,
-                    fromEmail,
-                    subject,
-                    body,
-                    dateStr,
-                    email.read ?? false,
-                    priority,
-                    category,
-                    formattedEmbedding,
-                  ],
-                );
-              }
-            }
-          } catch (err: any) {
-            console.error(
-              `[Background Sync] Failed to sync email ${skeleton.id}:`,
-              err.message,
-            );
-          }
-        }),
-      );
+    // Sync in batches of 50
+    for (let i = 0; i < skeletons.length; i += 50) {
+      const batch = skeletons.slice(i, i + 50);
+      await syncBatchOfSkeletons(batch, userEmail);
     }
     console.log(
       `[Background Sync] Completed background fetch for ${userEmail}`,
@@ -227,66 +251,7 @@ export async function GET(req: Request) {
             console.log(
               `[Emails API] Syncing ${firstBatch.length} latest emails immediately...`,
             );
-            for (let i = 0; i < firstBatch.length; i += 10) {
-              const chunk = firstBatch.slice(i, i + 10);
-              await Promise.all(
-                chunk.map(async (skeleton) => {
-                  try {
-                    const rawMsg = await CorsairClient.getGmailMessageDirectly(
-                      skeleton.id,
-                      session.user.email,
-                    );
-                    if (rawMsg) {
-                      const email = CorsairClient.parseGmailMessage(rawMsg);
-                      if (email) {
-                        const emailId = email.id;
-                        const fromName = email.from || "Unknown Sender";
-                        const fromEmail =
-                          email.fromEmail || "unknown@domain.com";
-                        const subject = email.subject || "(No Subject)";
-                        const body = email.body || "";
-                        const dateStr = email.date || new Date().toISOString();
-
-                        const { priority, category } = await classifyEmail(
-                          subject,
-                          body,
-                        );
-                        const textToEmbed = `From: ${fromName} <${fromEmail}>\nSubject: ${subject}\nBody: ${body}`;
-                        const embedding = await getEmbedding(textToEmbed);
-                        const formattedEmbedding = formatVector(embedding);
-
-                        await query(
-                          `INSERT INTO emails (id, user_email, from_name, from_email, subject, body, date, read, priority, category, embedding)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)
-                         ON CONFLICT (id) DO UPDATE SET 
-                           read = EXCLUDED.read,
-                           priority = EXCLUDED.priority,
-                           category = EXCLUDED.category`,
-                          [
-                            emailId,
-                            session.user.email,
-                            fromName,
-                            fromEmail,
-                            subject,
-                            body,
-                            dateStr,
-                            email.read ?? false,
-                            priority,
-                            category,
-                            formattedEmbedding,
-                          ],
-                        );
-                      }
-                    }
-                  } catch (err: any) {
-                    console.error(
-                      `[Emails API] Failed to sync email ${skeleton.id}:`,
-                      err.message,
-                    );
-                  }
-                }),
-              );
-            }
+            await syncBatchOfSkeletons(firstBatch, session.user.email);
           }
 
           // Phase 2: Start background sync for the remaining emails (asynchronous)
