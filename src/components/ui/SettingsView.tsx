@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useCielStore } from "@/store/useCielStore";
+import { signOut } from "next-auth/react";
 import {
   Settings,
   User,
@@ -16,7 +17,6 @@ import {
 
 export default function SettingsView() {
   const user = useCielStore((s) => s.user);
-  const logout = useCielStore((s) => s.logout);
 
   // Settings mock state
   const [render3D, setRender3D] = useState(true);
@@ -68,7 +68,7 @@ export default function SettingsView() {
               </div>
               
               <button
-                onClick={logout}
+                onClick={() => signOut()}
                 className="px-4 py-2 bg-crimson/15 border border-crimson/30 text-crimson hover:bg-crimson/25 hover:text-crisp-white text-xs font-bold rounded-lg transition-all cursor-pointer shadow-[0_0_10px_rgba(255,42,85,0.1)]"
               >
                 Sign Out

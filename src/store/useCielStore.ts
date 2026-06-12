@@ -78,7 +78,24 @@ export const useCielStore = create<CielState>((set) => ({
   // auth state
   user: null,
   login: (name, email) => set({ user: { name, email } }),
-  logout: () => set({ user: null, activeTab: "overview" }),
+  logout: () => set({
+    user: null,
+    activeTab: "overview",
+    emails: [],
+    calendarEvents: [],
+    selectedEmailIndex: null,
+    searchQuery: "",
+    chatMessages: [
+      {
+        id: "init",
+        role: "assistant",
+        content: "Hello, I am Ciel, your sentient AI workspace mind. I have established synchronization with your Gmail and Google Calendar. How may I assist you with your inbox or schedule today?",
+        timestamp: new Date(),
+      },
+    ],
+    cielStatus: "idle",
+    currentVolume: 0,
+  }),
 
   // view state
   activeTab: "overview",

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useCielStore } from "@/store/useCielStore";
+import { useSession, signIn } from "next-auth/react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useSpeechToText, useTextToSpeech } from "@/lib/speech";
 import CielCanvas from "@/components/3d/CielCanvas";
@@ -30,9 +31,27 @@ export default function Home() {
   const fetchEmails = useCielStore((s) => s.fetchEmails);
   const fetchCalendarEvents = useCielStore((s) => s.fetchCalendarEvents);
   const performSearch = useCielStore((s) => s.performSearch);
+  const login = useCielStore((s) => s.login);
+  const logout = useCielStore((s) => s.logout);
 
+  const { data: session, status } = useSession();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const view = user ? "dashboard" : (isSigningIn ? "login" : "landing");
+
+  // Sync NextAuth session state with Zustand store
+  useEffect(() => {
+    if (status === "authenticated" && session?.user) {
+      const name = session.user.name || "User";
+      const email = session.user.email || "";
+      if (!user || user.email !== email || user.name !== name) {
+        login(name, email);
+      }
+    } else if (status === "unauthenticated") {
+      if (user) {
+        logout();
+      }
+    }
+  }, [status, session, user, login, logout]);
   const [isComposing, setIsComposing] = useState(false);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
 
@@ -223,6 +242,25 @@ export default function Home() {
     return () => window.removeEventListener("ciel-voice-command", triggerVoiceChat);
   }, []);
 
+  if (status === "loading") {
+    return (
+      <div className="w-full h-screen flex flex-col items-center justify-center bg-void text-crisp-white font-sans select-none relative overflow-hidden">
+        <div className="cyber-glass p-8 rounded-2xl flex flex-col items-center max-w-sm text-center shadow-2xl relative z-10 border border-white/10">
+          <Terminal className="w-8 h-8 text-cyan-glow mb-4 animate-[spin_3s_linear_infinite]" />
+          <h2 className="text-sm font-bold uppercase tracking-widest font-mono text-crisp-white">
+            Initializing Ciel
+          </h2>
+          <p className="text-[10px] text-silvery-gray/50 uppercase font-bold tracking-wider mt-2">
+            Establishing secure session
+          </p>
+          <div className="w-24 h-0.5 bg-white/5 rounded-full overflow-hidden mt-6 relative">
+            <div className="absolute inset-y-0 bg-gradient-to-r from-cyan-glow to-cyber-magenta w-1/2 rounded-full animate-pulse" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full h-screen flex flex-col bg-void text-crisp-white select-none relative overflow-hidden font-sans">
       
@@ -253,13 +291,13 @@ export default function Home() {
 
             <div className="mt-8 flex gap-4 items-center justify-center">
               <button
-                onClick={() => setIsSigningIn(true)}
+                onClick={() => signIn("google")}
                 className="px-6 h-12 bg-gradient-to-r from-cyan-glow to-cyber-magenta hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] text-void font-bold rounded-xl text-sm shadow-[0_0_25px_rgba(0,240,255,0.2)] transition-all cursor-pointer border border-cyan-glow/10"
               >
                 Sign In
               </button>
               <button
-                onClick={() => setIsSigningIn(true)}
+                onClick={() => signIn("google")}
                 className="px-6 h-12 border border-white/10 hover:border-cyan-glow/30 hover:bg-white/5 hover:scale-[1.02] active:scale-[0.98] text-crisp-white font-bold rounded-xl text-sm transition-all cursor-pointer"
               >
                 Sign Up
@@ -277,7 +315,7 @@ export default function Home() {
       {/* login modal */}
       {view === "login" && (
         <div className="w-full h-full relative">
-          <AuthPortal onSuccess={() => setIsSigningIn(false)} />
+          <AuthPortal />
         </div>
       )}
 

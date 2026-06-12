@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Outfit, Space_Mono } from "next/font/google";
 import "./globals.css";
+import { Providers } from "@/components/Providers";
 
 const fontSans = Outfit({
   variable: "--font-sans",
@@ -28,7 +29,9 @@ export default function RootLayout({
       lang="en"
       className={`${fontSans.variable} ${fontMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }
