@@ -1,3 +1,4 @@
+import { CorsairClient } from "@/lib/corsair";
 import { NextResponse } from "next/server";
 import { dbInit, query } from "@/lib/db";
 import { getEmbedding, formatVector } from "@/lib/embeddings";
@@ -13,6 +14,41 @@ export async function GET() {
     }
 
     await dbInit();
+
+    // Sync from Corsair if local DB is empty for this user
+    const checkRes = await query("SELECT count(*)::int as count FROM calendar_events WHERE user_email = $1", [session.user.email]);
+    const count = checkRes.rows[0]?.count || 0;
+
+    if (count === 0) {
+      console.log(`[Calendar API] No events cached for ${session.user.email}. Syncing from Corsair Google Calendar...`);
+      try {
+        const corsairEvents = await CorsairClient.listCalendarEvents(session.user.email);
+        if (corsairEvents && corsairEvents.length > 0) {
+          for (const event of corsairEvents) {
+            const eventId = event.id || Math.random().toString();
+            const title = event.title || "Meeting Invite";
+            const start = event.start || new Date().toISOString();
+            const end = event.end || new Date(Date.now() + 1800000).toISOString();
+            const location = event.location || "";
+            const attendees = event.attendees || [];
+            const description = event.description || "";
+
+            const textToEmbed = `Title: ${title}\nLocation: ${location}\nDescription: ${description}`;
+            const embedding = await getEmbedding(textToEmbed);
+            const formattedEmbedding = formatVector(embedding);
+
+            await query(
+              `INSERT INTO calendar_events (id, user_email, title, start_time, end_time, location, attendees, description, embedding)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::vector)
+               ON CONFLICT (id) DO NOTHING`,
+              [eventId, session.user.email, title, start, end, location, JSON.stringify(attendees), description, formattedEmbedding]
+            );
+          }
+        }
+      } catch (syncError) {
+        console.error("[Calendar API] Sync error from Corsair:", syncError);
+      }
+    }
 
     const { rows } = await query(
       `SELECT id, title, start_time as "start", end_time as "end", location, attendees, description 
