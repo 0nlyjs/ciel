@@ -16,6 +16,9 @@ export default function Home() {
   const fetchIntegrationStatus = useCielStore((s) => s.fetchIntegrationStatus);
   
   const emails = useCielStore((s) => s.emails);
+  const emailsTotal = useCielStore((s) => s.emailsTotal);
+  const emailsPage = useCielStore((s) => s.emailsPage);
+  const emailsPerPage = useCielStore((s) => s.emailsPerPage);
   const fetchEmails = useCielStore((s) => s.fetchEmails);
   const calendarEvents = useCielStore((s) => s.calendarEvents);
   const fetchCalendarEvents = useCielStore((s) => s.fetchCalendarEvents);
@@ -32,6 +35,7 @@ export default function Home() {
   const [activeView, setActiveView] = useState<"emails" | "calendar" | "chat" | "store">("emails");
   const [chatInput, setChatInput] = useState("");
   const [isSendingChat, setIsSendingChat] = useState(false);
+  const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
 
   // Sync NextAuth session state with Zustand store
   useEffect(() => {
@@ -269,7 +273,7 @@ export default function Home() {
             onClick={() => setActiveView("emails")}
             className={`px-4 py-3 border-r border-gray-800 font-bold uppercase tracking-wider ${activeView === "emails" ? "bg-[#0a0b0d] text-white" : "text-gray-500 hover:text-gray-300"}`}
           >
-            Emails ({emails.length})
+            Emails ({emailsTotal})
           </button>
           <button
             onClick={() => setActiveView("calendar")}
@@ -313,10 +317,10 @@ export default function Home() {
             <button
               onClick={() => {
                 fetchIntegrationStatus();
-                fetchEmails();
+                fetchEmails(true);
                 fetchCalendarEvents();
               }}
-              className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-4 py-2 font-bold uppercase rounded"
+              className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-4 py-2 font-bold uppercase rounded cursor-pointer"
             >
               Refresh All Data
             </button>
@@ -329,29 +333,109 @@ export default function Home() {
           {activeView === "emails" && (
             <div className="space-y-4">
               <div className="flex justify-between items-center pb-2 border-b border-gray-900">
-                <span className="text-xs uppercase tracking-wider text-gray-500">Inbox Sync Log ({emails.length} entries)</span>
+                <span className="text-xs uppercase tracking-wider text-gray-500">
+                  Inbox Sync Log (Showing {emailsTotal > 0 ? (emailsPage - 1) * emailsPerPage + 1 : 0}-
+                  {Math.min(emailsPage * emailsPerPage, emailsTotal)} of {emailsTotal} entries)
+                </span>
+                
+                {/* Pagination Controls */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (emailsPage > 1) {
+                        fetchEmails(false, emailsPage - 1);
+                      }
+                    }}
+                    disabled={emailsPage <= 1}
+                    className="px-2 py-1 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-950 disabled:text-gray-700 text-white rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed uppercase"
+                  >
+                    &lt; Prev
+                  </button>
+                  <span className="text-xs text-gray-400 font-bold">
+                    {emailsPage} / {Math.max(1, Math.ceil(emailsTotal / emailsPerPage))}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (emailsPage < Math.ceil(emailsTotal / emailsPerPage)) {
+                        fetchEmails(false, emailsPage + 1);
+                      }
+                    }}
+                    disabled={emailsPage >= Math.ceil(emailsTotal / emailsPerPage)}
+                    className="px-2 py-1 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-950 disabled:text-gray-700 text-white rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed uppercase"
+                  >
+                    Next &gt;
+                  </button>
+                </div>
               </div>
               {emails.length === 0 ? (
                 <p className="text-xs text-gray-500">No emails cached in database. Click Connect Gmail or check your credentials.</p>
               ) : (
-                <div className="space-y-3">
-                  {emails.map((email) => (
-                    <div key={email.id} className="border border-gray-900 p-3 bg-[#0a0b0d] rounded text-xs">
-                      <div className="flex flex-col sm:flex-row justify-between mb-2 pb-1.5 border-b border-gray-900/50">
-                        <span className="font-bold text-gray-400">FROM: {email.from} &lt;{email.fromEmail}&gt;</span>
-                        <span className="text-gray-500">{email.date}</span>
+                <div className="space-y-2">
+                  {emails.map((email) => {
+                    const isExpanded = expandedEmailId === email.id;
+                    const displayDate = (() => {
+                      try {
+                        return new Date(email.date).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+                      } catch (e) {
+                        return email.date;
+                      }
+                    })();
+
+                    return (
+                      <div
+                        key={email.id}
+                        onClick={() => setExpandedEmailId(isExpanded ? null : email.id)}
+                        className="border border-gray-900 bg-[#0a0b0d] rounded text-xs cursor-pointer hover:border-gray-800 transition-colors overflow-hidden"
+                      >
+                        {isExpanded ? (
+                          /* Expanded Accordion View */
+                          <div className="p-4 space-y-3 bg-[#0c0d12]">
+                            <div className="flex flex-col sm:flex-row justify-between pb-2 border-b border-gray-900">
+                              <div>
+                                <span className="font-bold text-white">FROM: {email.from}</span>
+                                <span className="text-gray-500 ml-2">&lt;{email.fromEmail}&gt;</span>
+                              </div>
+                              <span className="text-gray-500 text-[10px]">{displayDate}</span>
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-bold text-white">{email.subject}</h3>
+                            </div>
+                            <p className="text-gray-400 whitespace-pre-wrap leading-relaxed bg-[#0b0c10]/50 p-3 border border-gray-900 rounded select-text">
+                              {email.body}
+                            </p>
+                            <div className="flex gap-4 text-[10px] text-gray-500 uppercase font-semibold pt-1">
+                              <span>Category: <span className="text-gray-400">{email.category}</span></span>
+                              <span>Priority: <span className="text-gray-400">{email.priority}</span></span>
+                              <span>Read: <span className="text-gray-400">{email.read ? "yes" : "no"}</span></span>
+                            </div>
+                          </div>
+                        ) : (
+                          /* Collapsed Single Line View */
+                          <div className="px-4 py-3 flex items-center justify-between gap-4 hover:bg-[#0c0d11] whitespace-nowrap overflow-hidden">
+                            <div className="flex items-center gap-4 min-w-0 flex-1 overflow-hidden">
+                              <span className="text-[10px] text-gray-500 shrink-0 w-24 whitespace-nowrap">
+                                {displayDate.split(",")[0]}
+                              </span>
+                              <span className="text-gray-400 font-bold shrink-0 w-44 truncate whitespace-nowrap">
+                                {email.from}
+                              </span>
+                              <span className="text-white truncate flex-1 block whitespace-nowrap overflow-hidden text-ellipsis">
+                                <span className="font-bold">{email.subject}</span>
+                                <span className="text-gray-600 font-normal ml-3 whitespace-nowrap">
+                                  — {email.body ? email.body.substring(0, 150).replace(/\r?\n/g, " ") : ""}
+                                </span>
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-gray-600 uppercase shrink-0 font-bold whitespace-nowrap">
+                              {email.category}
+                            </span>
+                          </div>
+                        )}
                       </div>
-                      <div className="mb-2">
-                        <span className="text-white font-semibold">{email.subject}</span>
-                      </div>
-                      <p className="text-gray-400 whitespace-pre-wrap leading-relaxed bg-[#0b0c10]/50 p-2 border border-gray-900 rounded">{email.body}</p>
-                      <div className="mt-2 flex gap-3 text-[10px] text-gray-500 uppercase font-semibold">
-                        <span>Category: {email.category}</span>
-                        <span>Priority: {email.priority}</span>
-                        <span>Read: {email.read ? "yes" : "no"}</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

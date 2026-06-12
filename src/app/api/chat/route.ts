@@ -76,7 +76,7 @@ const handleFallbackAI = async (prompt: string, tenantId: string): Promise<{ tex
         tenantId || "user@ciel.app",
         subject,
         body,
-        new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        new Date().toISOString(),
         true,
         "medium",
         "work",
@@ -166,7 +166,7 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
                 const res = await queryDb(
                   `SELECT id, from_name as "from", from_email as "fromEmail", subject, body, date, read, priority, category 
                    FROM emails 
-                   WHERE (subject ILIKE $1 OR body ILIKE $1 OR from_name ILIKE $1 OR from_email ILIKE $1) AND user_email = $2
+                   WHERE (subject ILIKE $1::text OR body ILIKE $1::text OR from_name ILIKE $1::text OR from_email ILIKE $1::text) AND user_email = $2
                    ORDER BY created_at DESC LIMIT 5`,
                   [`%${query}%`, tenantId]
                 );
@@ -206,7 +206,7 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
 
               // Cache in DB
               const emailId = Math.random().toString();
-              const dateStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+              const dateStr = new Date().toISOString();
               const textToEmbed = `To: ${to}\nSubject: ${subject}\nBody: ${body}`;
               const embedding = await getEmbedding(textToEmbed);
               const formattedEmbedding = formatVector(embedding);
@@ -305,7 +305,7 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
       maxSteps: 3,
     } as any);
 
-    return NextResponse.json({ text: response.text });
+    return NextResponse.json({ text: response.text || "I have processed your request." });
   } catch (error: any) {
     console.error("[Ciel Chat API Error]", error);
     return NextResponse.json(

@@ -25,24 +25,28 @@ export async function GET() {
         const corsairEvents = await CorsairClient.listCalendarEvents(session.user.email);
         if (corsairEvents && corsairEvents.length > 0) {
           for (const event of corsairEvents) {
-            const eventId = event.id || Math.random().toString();
-            const title = event.title || "Meeting Invite";
-            const start = event.start || new Date().toISOString();
-            const end = event.end || new Date(Date.now() + 1800000).toISOString();
-            const location = event.location || "";
-            const attendees = event.attendees || [];
-            const description = event.description || "";
+            try {
+              const eventId = event.id || Math.random().toString();
+              const title = event.title || "Meeting Invite";
+              const start = event.start || new Date().toISOString();
+              const end = event.end || new Date(Date.now() + 1800000).toISOString();
+              const location = event.location || "";
+              const attendees = event.attendees || [];
+              const description = event.description || "";
 
-            const textToEmbed = `Title: ${title}\nLocation: ${location}\nDescription: ${description}`;
-            const embedding = await getEmbedding(textToEmbed);
-            const formattedEmbedding = formatVector(embedding);
+              const textToEmbed = `Title: ${title}\nLocation: ${location}\nDescription: ${description}`;
+              const embedding = await getEmbedding(textToEmbed);
+              const formattedEmbedding = formatVector(embedding);
 
-            await query(
-              `INSERT INTO calendar_events (id, user_email, title, start_time, end_time, location, attendees, description, embedding)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::vector)
-               ON CONFLICT (id) DO NOTHING`,
-              [eventId, session.user.email, title, start, end, location, JSON.stringify(attendees), description, formattedEmbedding]
-            );
+              await query(
+                `INSERT INTO calendar_events (id, user_email, title, start_time, end_time, location, attendees, description, embedding)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::vector)
+                 ON CONFLICT (id) DO NOTHING`,
+                [eventId, session.user.email, title, start, end, location, JSON.stringify(attendees), description, formattedEmbedding]
+              );
+            } catch (err: any) {
+              console.error(`[Calendar API] Failed to sync event ${event.id}:`, err.message);
+            }
           }
         }
       } catch (syncError) {

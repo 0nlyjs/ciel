@@ -98,7 +98,21 @@ export class CorsairClient {
     }
 
     const dateHeader = getHeader("date");
-    const internalDate = msg.internalDate ? new Date(Number(msg.internalDate)).toLocaleString() : (dateHeader || new Date().toLocaleString());
+    let dateStr = new Date().toISOString();
+    try {
+      if (msg.internalDate) {
+        const ms = Number(msg.internalDate);
+        if (!isNaN(ms)) {
+          dateStr = new Date(ms).toISOString();
+        } else {
+          dateStr = new Date(msg.internalDate).toISOString();
+        }
+      } else if (dateHeader) {
+        dateStr = new Date(dateHeader).toISOString();
+      }
+    } catch (e) {
+      console.error("[Corsair SDK] Date parse error in parseGmailMessage:", e);
+    }
 
     let body = "";
     if (msg.payload) {
@@ -116,7 +130,7 @@ export class CorsairClient {
       fromEmail: fromEmail,
       subject: subject,
       body: body,
-      date: internalDate,
+      date: dateStr,
       read: read,
       priority: "medium",
       category: "work",
@@ -124,35 +138,73 @@ export class CorsairClient {
   }
 
   static parseGmailMessageFromDb(msg: any): Email | null {
-    if (!msg || !msg.id) return null;
+    if (!msg) return null;
 
-    const fromHeader = msg.from || "";
+    const data = msg.data || msg;
+    const msgId = msg.entity_id || msg.id || data.id;
+    if (!msgId) return null;
+
+    const fromHeader = data.from || "";
     let fromName = "Unknown Sender";
     let fromEmail = "unknown@domain.com";
 
-    if (fromHeader) {
-      const match = fromHeader.match(/^(.*?)\s*<([^>]+)>/);
+    const headers = data.payload?.headers || [];
+    const getHeader = (name: string) => {
+      const h = headers.find((h: any) => h.name.toLowerCase() === name.toLowerCase());
+      return h ? h.value : "";
+    };
+
+    const subject = data.subject || getHeader("subject") || "(No Subject)";
+    const fromVal = fromHeader || getHeader("from");
+
+    if (fromVal) {
+      const match = fromVal.match(/^(.*?)\s*<([^>]+)>/);
       if (match) {
         fromName = match[1].replace(/['"]/g, "").trim() || match[2];
         fromEmail = match[2].trim();
       } else {
-        fromName = fromHeader.trim();
-        fromEmail = fromHeader.trim();
+        fromName = fromVal.trim();
+        fromEmail = fromVal.trim();
       }
     }
 
-    const dateStr = msg.internalDate 
-      ? (isNaN(Number(msg.internalDate)) ? msg.internalDate : new Date(Number(msg.internalDate)).toLocaleString())
-      : (msg.createdAt ? new Date(msg.createdAt).toLocaleString() : new Date().toLocaleString());
+    const dateHeader = getHeader("date");
+    let dateStr = new Date().toISOString();
+    try {
+      if (data.internalDate) {
+        const ms = Number(data.internalDate);
+        if (!isNaN(ms)) {
+          dateStr = new Date(ms).toISOString();
+        } else {
+          dateStr = new Date(data.internalDate).toISOString();
+        }
+      } else if (dateHeader) {
+        dateStr = new Date(dateHeader).toISOString();
+      } else if (msg.createdAt) {
+        dateStr = new Date(msg.createdAt).toISOString();
+      }
+    } catch (e) {
+      console.error("[Corsair SDK] Date parse error, fallback to now:", e);
+    }
+
+    let body = data.body || "";
+    if (!body && data.payload) {
+      body = this.extractBody(data.payload);
+    }
+    if (!body) {
+      body = data.snippet || "";
+    }
+
+    const read = !(data.labelIds || []).includes("UNREAD");
 
     return {
-      id: msg.id,
+      id: msgId,
       from: fromName,
       fromEmail: fromEmail,
-      subject: msg.subject || "(No Subject)",
-      body: msg.body || msg.snippet || "",
+      subject: subject,
+      body: body,
       date: dateStr,
-      read: true,
+      read: read,
       priority: "medium",
       category: "work",
     };
@@ -175,14 +227,36 @@ export class CorsairClient {
 
         const res = await tenant.run<any[]>("gmail.db.messages.search", {
           data: filter,
-          limit: 20
+          limit: 100
         });
 
         if (res.success && res.data) {
           const emails: Email[] = [];
           for (const msg of res.data) {
-            const parsed = this.parseGmailMessageFromDb(msg);
-            if (parsed) emails.push(parsed);
+            const data = msg.data || msg;
+            let fullMsg = data;
+            
+            // If it's a skeleton record (missing body, payload, subject, etc.), fetch details live
+            if (!data.payload && !data.from && !data.subject) {
+              try {
+                const liveMsgRes = await tenant.run("gmail.api.messages.get", {
+                  userId: "me",
+                  id: msg.entity_id || msg.id || data.id
+                });
+                if (liveMsgRes.success && liveMsgRes.data) {
+                  fullMsg = liveMsgRes.data;
+                }
+              } catch (getErr: any) {
+                console.error(`[Corsair API] Failed to fetch full message for ${msg.id}:`, getErr.message);
+              }
+            }
+            
+            const parsed = this.parseGmailMessageFromDb(fullMsg);
+            if (parsed) {
+              // Override ID to Corsair DB record ID to ensure sync state matches
+              parsed.id = msg.id || parsed.id;
+              emails.push(parsed);
+            }
           }
           return emails;
         }
@@ -416,5 +490,41 @@ export class CorsairClient {
 
     useCielStore.getState().addCalendarEvent(newEvent);
     return newEvent;
+  }
+
+  static async listGmailMessagesDirectly(tenantId?: string, maxResults: number = 100): Promise<any[]> {
+    console.log(`[Corsair] Listing Gmail messages directly for tenant: ${tenantId}`);
+    const tenant = await this.getTenant(tenantId);
+    if (!tenant) return [];
+    try {
+      const res = await tenant.run<{ messages?: any[] }>("gmail.api.messages.list", {
+        userId: "me",
+        maxResults: maxResults,
+        includeSpamTrash: true
+      });
+      if (res.success && res.data && res.data.messages) {
+        return res.data.messages;
+      }
+    } catch (error) {
+      console.error("[Corsair API] listGmailMessagesDirectly error:", error);
+    }
+    return [];
+  }
+
+  static async getGmailMessageDirectly(messageId: string, tenantId?: string): Promise<any> {
+    const tenant = await this.getTenant(tenantId);
+    if (!tenant) return null;
+    try {
+      const res = await tenant.run("gmail.api.messages.get", {
+        userId: "me",
+        id: messageId
+      });
+      if (res.success && res.data) {
+        return res.data;
+      }
+    } catch (error) {
+      console.error(`[Corsair API] getGmailMessageDirectly error for ${messageId}:`, error);
+    }
+    return null;
   }
 }

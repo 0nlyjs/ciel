@@ -49,9 +49,13 @@ interface CielState {
 
   // email data
   emails: Email[];
+  emailsTotal: number;
+  emailsPage: number;
+  emailsPerPage: number;
   selectedEmailIndex: number | null;
   searchQuery: string;
   setEmails: (emails: Email[]) => void;
+  setEmailsPage: (page: number) => void;
   setSelectedEmailIndex: (index: number | null) => void;
   setSearchQuery: (query: string) => void;
   markAsRead: (id: string) => Promise<void>;
@@ -64,7 +68,7 @@ interface CielState {
   addCalendarEvent: (event: CalendarEvent) => void;
 
   // db synchronization actions
-  fetchEmails: () => Promise<void>;
+  fetchEmails: (forceSync?: boolean, page?: number) => Promise<void>;
   fetchCalendarEvents: () => Promise<void>;
   performSearch: (query: string) => Promise<void>;
 
@@ -93,6 +97,8 @@ export const useCielStore = create<CielState>((set) => ({
     gmailConnected: false,
     calendarConnected: false,
     emails: [],
+    emailsTotal: 0,
+    emailsPage: 1,
     calendarEvents: [],
     selectedEmailIndex: null,
     searchQuery: "",
@@ -114,9 +120,13 @@ export const useCielStore = create<CielState>((set) => ({
 
   // email data (starts empty in real production environment)
   emails: [],
+  emailsTotal: 0,
+  emailsPage: 1,
+  emailsPerPage: 50,
   selectedEmailIndex: null,
   searchQuery: "",
   setEmails: (emails) => set({ emails, selectedEmailIndex: emails.length > 0 ? 0 : null }),
+  setEmailsPage: (page) => set({ emailsPage: page }),
   setSelectedEmailIndex: (index) => set({ selectedEmailIndex: index }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   markAsRead: async (id) => {
@@ -177,13 +187,28 @@ export const useCielStore = create<CielState>((set) => ({
     })),
 
   // db synchronization actions
-  fetchEmails: async () => {
+  fetchEmails: async (forceSync?: boolean, page?: number) => {
     try {
-      const res = await fetch("/api/emails");
+      const state = useCielStore.getState();
+      const targetPage = page !== undefined ? page : state.emailsPage;
+      const limit = state.emailsPerPage;
+      const offset = (targetPage - 1) * limit;
+
+      const queryParams = new URLSearchParams();
+      if (forceSync) queryParams.set("sync", "true");
+      queryParams.set("limit", limit.toString());
+      queryParams.set("offset", offset.toString());
+
+      const res = await fetch(`/api/emails?${queryParams.toString()}`);
       if (res.ok) {
         const data = await res.json();
         if (data.emails) {
-          set({ emails: data.emails, selectedEmailIndex: data.emails.length > 0 ? 0 : null });
+          set({
+            emails: data.emails,
+            emailsTotal: data.total ?? data.emails.length,
+            emailsPage: targetPage,
+            selectedEmailIndex: data.emails.length > 0 ? 0 : null,
+          });
         }
       }
     } catch (error) {
@@ -212,6 +237,8 @@ export const useCielStore = create<CielState>((set) => ({
         const data = await res.json();
         set({
           emails: data.emails || [],
+          emailsTotal: data.emails?.length || 0,
+          emailsPage: 1,
           calendarEvents: data.calendarEvents || [],
           selectedEmailIndex: data.emails && data.emails.length > 0 ? 0 : null,
         });

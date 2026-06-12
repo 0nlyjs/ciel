@@ -77,7 +77,7 @@ Respond with a raw JSON object containing exactly two keys: "priority" and "cate
 }
 
 // GET /api/emails - Fetch all cached emails from database
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
@@ -86,35 +86,76 @@ export async function GET() {
 
     await dbInit();
 
-    // Sync from Corsair if local DB is empty for this user
+    const url = new URL(req.url);
+    const forceSync = url.searchParams.get("sync") === "true";
+    const limit = parseInt(url.searchParams.get("limit") || "50", 10);
+    const offset = parseInt(url.searchParams.get("offset") || "0", 10);
+
+    if (forceSync) {
+      console.log(`[Emails API] Force sync requested for ${session.user.email}. Clearing cache...`);
+      await query("DELETE FROM emails WHERE user_email = $1", [session.user.email]);
+    }
+
+    // Sync from Corsair if local DB is empty or forceSync is true
     const checkRes = await query("SELECT count(*)::int as count FROM emails WHERE user_email = $1", [session.user.email]);
     const count = checkRes.rows[0]?.count || 0;
 
-    if (count === 0) {
-      console.log(`[Emails API] No emails cached for ${session.user.email}. Syncing from Corsair Gmail...`);
+    console.log(`[Emails API] Current DB email count for ${session.user.email}: ${count}`);
+
+    if (count === 0 || forceSync) {
+      console.log(`[Emails API] Syncing from Corsair Gmail for ${session.user.email}...`);
       try {
-        const corsairEmails = await CorsairClient.searchEmails("", session.user.email);
-        if (corsairEmails && corsairEmails.length > 0) {
-          for (const email of corsairEmails) {
-            const emailId = email.id || Math.random().toString();
-            const fromName = email.from || "Unknown Sender";
-            const fromEmail = email.fromEmail || "unknown@domain.com";
-            const subject = email.subject || "(No Subject)";
-            const body = email.body || "";
-            const dateStr = email.date || new Date().toLocaleDateString();
+        const messageSkeletons = await CorsairClient.listGmailMessagesDirectly(session.user.email, 100);
+        console.log(`[Emails API] Corsair returned ${messageSkeletons.length} message skeletons.`);
 
-            const { priority, category } = await classifyEmail(subject, body);
+        if (messageSkeletons.length > 0) {
+          // Fetch existing email IDs to avoid duplicates
+          const existingRes = await query("SELECT id FROM emails WHERE user_email = $1", [session.user.email]);
+          const existingIds = new Set(existingRes.rows.map((r: any) => r.id));
 
-            const textToEmbed = `From: ${fromName} <${fromEmail}>\nSubject: ${subject}\nBody: ${body}`;
-            const embedding = await getEmbedding(textToEmbed);
-            const formattedEmbedding = formatVector(embedding);
+          const missingSkeletons = messageSkeletons.filter((msg) => !existingIds.has(msg.id));
+          console.log(`[Emails API] Found ${missingSkeletons.length} missing emails to fetch.`);
 
-            await query(
-              `INSERT INTO emails (id, user_email, from_name, from_email, subject, body, date, read, priority, category, embedding)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)
-               ON CONFLICT (id) DO NOTHING`,
-              [emailId, session.user.email, fromName, fromEmail, subject, body, dateStr, email.read ?? false, priority, category, formattedEmbedding]
-            );
+          // Limit to maximum 50 new emails fetched in a single sync to avoid timeout
+          const batchToFetch = missingSkeletons.slice(0, 50);
+          console.log(`[Emails API] Fetching details for ${batchToFetch.length} new emails...`);
+
+          // Process in chunks of 5 parallel requests
+          for (let i = 0; i < batchToFetch.length; i += 5) {
+            const chunk = batchToFetch.slice(i, i + 5);
+            await Promise.all(chunk.map(async (skeleton) => {
+              try {
+                const rawMsg = await CorsairClient.getGmailMessageDirectly(skeleton.id, session.user.email);
+                if (rawMsg) {
+                  const email = CorsairClient.parseGmailMessage(rawMsg);
+                  if (email) {
+                    const emailId = email.id;
+                    const fromName = email.from || "Unknown Sender";
+                    const fromEmail = email.fromEmail || "unknown@domain.com";
+                    const subject = email.subject || "(No Subject)";
+                    const body = email.body || "";
+                    const dateStr = email.date || new Date().toISOString();
+
+                    const { priority, category } = await classifyEmail(subject, body);
+                    const textToEmbed = `From: ${fromName} <${fromEmail}>\nSubject: ${subject}\nBody: ${body}`;
+                    const embedding = await getEmbedding(textToEmbed);
+                    const formattedEmbedding = formatVector(embedding);
+
+                    await query(
+                      `INSERT INTO emails (id, user_email, from_name, from_email, subject, body, date, read, priority, category, embedding)
+                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)
+                       ON CONFLICT (id) DO UPDATE SET 
+                         read = EXCLUDED.read,
+                         priority = EXCLUDED.priority,
+                         category = EXCLUDED.category`,
+                      [emailId, session.user.email, fromName, fromEmail, subject, body, dateStr, email.read ?? false, priority, category, formattedEmbedding]
+                    );
+                  }
+                }
+              } catch (err: any) {
+                console.error(`[Emails API] Failed to sync email ${skeleton.id}:`, err.message);
+              }
+            }));
           }
         }
       } catch (syncError) {
@@ -122,15 +163,20 @@ export async function GET() {
       }
     }
 
+    // Get total count of emails for pagination metadata
+    const countTotalRes = await query("SELECT count(*)::int as count FROM emails WHERE user_email = $1", [session.user.email]);
+    const totalCount = countTotalRes.rows[0]?.count || 0;
+
+    // Fetch the paginated page of emails, sorted chronologically (latest at top)
     const { rows } = await query(
       `SELECT id, from_name as "from", from_email as "fromEmail", subject, body, date, read, priority, category 
        FROM emails 
        WHERE user_email = $1
-       ORDER BY created_at DESC LIMIT 100`,
-      [session.user.email]
+       ORDER BY date DESC LIMIT $2 OFFSET $3`,
+      [session.user.email, limit, offset]
     );
 
-    return NextResponse.json({ emails: rows });
+    return NextResponse.json({ emails: rows, total: totalCount });
   } catch (error: any) {
     console.error("[Emails API GET Error]", error);
     return NextResponse.json({ error: "Internal Server Error", message: error.message }, { status: 500 });
