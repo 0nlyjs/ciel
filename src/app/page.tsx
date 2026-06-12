@@ -1,45 +1,37 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useCielStore } from "@/store/useCielStore";
-import { useSession, signIn } from "next-auth/react";
-import { useHotkeys } from "react-hotkeys-hook";
-import { useSpeechToText, useTextToSpeech } from "@/lib/speech";
-import CielCanvas from "@/components/3d/CielCanvas";
-import AuthPortal from "@/components/ui/AuthPortal";
-import Sidebar from "@/components/ui/Sidebar";
-import Overview from "@/components/ui/Overview";
-import EmailList from "@/components/ui/EmailList";
-import EmailView from "@/components/ui/EmailView";
-import CalendarView from "@/components/ui/CalendarView";
-import ChatPanel from "@/components/ui/ChatPanel";
-import SettingsView from "@/components/ui/SettingsView";
-import { Search, Keyboard, HelpCircle, Terminal, Eye, X } from "lucide-react";
+import { useSession, signIn, signOut } from "next-auth/react";
 
 export default function Home() {
+  const { data: session, status } = useSession();
+  
+  // Zustand State & Actions
   const user = useCielStore((s) => s.user);
-  const activeTab = useCielStore((s) => s.activeTab);
-  const setActiveTab = useCielStore((s) => s.setActiveTab);
-  const selectedIndex = useCielStore((s) => s.selectedEmailIndex);
-  const setSelectedIndex = useCielStore((s) => s.setSelectedEmailIndex);
-  const emails = useCielStore((s) => s.emails);
-  const archiveEmail = useCielStore((s) => s.archiveEmail);
-  const markAsRead = useCielStore((s) => s.markAsRead);
-  const searchQuery = useCielStore((s) => s.searchQuery);
-  const setSearchQuery = useCielStore((s) => s.setSearchQuery);
-
-  const fetchEmails = useCielStore((s) => s.fetchEmails);
-  const fetchCalendarEvents = useCielStore((s) => s.fetchCalendarEvents);
-  const performSearch = useCielStore((s) => s.performSearch);
   const login = useCielStore((s) => s.login);
   const logout = useCielStore((s) => s.logout);
-  const fetchIntegrationStatus = useCielStore((s) => s.fetchIntegrationStatus);
   const gmailConnected = useCielStore((s) => s.gmailConnected);
   const calendarConnected = useCielStore((s) => s.calendarConnected);
+  const fetchIntegrationStatus = useCielStore((s) => s.fetchIntegrationStatus);
+  
+  const emails = useCielStore((s) => s.emails);
+  const fetchEmails = useCielStore((s) => s.fetchEmails);
+  const calendarEvents = useCielStore((s) => s.calendarEvents);
+  const fetchCalendarEvents = useCielStore((s) => s.fetchCalendarEvents);
+  
+  const searchQuery = useCielStore((s) => s.searchQuery);
+  const setSearchQuery = useCielStore((s) => s.setSearchQuery);
+  const performSearch = useCielStore((s) => s.performSearch);
+  
+  const chatMessages = useCielStore((s) => s.chatMessages);
+  const addChatMessage = useCielStore((s) => s.addChatMessage);
+  const clearChat = useCielStore((s) => s.clearChat);
 
-  const { data: session, status } = useSession();
-  const [isSigningIn, setIsSigningIn] = useState(false);
-  const view = user ? "dashboard" : (isSigningIn ? "login" : "landing");
+  // Tab State
+  const [activeView, setActiveView] = useState<"emails" | "calendar" | "chat" | "store">("emails");
+  const [chatInput, setChatInput] = useState("");
+  const [isSendingChat, setIsSendingChat] = useState(false);
 
   // Sync NextAuth session state with Zustand store
   useEffect(() => {
@@ -49,539 +41,381 @@ export default function Home() {
       if (!user || user.email !== email || user.name !== name) {
         login(name, email);
       }
-    } else if (status === "unauthenticated") {
-      if (user) {
-        logout();
-      }
+    } else if (status === "unauthenticated" && user) {
+      logout();
     }
   }, [status, session, user, login, logout]);
-  const [isComposing, setIsComposing] = useState(false);
-  const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
 
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // Load initial data from Postgres on load / when dashboard is active
+  // Load initial data on dashboard mount
   useEffect(() => {
-    if (view === "dashboard") {
+    if (status === "authenticated") {
       fetchIntegrationStatus();
       fetchEmails();
       fetchCalendarEvents();
     }
-  }, [view, fetchEmails, fetchCalendarEvents, fetchIntegrationStatus]);
+  }, [status, fetchIntegrationStatus, fetchEmails, fetchCalendarEvents]);
 
-  // Debounce search input to query the database using vector matching
-  useEffect(() => {
-    if (view !== "dashboard") return;
-
-    const delayDebounceFn = setTimeout(() => {
-      if (searchQuery.trim()) {
-        performSearch(searchQuery);
-      } else {
-        fetchEmails();
-        fetchCalendarEvents();
-      }
-    }, 400);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery, view, performSearch, fetchEmails, fetchCalendarEvents]);
-
-  // voice control setup
-  const { speak, stop: stopSpeech } = useTextToSpeech();
-  const handleVoiceInput = (transcript: string) => {
-    const trimmed = transcript.trim();
-    if (!trimmed) return;
-
-    const query = trimmed.toLowerCase();
-    
-    // Check navigation first
-    if (query.includes("open inbox") || query.includes("show inbox") || query.includes("go to inbox") || query.includes("open email")) {
-      setActiveTab("inbox");
-      speak("Opening inbox.");
-    } else if (query.includes("open calendar") || query.includes("show calendar") || query.includes("go to calendar") || query.includes("open schedule")) {
-      setActiveTab("calendar");
-      speak("Loading schedule planner.");
-    } else if (query.includes("open assistant") || query.includes("show assistant") || query.includes("go to assistant") || query.includes("open chat")) {
-      setActiveTab("chat");
-      speak("Summoning conversational console.");
-    } else if (query.includes("open settings") || query.includes("go to settings")) {
-      setActiveTab("settings");
-      speak("Opening settings.");
-    } else if (query.includes("open overview") || query.includes("go to overview") || query.includes("go to dashboard")) {
-      setActiveTab("overview");
-      speak("Opening dashboard overview.");
+  // Handle Search Submission
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      performSearch(searchQuery);
     } else {
-      // Otherwise route query to ChatPanel and switch view
-      setActiveTab("chat");
-      setTimeout(() => {
-        const event = new CustomEvent("ciel-voice-command", { detail: trimmed });
-        window.dispatchEvent(event);
-      }, 150);
+      fetchEmails();
+      fetchCalendarEvents();
     }
   };
 
-  const { isListening, startListening, stopListening } = useSpeechToText(handleVoiceInput);
+  // Handle Chat message submit
+  const handleChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || isSendingChat) return;
 
-  // hotkey bindings
+    const userMsg = chatInput.trim();
+    setChatInput("");
+    addChatMessage({ role: "user", content: userMsg });
+    setIsSendingChat(true);
 
-  // j/k to navigate email list
-  useHotkeys("j", () => {
-    if (activeTab !== "inbox" || isComposing || document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
-    if (selectedIndex === null) {
-      setSelectedIndex(0);
-    } else if (selectedIndex < emails.length - 1) {
-      const nextIndex = selectedIndex + 1;
-      setSelectedIndex(nextIndex);
-      markAsRead(emails[nextIndex].id);
+    try {
+      // Re-fetch all messages to build list including the new one
+      const updatedMessages = [...chatMessages, { role: "user", content: userMsg }];
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: updatedMessages.map(m => ({ role: m.role, content: m.content }))
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        addChatMessage({ role: "assistant", content: data.text });
+      } else {
+        addChatMessage({ role: "assistant", content: "Error communicating with the backend chatbot API." });
+      }
+    } catch (err) {
+      console.error("Chat error:", err);
+      addChatMessage({ role: "assistant", content: "An unexpected error occurred during chat transmission." });
+    } finally {
+      setIsSendingChat(false);
+      // Automatically refresh data in case tool execution made changes
+      fetchEmails();
+      fetchCalendarEvents();
     }
-  }, [selectedIndex, emails, activeTab, isComposing]);
-
-  useHotkeys("k", () => {
-    if (activeTab !== "inbox" || isComposing || document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
-    if (selectedIndex === null) {
-      setSelectedIndex(0);
-    } else if (selectedIndex > 0) {
-      const prevIndex = selectedIndex - 1;
-      setSelectedIndex(prevIndex);
-      markAsRead(emails[prevIndex].id);
-    }
-  }, [selectedIndex, activeTab, isComposing]);
-
-  // e to archive
-  useHotkeys("e", () => {
-    if (activeTab !== "inbox" || isComposing || selectedIndex === null || document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
-    archiveEmail(emails[selectedIndex].id);
-  }, [selectedIndex, emails, activeTab, isComposing]);
-
-  // c to open compose modal
-  useHotkeys("c", (e) => {
-    if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
-    e.preventDefault();
-    setIsComposing(true);
-  }, [isComposing]);
-
-  // / to focus search
-  useHotkeys("/", (e) => {
-    if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
-    e.preventDefault();
-    searchInputRef.current?.focus();
-  });
-
-  // ? for help modal
-  useHotkeys("shift+?", (e) => {
-    if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
-    e.preventDefault();
-    setShowKeyboardHelp((prev) => !prev);
-  });
-
-  // navigation shortcuts
-  useHotkeys("g+o", () => {
-    if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
-    setActiveTab("overview");
-  });
-  useHotkeys("g+i", () => {
-    if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
-    setActiveTab("inbox");
-  });
-  useHotkeys("g+c", () => {
-    if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
-    setActiveTab("calendar");
-  });
-  useHotkeys("g+a", () => {
-    if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
-    setActiveTab("chat");
-  });
-  useHotkeys("g+s", () => {
-    if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
-    setActiveTab("settings");
-  });
-
-  // hold space to talk, release to transcribe
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (view !== "dashboard" || e.code !== "Space") return;
-      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
-      
-      e.preventDefault(); // prevent scroll
-      if (!isListening) {
-        stopSpeech();
-        startListening();
-      }
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (view !== "dashboard" || e.code !== "Space") return;
-      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
-      
-      e.preventDefault();
-      if (isListening) {
-        stopListening();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-    };
-  }, [isListening, view, startListening, stopListening, stopSpeech]);
-
-  // forward custom voice event to chat panel input
-  useEffect(() => {
-    const triggerVoiceChat = (e: Event) => {
-      const customEvent = e as CustomEvent<string>;
-      const chatSubmitBtn = document.querySelector('button[type="submit"]') as HTMLButtonElement;
-      const chatInput = document.querySelector('input[placeholder*="Ask Ciel"]') as HTMLInputElement;
-      
-      if (chatInput && chatSubmitBtn) {
-        chatInput.value = customEvent.detail;
-        // trigger input event so react updates state
-        const inputEvent = new Event("input", { bubbles: true });
-        chatInput.dispatchEvent(inputEvent);
-        chatSubmitBtn.click();
-      }
-    };
-
-    window.addEventListener("ciel-voice-command", triggerVoiceChat);
-    return () => window.removeEventListener("ciel-voice-command", triggerVoiceChat);
-  }, []);
+  };
 
   if (status === "loading") {
     return (
-      <div className="w-full h-screen flex flex-col items-center justify-center bg-void text-crisp-white font-sans select-none relative overflow-hidden">
-        <div className="cyber-glass p-8 rounded-2xl flex flex-col items-center max-w-sm text-center shadow-2xl relative z-10 border border-white/10">
-          <Terminal className="w-8 h-8 text-cyan-glow mb-4 animate-[spin_3s_linear_infinite]" />
-          <h2 className="text-sm font-bold uppercase tracking-widest font-mono text-crisp-white">
-            Initializing Ciel
-          </h2>
-          <p className="text-[10px] text-silvery-gray/50 uppercase font-bold tracking-wider mt-2">
-            Establishing secure session
+      <div className="min-h-screen bg-[#0a0b0d] text-gray-400 flex items-center justify-center font-mono">
+        <p>Loading session status...</p>
+      </div>
+    );
+  }
+
+  // Unauthenticated / Landing View
+  if (status === "unauthenticated") {
+    return (
+      <div className="min-h-screen bg-[#0a0b0d] text-gray-300 p-8 flex flex-col items-center justify-center font-mono">
+        <div className="max-w-md w-full border border-gray-800 bg-[#0d0e12] p-8 rounded shadow-md">
+          <h1 className="text-xl font-bold text-white mb-2">CIEL WORKSPACE</h1>
+          <p className="text-xs text-gray-500 mb-6 uppercase tracking-wider">Sentient Analytical Interface</p>
+          
+          <p className="text-sm leading-relaxed mb-8">
+            Developer Console. Sign in using your NextAuth credentials to test backend email parsing, calendar synchronization, database indexing, and AI agent flows.
           </p>
-          <div className="w-24 h-0.5 bg-white/5 rounded-full overflow-hidden mt-6 relative">
-            <div className="absolute inset-y-0 bg-gradient-to-r from-cyan-glow to-cyber-magenta w-1/2 rounded-full animate-pulse" />
-          </div>
+
+          <button
+            onClick={() => signIn()}
+            className="w-full py-3 bg-white text-black font-bold text-sm rounded hover:bg-gray-200 transition-colors uppercase tracking-wider"
+          >
+            Authorize / Sign In
+          </button>
         </div>
       </div>
     );
   }
 
+  // Dashboard / Authenticated View
   return (
-    <div className="w-full h-screen flex flex-col bg-void text-crisp-white select-none relative overflow-hidden font-sans">
-      
-      {/* 3D swirl particles background for landing & login views */}
-      {(view === "landing" || view === "login") && (
-        <div className="absolute inset-0 z-0">
-          <CielCanvas scene="landing" />
+    <div className="min-h-screen bg-[#0a0b0d] text-gray-300 p-6 font-mono flex flex-col">
+      {/* Header */}
+      <header className="border-b border-gray-800 pb-4 mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-lg font-bold text-white uppercase tracking-widest">CIEL // DEV CONSOLE</h1>
+          <p className="text-xs text-gray-500 uppercase">Backend Integration Testing Dashboard</p>
         </div>
-      )}
-      
-      {/* landing page */}
-      {view === "landing" && (
-        <div className="w-full h-full relative flex flex-col justify-between p-8">
+        
+        <div className="flex flex-wrap items-center gap-4 text-xs">
+          <span className="text-gray-500">
+            USER: <span className="text-white">{session?.user?.email}</span>
+          </span>
+          <button
+            onClick={() => signOut()}
+            className="border border-gray-800 px-3 py-1.5 hover:bg-gray-900 rounded text-gray-400 hover:text-white"
+          >
+            Sign Out
+          </button>
+        </div>
+      </header>
 
-          {/* header */}
-          <header className="relative z-10 flex items-center gap-2">
-            <Terminal className="w-5 h-5 text-cyan-glow animate-pulse" />
-            <span className="font-mono text-sm tracking-widest font-bold text-crisp-white">CIEL // SECURE</span>
-          </header>
-
-          {/* hero section */}
-          <main className="relative z-10 flex flex-col items-center justify-center text-center max-w-lg mx-auto py-24">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-cyan-glow/20 bg-cyan-glow/5 text-cyan-glow text-xs font-mono mb-6 animate-pulse shadow-[0_0_15px_rgba(0,240,255,0.1)]">
-              <Eye className="w-3.5 h-3.5" />
-              INTEGRATION MULTI-CLIENT READY
+      {/* Integration Connections Panel */}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        {/* Gmail status */}
+        <div className="border border-gray-800 bg-[#0d0e12] p-4 rounded flex flex-col justify-between">
+          <div>
+            <h2 className="text-xs font-bold text-white mb-1 uppercase tracking-wider">Gmail Integration</h2>
+            <p className="text-xs text-gray-500 mb-3">Corsair synchronization status for user emails.</p>
+            <div className="flex items-center gap-2 mb-4">
+              <span className={`inline-block w-2.5 h-2.5 rounded-full ${gmailConnected ? "bg-green-500" : "bg-red-500"}`} />
+              <span className="text-xs">{gmailConnected ? "CONNECTED" : "DISCONNECTED"}</span>
             </div>
-            
-            <h1 className="text-5xl font-extrabold tracking-tight text-white font-sans sm:text-6xl bg-clip-text text-transparent bg-gradient-to-r from-crisp-white via-ice-blue to-cyan-glow leading-tight drop-shadow-[0_0_30px_rgba(0,240,255,0.15)]">
-              Ciel Workspace
-            </h1>
-            
-            <p className="text-silvery-gray/70 text-sm leading-relaxed mt-4 max-w-sm">
-              Sentient email and calendar coordination system powered by Corsair.dev integrations. Hands-free voice interface.
-            </p>
+          </div>
+          {!gmailConnected && (
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch("/api/auth/corsair/connect?plugin=gmail");
+                  const data = await res.json();
+                  if (data.authorizeUrl) {
+                    window.location.href = data.authorizeUrl;
+                  }
+                } catch (e) {
+                  console.error("Failed to connect gmail:", e);
+                }
+              }}
+              className="text-center w-full py-2 bg-gray-800 hover:bg-gray-700 text-white rounded text-xs uppercase font-bold"
+            >
+              Connect Gmail
+            </button>
+          )}
+        </div>
 
-            <div className="mt-8 flex gap-4 items-center justify-center">
-              <button
-                onClick={() => setIsSigningIn(true)}
-                className="px-6 h-12 bg-gradient-to-r from-cyan-glow to-cyber-magenta hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] text-void font-bold rounded-xl text-sm shadow-[0_0_25px_rgba(0,240,255,0.2)] transition-all cursor-pointer border border-cyan-glow/10"
-              >
-                Sign In
-              </button>
-              <button
-                onClick={() => setIsSigningIn(true)}
-                className="px-6 h-12 border border-white/10 hover:border-cyan-glow/30 hover:bg-white/5 hover:scale-[1.02] active:scale-[0.98] text-crisp-white font-bold rounded-xl text-sm transition-all cursor-pointer"
-              >
-                Sign Up
-              </button>
+        {/* Calendar status */}
+        <div className="border border-gray-800 bg-[#0d0e12] p-4 rounded flex flex-col justify-between">
+          <div>
+            <h2 className="text-xs font-bold text-white mb-1 uppercase tracking-wider">Google Calendar</h2>
+            <p className="text-xs text-gray-500 mb-3">Corsair synchronization status for user schedules.</p>
+            <div className="flex items-center gap-2 mb-4">
+              <span className={`inline-block w-2.5 h-2.5 rounded-full ${calendarConnected ? "bg-green-500" : "bg-red-500"}`} />
+              <span className="text-xs">{calendarConnected ? "CONNECTED" : "DISCONNECTED"}</span>
             </div>
-          </main>
-
-          {/* footer */}
-          <footer className="relative z-10 text-center text-[10px] font-mono text-silvery-gray/30">
-            Ciel AI v0.1.0 // Developed with Corsair Integration Layer
-          </footer>
+          </div>
+          {!calendarConnected && (
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch("/api/auth/corsair/connect?plugin=googlecalendar");
+                  const data = await res.json();
+                  if (data.authorizeUrl) {
+                    window.location.href = data.authorizeUrl;
+                  }
+                } catch (e) {
+                  console.error("Failed to connect calendar:", e);
+                }
+              }}
+              className="text-center w-full py-2 bg-gray-800 hover:bg-gray-700 text-white rounded text-xs uppercase font-bold"
+            >
+              Connect Calendar
+            </button>
+          )}
         </div>
-      )}
+      </section>
 
-      {/* login modal */}
-      {view === "login" && (
-        <div className="w-full h-full relative">
-          <AuthPortal onCancel={() => setIsSigningIn(false)} />
+      {/* Main Workspace Console */}
+      <div className="flex-1 flex flex-col border border-gray-800 bg-[#0d0e12] rounded overflow-hidden">
+        {/* Navigation Tabs */}
+        <div className="border-b border-gray-800 flex bg-[#0e1014] text-xs">
+          <button
+            onClick={() => setActiveView("emails")}
+            className={`px-4 py-3 border-r border-gray-800 font-bold uppercase tracking-wider ${activeView === "emails" ? "bg-[#0a0b0d] text-white" : "text-gray-500 hover:text-gray-300"}`}
+          >
+            Emails ({emails.length})
+          </button>
+          <button
+            onClick={() => setActiveView("calendar")}
+            className={`px-4 py-3 border-r border-gray-800 font-bold uppercase tracking-wider ${activeView === "calendar" ? "bg-[#0a0b0d] text-white" : "text-gray-500 hover:text-gray-300"}`}
+          >
+            Calendar ({calendarEvents.length})
+          </button>
+          <button
+            onClick={() => setActiveView("chat")}
+            className={`px-4 py-3 border-r border-gray-800 font-bold uppercase tracking-wider ${activeView === "chat" ? "bg-[#0a0b0d] text-white" : "text-gray-500 hover:text-gray-300"}`}
+          >
+            AI Chat Console ({chatMessages.length})
+          </button>
+          <button
+            onClick={() => setActiveView("store")}
+            className={`px-4 py-3 font-bold uppercase tracking-wider ${activeView === "store" ? "bg-[#0a0b0d] text-white" : "text-gray-500 hover:text-gray-300"}`}
+          >
+            Zustand Store Dump
+          </button>
         </div>
-      )}
 
-      {/* main dashboard */}
-      {view === "dashboard" && (
-        <div className="w-full h-full flex overflow-hidden">
+        {/* Console Action Bar */}
+        <div className="bg-[#0b0c10] border-b border-gray-800 p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+          <form onSubmit={handleSearchSubmit} className="flex-1 flex gap-2">
+            <input
+              type="text"
+              placeholder="Search Emails & Calendar events (triggers vector search DB lookup)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 bg-[#0a0b0d] border border-gray-800 text-xs px-3 py-2 text-white outline-none rounded"
+            />
+            <button
+              type="submit"
+              className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-4 py-2 font-bold uppercase rounded"
+            >
+              Search
+            </button>
+          </form>
           
-          {/* sidebar */}
-          <Sidebar />
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={() => {
+                fetchIntegrationStatus();
+                fetchEmails();
+                fetchCalendarEvents();
+              }}
+              className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-4 py-2 font-bold uppercase rounded"
+            >
+              Refresh All Data
+            </button>
+          </div>
+        </div>
 
-          {/* dashboard content */}
-          <div className="flex-1 flex flex-col h-full overflow-hidden bg-void">
-            
-            {/* header toolbar (rendered conditionally based on active tab) */}
-            {activeTab !== "overview" && activeTab !== "settings" && (
-              <header className="h-14 border-b border-white/10 px-6 flex items-center justify-between shrink-0 select-none bg-abyssal/40 backdrop-blur-md z-20">
-                
-                {/* search bar */}
-                <div className="flex-grow max-w-md relative flex items-center group">
-                  <Search className="w-4 h-4 text-silvery-gray/40 absolute left-3 group-focus-within:text-cyan-glow transition-colors" />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    placeholder="Press / to search messages..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full h-9 bg-void border border-white/10 hover:border-white/20 focus:border-cyan-glow/40 text-xs text-crisp-white placeholder-silvery-gray/30 rounded-lg pl-9 pr-4 outline-none transition-all"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery("")}
-                      className="absolute right-3 text-[10px] font-mono text-silvery-gray hover:text-crisp-white"
-                    >
-                      Clear
-                    </button>
-                  )}
+        {/* Tab Contents */}
+        <div className="flex-1 p-6 overflow-y-auto max-h-[50vh]">
+          {/* EMAILS VIEW */}
+          {activeView === "emails" && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center pb-2 border-b border-gray-900">
+                <span className="text-xs uppercase tracking-wider text-gray-500">Inbox Sync Log ({emails.length} entries)</span>
+              </div>
+              {emails.length === 0 ? (
+                <p className="text-xs text-gray-500">No emails cached in database. Click Connect Gmail or check your credentials.</p>
+              ) : (
+                <div className="space-y-3">
+                  {emails.map((email) => (
+                    <div key={email.id} className="border border-gray-900 p-3 bg-[#0a0b0d] rounded text-xs">
+                      <div className="flex flex-col sm:flex-row justify-between mb-2 pb-1.5 border-b border-gray-900/50">
+                        <span className="font-bold text-gray-400">FROM: {email.from} &lt;{email.fromEmail}&gt;</span>
+                        <span className="text-gray-500">{email.date}</span>
+                      </div>
+                      <div className="mb-2">
+                        <span className="text-white font-semibold">{email.subject}</span>
+                      </div>
+                      <p className="text-gray-400 whitespace-pre-wrap leading-relaxed bg-[#0b0c10]/50 p-2 border border-gray-900 rounded">{email.body}</p>
+                      <div className="mt-2 flex gap-3 text-[10px] text-gray-500 uppercase font-semibold">
+                        <span>Category: {email.category}</span>
+                        <span>Priority: {email.priority}</span>
+                        <span>Read: {email.read ? "yes" : "no"}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              )}
+            </div>
+          )}
 
-                {/* utility triggers */}
-                <div className="flex items-center gap-3">
-                  
-                  {/* mic indicator */}
-                  <div className="flex items-center gap-1.5 px-3 py-1 rounded bg-void border border-white/10">
-                    <span className={`w-1.5 h-1.5 rounded-full ${isListening ? "bg-crimson animate-ping" : "bg-silvery-gray/40"}`} />
-                    <span className={`text-[10px] font-mono ${isListening ? "text-crimson font-bold" : "text-silvery-gray/70"}`}>
-                      {isListening ? "Voice Active" : "[Space] Walkie-Talkie"}
+          {/* CALENDAR VIEW */}
+          {activeView === "calendar" && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center pb-2 border-b border-gray-900">
+                <span className="text-xs uppercase tracking-wider text-gray-500">Calendar Coordinates ({calendarEvents.length} entries)</span>
+              </div>
+              {calendarEvents.length === 0 ? (
+                <p className="text-xs text-gray-500">No calendar events cached in database. Click Connect Calendar or check your credentials.</p>
+              ) : (
+                <div className="space-y-3">
+                  {calendarEvents.map((evt) => (
+                    <div key={evt.id} className="border border-gray-900 p-3 bg-[#0a0b0d] rounded text-xs">
+                      <div className="flex flex-col sm:flex-row justify-between mb-2 pb-1.5 border-b border-gray-900/50">
+                        <span className="font-bold text-white">{evt.title}</span>
+                        <span className="text-gray-500">
+                          {new Date(evt.start).toLocaleString()} - {new Date(evt.end).toLocaleString()}
+                        </span>
+                      </div>
+                      {evt.location && <p className="mb-1 text-gray-400">Location: {evt.location}</p>}
+                      {evt.attendees && evt.attendees.length > 0 && (
+                        <p className="mb-1 text-gray-400">Attendees: {evt.attendees.join(", ")}</p>
+                      )}
+                      {evt.description && (
+                        <p className="text-gray-400 whitespace-pre-wrap leading-relaxed bg-[#0b0c10]/50 p-2 border border-gray-900 rounded mt-2">{evt.description}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* AI CHAT CONSOLE */}
+          {activeView === "chat" && (
+            <div className="flex flex-col h-full space-y-4 min-h-[300px]">
+              <div className="flex-1 space-y-3 bg-[#0a0b0d] p-4 border border-gray-900 rounded overflow-y-auto max-h-[350px]">
+                {chatMessages.map((msg) => (
+                  <div key={msg.id} className="text-xs leading-relaxed">
+                    <span className={`font-bold ${msg.role === "user" ? "text-cyan-400" : "text-purple-400"} uppercase mr-2`}>
+                      [{msg.role}]:
                     </span>
+                    <span className="text-gray-300">{msg.content}</span>
                   </div>
-
-                  {/* keyboard help button */}
-                  <button
-                    onClick={() => setShowKeyboardHelp((prev) => !prev)}
-                    className="h-8 w-8 rounded bg-void hover:bg-white/5 border border-white/10 flex items-center justify-center text-silvery-gray hover:text-crisp-white transition-all cursor-pointer shadow-sm"
-                    title="Keyboard Shortcuts Map"
-                  >
-                    <Keyboard className="w-4 h-4" />
-                  </button>
-                </div>
-
-              </header>
-            )}
-
-            {/* view router */}
-            <div className="flex-1 flex overflow-hidden">
-              
-              {/* overview tab */}
-              {activeTab === "overview" && <Overview />}
-
-              {/* inbox tab */}
-              {activeTab === "inbox" && (
-                gmailConnected ? (
-                  <div className="flex-1 flex overflow-hidden h-full">
-                    <div className="w-80 border-r border-white/10 flex-shrink-0 h-full">
-                      <EmailList />
-                    </div>
-                    <div className="flex-grow h-full">
-                      <EmailView key={selectedIndex ?? "none"} isComposing={isComposing} setIsComposing={setIsComposing} />
-                    </div>
+                ))}
+                {isSendingChat && (
+                  <div className="text-xs text-gray-500 animate-pulse">
+                    <span>[assistant]: Thinking and generating tool responses...</span>
                   </div>
-                ) : (
-                  <div className="flex-grow h-full flex flex-col items-center justify-center p-8 bg-void select-none">
-                    <div className="max-w-md w-full cyber-glass rounded-2xl p-8 border border-white/10 shadow-2xl text-center relative overflow-hidden flex flex-col items-center">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-cyber-magenta/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
-                      <div className="absolute bottom-0 left-0 w-32 h-32 bg-cyan-glow/10 rounded-full blur-2xl -ml-16 -mb-16 pointer-events-none" />
-                      
-                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyber-magenta/20 to-cyan-glow/20 border border-white/10 flex items-center justify-center mb-6 shadow-inner relative group">
-                        <div className="absolute inset-0 bg-gradient-to-r from-cyan-glow to-cyber-magenta opacity-0 group-hover:opacity-10 rounded-2xl transition-opacity duration-300" />
-                        <span className="font-mono text-2xl font-bold bg-gradient-to-r from-cyan-glow to-cyber-magenta bg-clip-text text-transparent">M</span>
-                      </div>
-                      
-                      <h2 className="text-crisp-white text-lg font-bold tracking-wide uppercase">Gmail Integration Needed</h2>
-                      <p className="text-silvery-gray/60 text-xs mt-3 leading-relaxed">
-                        To synchronize your communications with Ciel mind coordinates, please authorize Gmail access using the Corsair integration layer.
-                      </p>
-                      
-                      <button
-                        onClick={async () => {
-                          try {
-                            const res = await fetch("/api/auth/corsair/connect?plugin=gmail");
-                            const data = await res.json();
-                            if (data.authorizeUrl) {
-                              window.location.href = data.authorizeUrl;
-                            }
-                          } catch (e) {
-                            console.error("Failed to connect gmail:", e);
-                          }
-                        }}
-                        className="w-full mt-8 h-11 bg-gradient-to-r from-cyan-glow to-cyber-magenta hover:opacity-90 active:scale-[0.98] text-void font-bold rounded-xl text-xs tracking-wider uppercase shadow-[0_0_15px_rgba(0,240,255,0.15)] transition-all cursor-pointer border border-cyan-glow/10 flex items-center justify-center gap-2"
-                      >
-                        Authorize Gmail Connection
-                      </button>
-                    </div>
-                  </div>
-                )
-              )}
+                )}
+              </div>
 
-              {/* calendar tab */}
-              {activeTab === "calendar" && (
-                calendarConnected ? (
-                  <CalendarView />
-                ) : (
-                  <div className="flex-grow h-full flex flex-col items-center justify-center p-8 bg-void select-none">
-                    <div className="max-w-md w-full cyber-glass rounded-2xl p-8 border border-white/10 shadow-2xl text-center relative overflow-hidden flex flex-col items-center">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-cyber-magenta/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
-                      <div className="absolute bottom-0 left-0 w-32 h-32 bg-cyan-glow/10 rounded-full blur-2xl -ml-16 -mb-16 pointer-events-none" />
-                      
-                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-glow/20 to-cyber-magenta/20 border border-white/10 flex items-center justify-center mb-6 shadow-inner relative group">
-                        <div className="absolute inset-0 bg-gradient-to-r from-cyan-glow to-cyber-magenta opacity-0 group-hover:opacity-10 rounded-2xl transition-opacity duration-300" />
-                        <span className="font-mono text-2xl font-bold bg-gradient-to-r from-cyan-glow to-cyber-magenta bg-clip-text text-transparent">C</span>
-                      </div>
-                      
-                      <h2 className="text-crisp-white text-lg font-bold tracking-wide uppercase">Google Calendar Needed</h2>
-                      <p className="text-silvery-gray/60 text-xs mt-3 leading-relaxed">
-                        To coordinate meetings, schedule invitations, and orchestrate calendar events, please link Google Calendar via Corsair.
-                      </p>
-                      
-                      <button
-                        onClick={async () => {
-                          try {
-                            const res = await fetch("/api/auth/corsair/connect?plugin=googlecalendar");
-                            const data = await res.json();
-                            if (data.authorizeUrl) {
-                              window.location.href = data.authorizeUrl;
-                            }
-                          } catch (e) {
-                            console.error("Failed to connect calendar:", e);
-                          }
-                        }}
-                        className="w-full mt-8 h-11 bg-gradient-to-r from-cyan-glow to-cyber-magenta hover:opacity-90 active:scale-[0.98] text-void font-bold rounded-xl text-xs tracking-wider uppercase shadow-[0_0_15px_rgba(0,240,255,0.15)] transition-all cursor-pointer border border-cyan-glow/10 flex items-center justify-center gap-2"
-                      >
-                        Authorize Calendar Connection
-                      </button>
-                    </div>
-                  </div>
-                )
-              )}
-
-              {/* chat tab */}
-              {activeTab === "chat" && <ChatPanel />}
-
-              {/* settings tab */}
-              {activeTab === "settings" && <SettingsView />}
-
+              <form onSubmit={handleChatSubmit} className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Ask Ciel to send emails, list messages, or schedule meetings..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  disabled={isSendingChat}
+                  className="flex-1 bg-[#0a0b0d] border border-gray-800 text-xs px-3 py-2 text-white outline-none rounded disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={isSendingChat || !chatInput.trim()}
+                  className="bg-purple-800 hover:bg-purple-700 disabled:bg-gray-800 text-white text-xs px-4 py-2 font-bold uppercase rounded shrink-0"
+                >
+                  Send
+                </button>
+                <button
+                  type="button"
+                  onClick={clearChat}
+                  className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-2 font-bold uppercase rounded shrink-0"
+                >
+                  Clear
+                </button>
+              </form>
             </div>
-          </div>
+          )}
+
+          {/* STORE DUMP */}
+          {activeView === "store" && (
+            <div className="space-y-4">
+              <div className="pb-2 border-b border-gray-900">
+                <span className="text-xs uppercase tracking-wider text-gray-500">Live Zustand Store State</span>
+              </div>
+              <pre className="bg-[#0a0b0d] p-4 border border-gray-900 rounded text-[10px] text-green-400 overflow-x-auto whitespace-pre-wrap">
+                {JSON.stringify({
+                  user,
+                  gmailConnected,
+                  calendarConnected,
+                  emailsCount: emails.length,
+                  calendarEventsCount: calendarEvents.length,
+                  chatMessagesCount: chatMessages.length,
+                  searchQuery,
+                }, null, 2)}
+              </pre>
+            </div>
+          )}
         </div>
-      )}
-
-      {/* keyboard help modal */}
-      {showKeyboardHelp && (
-        <div className="absolute inset-0 bg-void/85 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="w-full max-w-md bg-abyssal border border-white/10 rounded-2xl p-6 shadow-2xl shadow-[0_0_50px_rgba(0,240,255,0.15)]">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-crisp-white flex items-center gap-2">
-                <HelpCircle className="w-4 h-4 text-cyan-glow" />
-                Ciel Keyboard Commands
-              </h3>
-              <button
-                onClick={() => setShowKeyboardHelp(false)}
-                className="w-5 h-5 rounded hover:bg-white/5 flex items-center justify-center text-silvery-gray hover:text-crisp-white transition-all cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-4 text-xs font-sans">
-              
-              {/* navigation */}
-              <div className="space-y-2">
-                <h4 className="font-bold text-crisp-white uppercase tracking-wider text-[10px]">Navigation</h4>
-                <div className="flex justify-between items-center py-1 border-b border-white/5">
-                  <span className="text-silvery-gray">Next email in list</span>
-                  <kbd className="bg-void px-2 py-0.5 rounded border border-white/10 font-mono text-cyan-glow">J</kbd>
-                </div>
-                <div className="flex justify-between items-center py-1 border-b border-white/5">
-                  <span className="text-silvery-gray">Previous email in list</span>
-                  <kbd className="bg-void px-2 py-0.5 rounded border border-white/10 font-mono text-cyan-glow">K</kbd>
-                </div>
-                <div className="flex justify-between items-center py-1 border-b border-white/5">
-                  <span className="text-silvery-gray">Focus advanced search</span>
-                  <kbd className="bg-void px-2 py-0.5 rounded border border-white/10 font-mono text-cyan-glow">/</kbd>
-                </div>
-              </div>
-
-              {/* operations */}
-              <div className="space-y-2">
-                <h4 className="font-bold text-crisp-white uppercase tracking-wider text-[10px]">Operations</h4>
-                <div className="flex justify-between items-center py-1 border-b border-white/5">
-                  <span className="text-silvery-gray">Compose new email</span>
-                  <kbd className="bg-void px-2 py-0.5 rounded border border-white/10 font-mono text-cyan-glow">C</kbd>
-                </div>
-                <div className="flex justify-between items-center py-1 border-b border-white/5">
-                  <span className="text-silvery-gray">Reply to current email</span>
-                  <kbd className="bg-void px-2 py-0.5 rounded border border-white/10 font-mono text-cyan-glow">R</kbd>
-                </div>
-                <div className="flex justify-between items-center py-1 border-b border-white/5">
-                  <span className="text-silvery-gray">Archive selected email</span>
-                  <kbd className="bg-void px-2 py-0.5 rounded border border-white/10 font-mono text-cyan-glow">E</kbd>
-                </div>
-              </div>
-
-              {/* global nav */}
-              <div className="space-y-2">
-                <h4 className="font-bold text-crisp-white uppercase tracking-wider text-[10px]">Global Navigation</h4>
-                <div className="flex justify-between items-center py-1 border-b border-white/5">
-                  <span className="text-silvery-gray">Go to Overview tab</span>
-                  <kbd className="bg-void px-2 py-0.5 rounded border border-white/10 font-mono text-cyan-glow">g + o</kbd>
-                </div>
-                <div className="flex justify-between items-center py-1 border-b border-white/5">
-                  <span className="text-silvery-gray">Go to Inbox tab</span>
-                  <kbd className="bg-void px-2 py-0.5 rounded border border-white/10 font-mono text-cyan-glow">g + i</kbd>
-                </div>
-                <div className="flex justify-between items-center py-1 border-b border-white/5">
-                  <span className="text-silvery-gray">Go to Calendar tab</span>
-                  <kbd className="bg-void px-2 py-0.5 rounded border border-white/10 font-mono text-cyan-glow">g + c</kbd>
-                </div>
-                <div className="flex justify-between items-center py-1 border-b border-white/5">
-                  <span className="text-silvery-gray">Go to Ciel Chat</span>
-                  <kbd className="bg-void px-2 py-0.5 rounded border border-white/10 font-mono text-cyan-glow">g + a</kbd>
-                </div>
-                <div className="flex justify-between items-center py-1 border-b border-white/5">
-                  <span className="text-silvery-gray">Go to Settings tab</span>
-                  <kbd className="bg-void px-2 py-0.5 rounded border border-white/10 font-mono text-cyan-glow">g + s</kbd>
-                </div>
-                <div className="flex justify-between items-center py-1 border-b border-white/5">
-                  <span className="text-silvery-gray">Hold to Speak (Walkie-Talkie)</span>
-                  <kbd className="bg-void px-2 py-0.5 rounded border border-white/10 font-mono text-cyan-glow">Spacebar</kbd>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        </div>
-      )}
-
+      </div>
     </div>
   );
 }
