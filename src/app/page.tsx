@@ -264,6 +264,13 @@ export default function Home() {
   return (
     <div className="w-full h-screen flex flex-col bg-void text-crisp-white select-none relative overflow-hidden font-sans">
       
+      {/* 3D swirl particles background for landing & login views */}
+      {(view === "landing" || view === "login") && (
+        <div className="absolute inset-0 z-0">
+          <CielCanvas scene="landing" />
+        </div>
+      )}
+      
       {/* landing page */}
       {view === "landing" && (
         <div className="w-full h-full relative flex flex-col justify-between p-8">
@@ -291,13 +298,13 @@ export default function Home() {
 
             <div className="mt-8 flex gap-4 items-center justify-center">
               <button
-                onClick={() => signIn("google")}
+                onClick={() => setIsSigningIn(true)}
                 className="px-6 h-12 bg-gradient-to-r from-cyan-glow to-cyber-magenta hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] text-void font-bold rounded-xl text-sm shadow-[0_0_25px_rgba(0,240,255,0.2)] transition-all cursor-pointer border border-cyan-glow/10"
               >
                 Sign In
               </button>
               <button
-                onClick={() => signIn("google")}
+                onClick={() => setIsSigningIn(true)}
                 className="px-6 h-12 border border-white/10 hover:border-cyan-glow/30 hover:bg-white/5 hover:scale-[1.02] active:scale-[0.98] text-crisp-white font-bold rounded-xl text-sm transition-all cursor-pointer"
               >
                 Sign Up
@@ -315,7 +322,7 @@ export default function Home() {
       {/* login modal */}
       {view === "login" && (
         <div className="w-full h-full relative">
-          <AuthPortal />
+          <AuthPortal onCancel={() => setIsSigningIn(false)} />
         </div>
       )}
 

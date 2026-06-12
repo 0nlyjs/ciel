@@ -59,6 +59,31 @@ export async function dbInit() {
       );
     `);
 
+    // 4. Create users table for credentials auth
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255),
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        verified BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Ensure verified column exists
+    await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE;");
+
+    // 5. Create verification codes table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS verification_codes (
+        email VARCHAR(255) PRIMARY KEY,
+        code VARCHAR(6) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     console.log("[Database] Neon DB tables verified/created successfully.");
     initialized = true;
   } catch (error) {
