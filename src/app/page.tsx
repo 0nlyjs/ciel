@@ -170,7 +170,27 @@ export default function Home() {
               <span className="text-xs">{gmailConnected ? "CONNECTED" : "DISCONNECTED"}</span>
             </div>
           </div>
-          {!gmailConnected && (
+          {gmailConnected ? (
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch("/api/auth/corsair/disconnect", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ plugin: "gmail" }),
+                  });
+                  if (res.ok) {
+                    fetchIntegrationStatus();
+                  }
+                } catch (e) {
+                  console.error("Disconnect gmail failed:", e);
+                }
+              }}
+              className="text-center w-full py-2 bg-red-950/60 hover:bg-red-900/60 text-red-200 border border-red-900 rounded text-xs uppercase font-bold cursor-pointer"
+            >
+              Disconnect Gmail
+            </button>
+          ) : (
             <button
               onClick={async () => {
                 try {
@@ -183,7 +203,7 @@ export default function Home() {
                   console.error("Failed to connect gmail:", e);
                 }
               }}
-              className="text-center w-full py-2 bg-gray-800 hover:bg-gray-700 text-white rounded text-xs uppercase font-bold"
+              className="text-center w-full py-2 bg-gray-800 hover:bg-gray-700 text-white rounded text-xs uppercase font-bold cursor-pointer"
             >
               Connect Gmail
             </button>
@@ -200,7 +220,27 @@ export default function Home() {
               <span className="text-xs">{calendarConnected ? "CONNECTED" : "DISCONNECTED"}</span>
             </div>
           </div>
-          {!calendarConnected && (
+          {calendarConnected ? (
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch("/api/auth/corsair/disconnect", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ plugin: "googlecalendar" }),
+                  });
+                  if (res.ok) {
+                    fetchIntegrationStatus();
+                  }
+                } catch (e) {
+                  console.error("Disconnect calendar failed:", e);
+                }
+              }}
+              className="text-center w-full py-2 bg-red-950/60 hover:bg-red-900/60 text-red-200 border border-red-900 rounded text-xs uppercase font-bold cursor-pointer"
+            >
+              Disconnect Calendar
+            </button>
+          ) : (
             <button
               onClick={async () => {
                 try {
@@ -213,7 +253,7 @@ export default function Home() {
                   console.error("Failed to connect calendar:", e);
                 }
               }}
-              className="text-center w-full py-2 bg-gray-800 hover:bg-gray-700 text-white rounded text-xs uppercase font-bold"
+              className="text-center w-full py-2 bg-gray-800 hover:bg-gray-700 text-white rounded text-xs uppercase font-bold cursor-pointer"
             >
               Connect Calendar
             </button>

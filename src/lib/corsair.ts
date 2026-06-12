@@ -21,9 +21,23 @@ export class CorsairClient {
     if (!client) return null;
     try {
       const { instances } = await client.instances.list();
-      const activeInstance = instances.find(inst => inst.status === "active") || instances[0];
-      if (!activeInstance) return null;
-      return client.instance(activeInstance.id).tenant(tenantId || "guest@ciel.app");
+      
+      // Check for a specific instance ID configured in the environment
+      const targetId = process.env.CORSAIR_INSTANCE_ID;
+      let targetInstance = null;
+      if (targetId) {
+        targetInstance = instances.find(
+          (inst) => inst.id === targetId || inst.name === targetId
+        );
+      }
+      
+      // Fallback: look for active instance, then default to first
+      if (!targetInstance) {
+        targetInstance = instances.find(inst => inst.status === "active") || instances[0];
+      }
+      
+      if (!targetInstance) return null;
+      return client.instance(targetInstance.id).tenant(tenantId || "guest@ciel.app");
     } catch (e) {
       console.error("[Corsair SDK] Failed to get tenant:", e);
       return null;
