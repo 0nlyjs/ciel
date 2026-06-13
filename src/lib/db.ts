@@ -50,7 +50,7 @@ async function syncEventToGoogleCalendar(
         } else if (typeof parsed === "string") {
           cleanAttendees = [parsed];
         }
-      } catch (e) {
+      } catch {
         cleanAttendees = [attendees];
       }
     }

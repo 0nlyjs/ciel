@@ -1,15 +1,8 @@
 import { CorsairClient } from "@/lib/corsair";
 import { query } from "@/lib/db";
-import { generateText } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
 import { getEmbeddingsBatch, formatVector } from "@/lib/embeddings";
 import { activeClients } from "@/app/api/sync/stream/route";
 
-const getOpenAIClient = () => {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return null;
-  return createOpenAI({ apiKey });
-};
 
 function runKeywordFallback(subject: string, body: string) {
   const content = `${subject} ${body}`.toLowerCase();
@@ -42,49 +35,6 @@ function runKeywordFallback(subject: string, body: string) {
   }
 
   return { priority, category };
-}
-
-async function classifyEmail(
-  subject: string,
-  body: string,
-): Promise<{
-  priority: "high" | "medium" | "low";
-  category: "work" | "personal" | "updates" | "promotions";
-}> {
-  const client = getOpenAIClient();
-  if (!client) {
-    return runKeywordFallback(subject, body);
-  }
-
-  try {
-    const prompt = `Classify the following email by priority ("high", "medium", or "low") and category ("work", "personal", "updates", or "promotions").
-Subject: ${subject}
-Body: ${body}
-
-Respond with a raw JSON object containing exactly two keys: "priority" and "category". Do not wrap in markdown code blocks.`;
-
-    const { text } = await generateText({
-      model: client("gpt-4o-mini"),
-      prompt,
-    });
-
-    const cleanText = text
-      .replace(/```json/gi, "")
-      .replace(/```/g, "")
-      .trim();
-    const parsed = JSON.parse(cleanText);
-
-    return {
-      priority: parsed.priority || "medium",
-      category: parsed.category || "work",
-    };
-  } catch (error) {
-    console.error(
-      "[Classifier] Error during OpenAI classification, falling back:",
-      error,
-    );
-    return runKeywordFallback(subject, body);
-  }
 }
 
 async function generateAndSaveEmbeddings(parsedEmails: any[], userEmail: string) {

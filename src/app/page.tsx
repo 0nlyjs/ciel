@@ -35,7 +35,6 @@ export default function Home() {
   const performSearch = useCielStore((s) => s.performSearch);
   
   const chatMessages = useCielStore((s) => s.chatMessages);
-  const addChatMessage = useCielStore((s) => s.addChatMessage);
   const clearChat = useCielStore((s) => s.clearChat);
 
   // Settings & Integrations state
@@ -118,6 +117,7 @@ export default function Home() {
 
   useEffect(() => {
     if (activeView === "chat") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchConversations();
       if (!activeConversationId) {
         setActiveConversationId(Math.random().toString(36).substring(2, 15));
@@ -127,6 +127,7 @@ export default function Home() {
   }, [activeView, activeConversationId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -794,7 +795,7 @@ export default function Home() {
                       if (!mounted) return "";
                       try {
                         return new Date(email.date).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-                      } catch (e) {
+                      } catch {
                         return email.date;
                       }
                     })();

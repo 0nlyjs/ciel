@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { NextResponse } from "next/server";
 import { generateText, tool, jsonSchema, stepCountIs } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";

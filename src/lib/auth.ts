@@ -26,7 +26,7 @@ export const auth = betterAuth({
   },
   emailVerification: {
     sendOnSignUp: true,
-    sendVerificationEmail: async ({ user, url, token }) => {
+    sendVerificationEmail: async ({ user, url }) => {
       const apiKey = process.env.CORSAIR_API_KEY || process.env.CORSAIR_DEV_KEY;
       const subject = "Ciel Security Verification Link";
       

@@ -1,5 +1,5 @@
 import { CorsairClient } from "@/lib/corsair";
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { dbInit, query } from "@/lib/db";
 import { getServerSession } from "@/lib/auth";
 import { syncUserEmails } from "@/lib/sync";

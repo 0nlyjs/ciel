@@ -39,7 +39,7 @@ export async function GET(req: Request) {
         const heartbeatInterval = setInterval(() => {
           try {
             controller.enqueue(new TextEncoder().encode(":\n\n")); // SSE comment as comment heartbeat
-          } catch (e) {
+          } catch {
             clearInterval(heartbeatInterval);
           }
         }, 15000);
@@ -83,7 +83,7 @@ export async function GET(req: Request) {
           
           try {
             controller.close();
-          } catch (e) {}
+          } catch {}
         });
       },
     });
