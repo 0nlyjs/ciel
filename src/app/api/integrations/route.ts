@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth";
-import { dbInit, query } from "@/lib/db";
+import { db } from "@/lib/db";
+import { userIntegrations } from "@/lib/schema";
+import { eq } from "drizzle-orm";
 
 // GET /api/integrations - Fetch user integration connections
 export async function GET() {
@@ -10,13 +12,16 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await dbInit();
-
     const email = session.user.email;
-    const { rows } = await query(
-      "SELECT id, provider, connected_email, status, created_at FROM user_integrations WHERE user_email = $1",
-      [email]
-    );
+    const rows = await db.select({
+      id: userIntegrations.id,
+      provider: userIntegrations.provider,
+      connected_email: userIntegrations.connectedEmail,
+      status: userIntegrations.status,
+      created_at: userIntegrations.createdAt,
+    })
+    .from(userIntegrations)
+    .where(eq(userIntegrations.userEmail, email));
 
     return NextResponse.json({ integrations: rows });
   } catch (error: any) {

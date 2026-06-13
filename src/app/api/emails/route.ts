@@ -1,14 +1,16 @@
 import { CorsairClient } from "@/lib/corsair";
 import { NextResponse } from "next/server";
-import { dbInit, query } from "@/lib/db";
+import { db } from "@/lib/db";
+import { emails, userIntegrations } from "@/lib/schema";
 import { getServerSession } from "@/lib/auth";
 import { syncUserEmails } from "@/lib/sync";
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
+import { eq, and, desc, sql } from "drizzle-orm";
 
 // lazy load openai
 const getOpenAIClient = () => {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.OPENAI_KEY || process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
   return createOpenAI({ apiKey });
 };
@@ -38,8 +40,6 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await dbInit();
-
     const url = new URL(req.url);
     const forceSync = url.searchParams.get("sync") === "true";
     const limit = parseInt(url.searchParams.get("limit") || "50", 10);
@@ -49,11 +49,17 @@ export async function GET(req: Request) {
     // Check if Gmail integration is connected
     let gmailConnected = false;
     try {
-      const integrationRes = await query(
-        "SELECT status FROM user_integrations WHERE user_email = $1 AND provider = 'gmail'",
-        [session.user.email]
+      const integrationRes = await db.select({
+        status: userIntegrations.status,
+      })
+      .from(userIntegrations)
+      .where(
+        and(
+          eq(userIntegrations.userEmail, session.user.email),
+          eq(userIntegrations.provider, "gmail")
+        )
       );
-      gmailConnected = integrationRes.rows[0]?.status === 'connected';
+      gmailConnected = integrationRes[0]?.status === 'connected';
     } catch (e) {
       console.error("[Emails API] Failed to check integration status:", e);
     }
@@ -70,21 +76,31 @@ export async function GET(req: Request) {
 
     // Get total count and fetch paginated emails concurrently
     const [countTotalRes, fetchRes] = await Promise.all([
-      query(
-        "SELECT count(*)::int as count FROM emails WHERE user_email = $1",
-        [session.user.email],
-      ),
-      query(
-        `SELECT id, from_name as "from", from_email as "fromEmail", subject, body, date, read, priority, category 
-         FROM emails 
-         WHERE user_email = $1
-         ORDER BY date DESC LIMIT $2 OFFSET $3`,
-        [session.user.email, limit, offset],
-      )
+      db.select({
+        count: sql<number>`count(*)::int`,
+      })
+      .from(emails)
+      .where(eq(emails.userEmail, session.user.email)),
+      db.select({
+        id: emails.id,
+        from: emails.fromName,
+        fromEmail: emails.fromEmail,
+        subject: emails.subject,
+        body: emails.body,
+        date: emails.date,
+        read: emails.read,
+        priority: emails.priority,
+        category: emails.category,
+      })
+      .from(emails)
+      .where(eq(emails.userEmail, session.user.email))
+      .orderBy(desc(emails.date))
+      .limit(limit)
+      .offset(offset)
     ]);
 
-    const totalCount = countTotalRes.rows[0]?.count || 0;
-    const rows = fetchRes.rows;
+    const totalCount = countTotalRes[0]?.count || 0;
+    const rows = fetchRes;
 
     // If we paginated beyond totalCount, hasMore is false
     let hasMore = offset + limit < totalCount;
@@ -115,17 +131,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await dbInit();
-
     const bodyData = await req.json();
     const { action, id } = bodyData;
 
     if (action === "mark_read") {
       if (!id) return NextResponse.json({ error: "Email ID is required" }, { status: 400 });
-      await query(
-        "UPDATE emails SET read = TRUE WHERE id = $1 AND user_email = $2",
-        [id, session.user.email],
-      );
+      
+      await db.update(emails)
+        .set({ read: true })
+        .where(
+          and(
+            eq(emails.id, id),
+            eq(emails.userEmail, session.user.email)
+          )
+        );
 
       // Await write-back to Gmail servers to prevent serverless process termination
       try {
@@ -142,10 +161,14 @@ export async function POST(req: Request) {
 
     if (action === "archive") {
       if (!id) return NextResponse.json({ error: "Email ID is required" }, { status: 400 });
-      await query("DELETE FROM emails WHERE id = $1 AND user_email = $2", [
-        id,
-        session.user.email,
-      ]);
+      
+      await db.delete(emails)
+        .where(
+          and(
+            eq(emails.id, id),
+            eq(emails.userEmail, session.user.email)
+          )
+        );
       return NextResponse.json({ success: true, message: "Email archived" });
     }
 
@@ -204,35 +227,29 @@ Do not write any markdown code block wrap, only raw JSON.`,
       const emailId = "sent-" + Math.random().toString(36).substring(2, 12);
       const dateStr = new Date().toISOString();
 
-      let formattedEmbedding: string | null = null;
+      let embedding: number[] | null = null;
       try {
-        const { getEmbedding, formatVector } = await import("@/lib/embeddings");
+        const { getEmbedding } = await import("@/lib/embeddings");
         const textToEmbed = `To: ${to}\nSubject: ${subject}\nBody: ${emailBody}`;
-        const embedding = await getEmbedding(textToEmbed);
-        if (embedding) {
-          formattedEmbedding = formatVector(embedding);
-        }
+        embedding = await getEmbedding(textToEmbed);
       } catch (embErr) {
         console.error("[Emails API] Failed to generate embedding for sent email:", embErr);
       }
 
-      await query(
-        `INSERT INTO emails (id, user_email, from_name, from_email, subject, body, date, read, priority, category, embedding)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)`,
-        [
-          emailId,
-          session.user.email,
-          "You",
-          session.user.email,
+      await db.insert(emails)
+        .values({
+          id: emailId,
+          userEmail: session.user.email,
+          fromName: "You",
+          fromEmail: session.user.email,
           subject,
-          emailBody,
-          dateStr,
-          true,
-          "medium",
-          "work",
-          formattedEmbedding
-        ]
-      );
+          body: emailBody,
+          date: dateStr,
+          read: true,
+          priority: "medium",
+          category: "work",
+          embedding: embedding,
+        });
 
       return NextResponse.json({ success: true, message: "Email sent successfully and cached locally." });
     }

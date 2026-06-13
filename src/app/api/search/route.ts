@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import { dbInit, query } from "@/lib/db";
-import { getEmbedding, formatVector } from "@/lib/embeddings";
+import { db } from "@/lib/db";
+import { emails, calendarEvents } from "@/lib/schema";
+import { getEmbedding } from "@/lib/embeddings";
 import { getServerSession } from "@/lib/auth";
+import { eq, and, or, ilike, desc, asc, cosineDistance } from "drizzle-orm";
 
 export async function GET(req: Request) {
   try {
@@ -9,8 +11,6 @@ export async function GET(req: Request) {
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    await dbInit();
 
     const { searchParams } = new URL(req.url);
     const q = searchParams.get("q") || "";
@@ -23,31 +23,42 @@ export async function GET(req: Request) {
       const emailResult =
         type === "calendar"
           ? []
-          : (
-              await query(
-                `SELECT id, from_name as "from", from_email as "fromEmail", subject, body, date, read, priority, category 
-                 FROM emails 
-                 WHERE user_email = $1
-                 ORDER BY created_at DESC LIMIT 50`,
-                [session.user.email]
-              )
-            ).rows;
+          : await db.select({
+              id: emails.id,
+              from: emails.fromName,
+              fromEmail: emails.fromEmail,
+              subject: emails.subject,
+              body: emails.body,
+              date: emails.date,
+              read: emails.read,
+              priority: emails.priority,
+              category: emails.category,
+            })
+            .from(emails)
+            .where(eq(emails.userEmail, session.user.email))
+            .orderBy(desc(emails.createdAt))
+            .limit(50);
 
       const calendarResult =
         type === "email"
           ? []
           : (
-              await query(
-                `SELECT id, title, start_time as "start", end_time as "end", location, attendees, description 
-                 FROM calendar_events 
-                 WHERE user_email = $1
-                 ORDER BY start_time ASC LIMIT 50`,
-                [session.user.email]
-              )
-            ).rows.map((row) => ({
+              await db.select({
+                id: calendarEvents.id,
+                title: calendarEvents.title,
+                start: calendarEvents.startTime,
+                end: calendarEvents.endTime,
+                location: calendarEvents.location,
+                attendees: calendarEvents.attendees,
+                description: calendarEvents.description,
+              })
+              .from(calendarEvents)
+              .where(eq(calendarEvents.userEmail, session.user.email))
+              .orderBy(asc(calendarEvents.startTime))
+              .limit(50)
+            ).map((row) => ({
               ...row,
               attendees: Array.isArray(row.attendees) ? row.attendees : [],
-              // convert Date object to ISO string
               start: row.start instanceof Date ? row.start.toISOString().split(".")[0] : row.start,
               end: row.end instanceof Date ? row.end.toISOString().split(".")[0] : row.end,
             }));
@@ -60,35 +71,44 @@ export async function GET(req: Request) {
 
     if (embedding) {
       console.log(`[Search API] Performing fast vector search for: "${lowerQuery}" (user: ${session.user.email})`);
-      const formattedEmbedding = formatVector(embedding);
 
       const emailResult =
         type === "calendar"
           ? []
-          : (
-              await query(
-                `SELECT id, from_name as "from", from_email as "fromEmail", subject, body, date, read, priority, category 
-                 FROM emails 
-                 WHERE user_email = $2
-                 ORDER BY embedding <=> $1::vector 
-                 LIMIT 20`,
-                [formattedEmbedding, session.user.email]
-              )
-            ).rows;
+          : await db.select({
+              id: emails.id,
+              from: emails.fromName,
+              fromEmail: emails.fromEmail,
+              subject: emails.subject,
+              body: emails.body,
+              date: emails.date,
+              read: emails.read,
+              priority: emails.priority,
+              category: emails.category,
+            })
+            .from(emails)
+            .where(eq(emails.userEmail, session.user.email))
+            .orderBy(cosineDistance(emails.embedding, embedding))
+            .limit(20);
 
       const calendarResult =
         type === "email"
           ? []
           : (
-              await query(
-                `SELECT id, title, start_time as "start", end_time as "end", location, attendees, description 
-                 FROM calendar_events 
-                 WHERE user_email = $2
-                 ORDER BY embedding <=> $1::vector 
-                 LIMIT 20`,
-                [formattedEmbedding, session.user.email]
-              )
-            ).rows.map((row) => ({
+              await db.select({
+                id: calendarEvents.id,
+                title: calendarEvents.title,
+                start: calendarEvents.startTime,
+                end: calendarEvents.endTime,
+                location: calendarEvents.location,
+                attendees: calendarEvents.attendees,
+                description: calendarEvents.description,
+              })
+              .from(calendarEvents)
+              .where(eq(calendarEvents.userEmail, session.user.email))
+              .orderBy(cosineDistance(calendarEvents.embedding, embedding))
+              .limit(20)
+            ).map((row) => ({
               ...row,
               attendees: Array.isArray(row.attendees) ? row.attendees : [],
               start: row.start instanceof Date ? row.start.toISOString().split(".")[0] : row.start,
@@ -105,30 +125,59 @@ export async function GET(req: Request) {
     const emailResult =
       type === "calendar"
         ? []
-        : (
-            await query(
-              `SELECT id, from_name as "from", from_email as "fromEmail", subject, body, date, read, priority, category 
-               FROM emails 
-               WHERE (subject ILIKE $1 OR body ILIKE $1 OR from_name ILIKE $1 OR from_email ILIKE $1) AND user_email = $2
-               ORDER BY created_at DESC 
-               LIMIT 20`,
-              [searchPattern, session.user.email]
+        : await db.select({
+            id: emails.id,
+            from: emails.fromName,
+            fromEmail: emails.fromEmail,
+            subject: emails.subject,
+            body: emails.body,
+            date: emails.date,
+            read: emails.read,
+            priority: emails.priority,
+            category: emails.category,
+          })
+          .from(emails)
+          .where(
+            and(
+              eq(emails.userEmail, session.user.email),
+              or(
+                ilike(emails.subject, searchPattern),
+                ilike(emails.body, searchPattern),
+                ilike(emails.fromName, searchPattern),
+                ilike(emails.fromEmail, searchPattern)
+              )
             )
-          ).rows;
+          )
+          .orderBy(desc(emails.createdAt))
+          .limit(20);
 
     const calendarResult =
       type === "email"
         ? []
         : (
-            await query(
-              `SELECT id, title, start_time as "start", end_time as "end", location, attendees, description 
-               FROM calendar_events 
-               WHERE (title ILIKE $1 OR description ILIKE $1 OR location ILIKE $1) AND user_email = $2
-               ORDER BY start_time ASC 
-               LIMIT 20`,
-              [searchPattern, session.user.email]
+            await db.select({
+              id: calendarEvents.id,
+              title: calendarEvents.title,
+              start: calendarEvents.startTime,
+              end: calendarEvents.endTime,
+              location: calendarEvents.location,
+              attendees: calendarEvents.attendees,
+              description: calendarEvents.description,
+            })
+            .from(calendarEvents)
+            .where(
+              and(
+                eq(calendarEvents.userEmail, session.user.email),
+                or(
+                  ilike(calendarEvents.title, searchPattern),
+                  ilike(calendarEvents.description, searchPattern),
+                  ilike(calendarEvents.location, searchPattern)
+                )
+              )
             )
-          ).rows.map((row) => ({
+            .orderBy(asc(calendarEvents.startTime))
+            .limit(20)
+          ).map((row) => ({
             ...row,
             attendees: Array.isArray(row.attendees) ? row.attendees : [],
             start: row.start instanceof Date ? row.start.toISOString().split(".")[0] : row.start,

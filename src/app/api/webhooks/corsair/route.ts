@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
-import { dbInit, query } from "@/lib/db";
-import { getEmbedding, formatVector } from "@/lib/embeddings";
+import { db } from "@/lib/db";
+import { emails, calendarEvents } from "@/lib/schema";
+import { getEmbedding } from "@/lib/embeddings";
 import { CorsairClient } from "@/lib/corsair";
+import { eq, and, sql } from "drizzle-orm";
 
 // lazy load openai
 const getOpenAIClient = () => {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.OPENAI_KEY || process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
   return createOpenAI({ apiKey });
 };
@@ -94,9 +96,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid Signature" }, { status: 401 });
     }
 
-    // 2. Initialize DB tables
-    await dbInit();
-
     const payload = await req.json();
     console.log("[Corsair Webhook] Received payload:", payload);
 
@@ -136,25 +135,37 @@ export async function POST(req: Request) {
       // Generate embedding vector
       const textToEmbed = `From: ${fromName} <${fromEmail}>\nSubject: ${subject}\nBody: ${body}`;
       const embedding = await getEmbedding(textToEmbed);
-      const formattedEmbedding = formatVector(embedding);
 
       // Save to database
-      await query(
-        `INSERT INTO emails (id, user_email, from_name, from_email, subject, body, date, read, priority, category, embedding)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)
-         ON CONFLICT (id) DO UPDATE SET 
-           user_email = EXCLUDED.user_email,
-           from_name = EXCLUDED.from_name,
-           from_email = EXCLUDED.from_email,
-           subject = EXCLUDED.subject,
-           body = EXCLUDED.body,
-           date = EXCLUDED.date,
-           read = EXCLUDED.read,
-           priority = EXCLUDED.priority,
-           category = EXCLUDED.category,
-           embedding = EXCLUDED.embedding`,
-        [emailId, tenantId, fromName, fromEmail, subject, body, dateStr, parsed.read, priority, category, formattedEmbedding]
-      );
+      await db.insert(emails)
+        .values({
+          id: emailId,
+          userEmail: tenantId,
+          fromName,
+          fromEmail,
+          subject,
+          body,
+          date: dateStr,
+          read: parsed.read,
+          priority,
+          category,
+          embedding: embedding,
+        })
+        .onConflictDoUpdate({
+          target: [emails.id],
+          set: {
+            userEmail: sql`EXCLUDED.user_email`,
+            fromName: sql`EXCLUDED.from_name`,
+            fromEmail: sql`EXCLUDED.from_email`,
+            subject: sql`EXCLUDED.subject`,
+            body: sql`EXCLUDED.body`,
+            date: sql`EXCLUDED.date`,
+            read: sql`EXCLUDED.read`,
+            priority: sql`EXCLUDED.priority`,
+            category: sql`EXCLUDED.category`,
+            embedding: sql`EXCLUDED.embedding`,
+          }
+        });
 
       console.log(`[Corsair Webhook] Cached email "${subject}" for ${tenantId} [Priority: ${priority.toUpperCase()}]`);
 
@@ -172,10 +183,13 @@ export async function POST(req: Request) {
           return NextResponse.json({ error: "Event ID is missing for deletion" }, { status: 400 });
         }
 
-        await query(
-          "DELETE FROM calendar_events WHERE id = $1 AND user_email = $2",
-          [eventId, tenantId]
-        );
+        await db.delete(calendarEvents)
+          .where(
+            and(
+              eq(calendarEvents.id, eventId),
+              eq(calendarEvents.userEmail, tenantId)
+            )
+          );
 
         console.log(`[Corsair Webhook] Deleted calendar event "${eventId}" for ${tenantId}`);
         return NextResponse.json({
@@ -205,39 +219,46 @@ export async function POST(req: Request) {
       // Generate embedding vector
       const textToEmbed = `Title: ${title}\nLocation: ${location}\nDescription: ${description}`;
       const embedding = await getEmbedding(textToEmbed);
-      const formattedEmbedding = formatVector(embedding);
 
       // Save to database
-      await query(
-        `INSERT INTO calendar_events (id, user_email, title, start_time, end_time, location, attendees, description, embedding)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::vector)
-         ON CONFLICT (id) DO UPDATE SET
-           user_email = EXCLUDED.user_email,
-           title = EXCLUDED.title,
-           start_time = EXCLUDED.start_time,
-           end_time = EXCLUDED.end_time,
-           location = EXCLUDED.location,
-           attendees = EXCLUDED.attendees,
-           description = EXCLUDED.description,
-           embedding = EXCLUDED.embedding`,
-        [eventId, tenantId, title, start, end, location, JSON.stringify(attendees), description, formattedEmbedding]
-      );
+      await db.insert(calendarEvents)
+        .values({
+          id: eventId,
+          userEmail: tenantId,
+          title,
+          startTime: new Date(start),
+          endTime: new Date(end),
+          location,
+          attendees,
+          description,
+          embedding: embedding,
+        })
+        .onConflictDoUpdate({
+          target: [calendarEvents.id],
+          set: {
+            userEmail: sql`EXCLUDED.user_email`,
+            title: sql`EXCLUDED.title`,
+            startTime: sql`EXCLUDED.start_time`,
+            endTime: sql`EXCLUDED.end_time`,
+            location: sql`EXCLUDED.location`,
+            attendees: sql`EXCLUDED.attendees`,
+            description: sql`EXCLUDED.description`,
+            embedding: sql`EXCLUDED.embedding`,
+          }
+        });
 
       console.log(`[Corsair Webhook] Cached calendar event "${title}" for ${tenantId}`);
 
       return NextResponse.json({
         success: true,
         message: "Calendar event registered, embedded, and stored.",
-        event: { id: eventId, title, start, end, location, attendees, description },
+        event: { id: eventId, user_email: tenantId, title, start, end, location, attendees, description }
       });
     }
 
-    return NextResponse.json({ success: true, message: "Unhandled webhook event type: " + event });
+    return NextResponse.json({ error: "Unknown event type" }, { status: 400 });
   } catch (error: any) {
-    console.error("[Corsair Webhook Error]", error);
-    return NextResponse.json(
-      { error: "Internal Server Error", message: error.message },
-      { status: 500 }
-    );
+    console.error("[Corsair Webhook POST Error]", error);
+    return NextResponse.json({ error: "Internal Server Error", message: error.message }, { status: 500 });
   }
 }

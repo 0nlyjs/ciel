@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth";
-import { dbInit, query } from "@/lib/db";
+import { db } from "@/lib/db";
+import { emails, calendarEvents, users } from "@/lib/schema";
+import { eq } from "drizzle-orm";
 import { createClient } from "@corsair-dev/app";
 
 export async function POST() {
@@ -27,11 +29,10 @@ export async function POST() {
       }
     }
 
-    // 2. Delete data from local Neon Database
-    await dbInit();
-    await query("DELETE FROM emails WHERE user_email = $1", [userEmail]);
-    await query("DELETE FROM calendar_events WHERE user_email = $1", [userEmail]);
-    await query("DELETE FROM users WHERE email = $1", [userEmail]);
+    // 2. Delete data from local Neon Database using Drizzle ORM
+    await db.delete(emails).where(eq(emails.userEmail, userEmail));
+    await db.delete(calendarEvents).where(eq(calendarEvents.userEmail, userEmail));
+    await db.delete(users).where(eq(users.email, userEmail));
 
     return NextResponse.json({ success: true, message: "Account deleted successfully." });
   } catch (error: any) {

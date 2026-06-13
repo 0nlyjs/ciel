@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth";
 import { createClient } from "@corsair-dev/app";
-import { dbInit, query } from "@/lib/db";
+import { db } from "@/lib/db";
+import { userIntegrations } from "@/lib/schema";
+import { and, eq } from "drizzle-orm";
 
 export async function GET() {
   try {
@@ -45,38 +47,52 @@ export async function GET() {
 
     // Sync connection status with local user_integrations table
     try {
-      await dbInit();
-      
       // Sync Gmail
       if (gmailConnected) {
-        await query(
-          `INSERT INTO user_integrations (user_email, provider, connected_email, status)
-           VALUES ($1, 'gmail', $1, 'connected')
-           ON CONFLICT (user_email, provider, connected_email) DO UPDATE SET status = 'connected'`,
-          [session.user.email]
-        );
+        await db.insert(userIntegrations)
+          .values({
+            userEmail: session.user.email,
+            provider: "gmail",
+            connectedEmail: session.user.email,
+            status: "connected",
+          })
+          .onConflictDoUpdate({
+            target: [userIntegrations.userEmail, userIntegrations.provider, userIntegrations.connectedEmail],
+            set: { status: "connected" },
+          });
       } else {
-        await query(
-          `UPDATE user_integrations SET status = 'disconnected' 
-           WHERE user_email = $1 AND provider = 'gmail'`,
-          [session.user.email]
-        );
+        await db.update(userIntegrations)
+          .set({ status: "disconnected" })
+          .where(
+            and(
+              eq(userIntegrations.userEmail, session.user.email),
+              eq(userIntegrations.provider, "gmail")
+            )
+          );
       }
 
       // Sync Google Calendar
       if (calendarConnected) {
-        await query(
-          `INSERT INTO user_integrations (user_email, provider, connected_email, status)
-           VALUES ($1, 'googlecalendar', $1, 'connected')
-           ON CONFLICT (user_email, provider, connected_email) DO UPDATE SET status = 'connected'`,
-          [session.user.email]
-        );
+        await db.insert(userIntegrations)
+          .values({
+            userEmail: session.user.email,
+            provider: "googlecalendar",
+            connectedEmail: session.user.email,
+            status: "connected",
+          })
+          .onConflictDoUpdate({
+            target: [userIntegrations.userEmail, userIntegrations.provider, userIntegrations.connectedEmail],
+            set: { status: "connected" },
+          });
       } else {
-        await query(
-          `UPDATE user_integrations SET status = 'disconnected' 
-           WHERE user_email = $1 AND provider = 'googlecalendar'`,
-          [session.user.email]
-        );
+        await db.update(userIntegrations)
+          .set({ status: "disconnected" })
+          .where(
+            and(
+              eq(userIntegrations.userEmail, session.user.email),
+              eq(userIntegrations.provider, "googlecalendar")
+            )
+          );
       }
     } catch (dbError) {
       console.error("[Corsair Status DB Sync Error]", dbError);

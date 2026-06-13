@@ -1,8 +1,9 @@
 import { CorsairClient } from "@/lib/corsair";
-import { query } from "@/lib/db";
-import { getEmbeddingsBatch, formatVector } from "@/lib/embeddings";
+import { db } from "@/lib/db";
+import { emails } from "@/lib/schema";
+import { getEmbeddingsBatch } from "@/lib/embeddings";
 import { activeClients } from "@/app/api/sync/stream/route";
-
+import { eq, and, desc, inArray, notInArray, sql } from "drizzle-orm";
 
 function runKeywordFallback(subject: string, body: string) {
   const content = `${subject} ${body}`.toLowerCase();
@@ -44,33 +45,22 @@ async function generateAndSaveEmbeddings(parsedEmails: any[], userEmail: string)
   try {
     const embeddings = await getEmbeddingsBatch(textsToEmbed);
     if (embeddings && embeddings.length > 0) {
-      const values: any[] = [];
-      const valueStrings: string[] = [];
-      let paramIndex = 1;
-
-      for (let i = 0; i < parsedEmails.length; i++) {
-        const email = parsedEmails[i];
-        const embedding = embeddings[i];
-        if (embedding) {
-          const formatted = formatVector(embedding);
-          valueStrings.push(`($${paramIndex}, $${paramIndex + 1}::vector)`);
-          values.push(email.id, formatted);
-          paramIndex += 2;
-        }
-      }
-
-      if (values.length > 0) {
-        values.push(userEmail);
-        const userEmailParam = `$${paramIndex}`;
-        await query(
-          `UPDATE emails 
-           SET embedding = temp.val::vector
-           FROM (VALUES ${valueStrings.join(", ")}) AS temp(id, val)
-           WHERE emails.id = temp.id AND emails.user_email = ${userEmailParam}`,
-          values
-        );
-        console.log(`[Sync] Successfully generated and updated background embeddings for ${parsedEmails.length} emails in a single batch query.`);
-      }
+      await Promise.all(
+        parsedEmails.map(async (email, i) => {
+          const embedding = embeddings[i];
+          if (embedding) {
+            await db.update(emails)
+              .set({ embedding })
+              .where(
+                and(
+                  eq(emails.id, email.id),
+                  eq(emails.userEmail, userEmail)
+                )
+              );
+          }
+        })
+      );
+      console.log(`[Sync] Successfully generated and updated background embeddings for ${parsedEmails.length} emails in a single batch query.`);
     }
   } catch (err) {
     console.error("[Sync] Background embeddings generation error:", err);
@@ -86,22 +76,32 @@ async function verifyReadStatusInBackground(checkIds: string[], userEmail: strin
         if (liveMsg) {
           const isReadOnGmail = !(liveMsg.labelIds || []).includes("UNREAD");
 
-          const localEmailRes = await query(
-            "SELECT read FROM emails WHERE id = $1 AND user_email = $2",
-            [id, userEmail]
+          const localEmailRes = await db.select({
+            read: emails.read,
+          })
+          .from(emails)
+          .where(
+            and(
+              eq(emails.id, id),
+              eq(emails.userEmail, userEmail)
+            )
           );
 
-          if (localEmailRes.rows.length > 0) {
-            const isReadLocally = localEmailRes.rows[0].read;
+          if (localEmailRes.length > 0) {
+            const isReadLocally = localEmailRes[0].read;
             if (isReadLocally && !isReadOnGmail) {
               console.log(`[Background Sync] Email ${id} is locally read but unread on Gmail. Syncing to Gmail...`);
               await CorsairClient.markGmailMessageRead(id, userEmail);
             } else if (!isReadLocally && isReadOnGmail) {
               console.log(`[Background Sync] Email ${id} is locally unread but read on Gmail. Syncing to local DB...`);
-              await query(
-                "UPDATE emails SET read = TRUE WHERE id = $1 AND user_email = $2",
-                [id, userEmail]
-              );
+              await db.update(emails)
+                .set({ read: true })
+                .where(
+                  and(
+                    eq(emails.id, id),
+                    eq(emails.userEmail, userEmail)
+                  )
+                );
             }
           }
         }
@@ -119,24 +119,29 @@ async function cleanDeletedEmails(skeletons: any[], userEmail: string) {
 
   console.log(`[Sync Cleanup] Starting background cleanup for deleted emails...`);
   try {
-    const minDateRes = await query(
-      "SELECT MIN(date) as min_date FROM emails WHERE id = ANY($1) AND user_email = $2",
-      [skeletonIds, userEmail]
+    const minDateRes = await db.select({
+      min_date: sql<string>`MIN(${emails.date})`,
+    })
+    .from(emails)
+    .where(
+      and(
+        inArray(emails.id, skeletonIds),
+        eq(emails.userEmail, userEmail)
+      )
     );
-    const minDate = minDateRes.rows[0]?.min_date;
+    const minDate = minDateRes[0]?.min_date;
 
     if (minDate) {
       console.log(`[Sync Cleanup] Threshold date found: ${minDate}`);
-      const deleteRes = await query(
-        `DELETE FROM emails 
-         WHERE user_email = $1 
-           AND date >= $2 
-           AND NOT (id = ANY($3))`,
-        [userEmail, minDate, skeletonIds]
-      );
-      if (deleteRes.rowCount && deleteRes.rowCount > 0) {
-        console.log(`[Sync Cleanup] Deleted ${deleteRes.rowCount} emails from database that were deleted/trashed on Gmail.`);
-      }
+      const deleteRes = await db.delete(emails)
+        .where(
+          and(
+            eq(emails.userEmail, userEmail),
+            sql`${emails.date} >= ${minDate}`,
+            notInArray(emails.id, skeletonIds)
+          )
+        );
+      console.log(`[Sync Cleanup] Cleaned up deleted emails from database that were deleted/trashed on Gmail.`);
     } else {
       console.log(`[Sync Cleanup] No minimum date found among skeleton IDs in database, skipping cleanup.`);
     }
@@ -184,40 +189,34 @@ async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
   }
 
   if (parsedEmails.length > 0) {
-    const values: any[] = [];
-    const valueStrings: string[] = [];
-    let paramIndex = 1;
-
-    for (const email of parsedEmails) {
+    const toInsert = parsedEmails.map((email) => {
       const { priority, category } = runKeywordFallback(email.subject, email.body);
-      valueStrings.push(
-        `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, NULL)`
-      );
-      values.push(
-        email.id,
+      return {
+        id: email.id,
         userEmail,
-        email.fromName,
-        email.fromEmail,
-        email.subject,
-        email.body,
-        email.date,
-        email.read,
+        fromName: email.fromName,
+        fromEmail: email.fromEmail,
+        subject: email.subject,
+        body: email.body,
+        date: email.date,
+        read: email.read,
         priority,
-        category
-      );
-      paramIndex += 10;
-    }
+        category,
+        embedding: null,
+      };
+    });
 
     try {
-      await query(
-        `INSERT INTO emails (id, user_email, from_name, from_email, subject, body, date, read, priority, category, embedding)
-         VALUES ${valueStrings.join(", ")}
-         ON CONFLICT (id) DO UPDATE SET 
-           read = EXCLUDED.read,
-           priority = EXCLUDED.priority,
-           category = EXCLUDED.category`,
-        values
-      );
+      await db.insert(emails)
+        .values(toInsert)
+        .onConflictDoUpdate({
+          target: [emails.id],
+          set: {
+            read: sql`EXCLUDED.read`,
+            priority: sql`EXCLUDED.priority`,
+            category: sql`EXCLUDED.category`,
+          }
+        });
       console.log(`[Sync] Successfully batch inserted/updated ${parsedEmails.length} emails in a single query.`);
     } catch (err: any) {
       console.error(`[Sync] Failed to batch insert emails into database:`, err.message);
@@ -297,11 +296,20 @@ export async function syncUserEmails(userEmail: string, syncLimit: number = 200)
     console.log(`[Sync Service] Corsair returned ${messageSkeletonsLength} message skeletons.`);
 
     if (messageSkeletonsLength > 0) {
-      const localUnreadRes = await query(
-        "SELECT id FROM emails WHERE user_email = $1 AND read = FALSE ORDER BY date DESC LIMIT 8",
-        [userEmail],
-      );
-      const localUnreadIds = localUnreadRes.rows.map((r: any) => r.id);
+      const localUnreadRes = await db.select({
+        id: emails.id,
+      })
+      .from(emails)
+      .where(
+        and(
+          eq(emails.userEmail, userEmail),
+          eq(emails.read, false)
+        )
+      )
+      .orderBy(desc(emails.date))
+      .limit(8);
+
+      const localUnreadIds = localUnreadRes.map((r: any) => r.id);
       const latestSkeletons = messageSkeletons.slice(0, 8).map((m: any) => m.id);
 
       const checkIdsSet = new Set<string>();
@@ -315,11 +323,12 @@ export async function syncUserEmails(userEmail: string, syncLimit: number = 200)
         });
       }
 
-      const existingRes = await query(
-        "SELECT id FROM emails WHERE user_email = $1",
-        [userEmail],
-      );
-      const existingIds = new Set(existingRes.rows.map((r: any) => r.id));
+      const existingRes = await db.select({
+        id: emails.id,
+      })
+      .from(emails)
+      .where(eq(emails.userEmail, userEmail));
+      const existingIds = new Set(existingRes.map((r: any) => r.id));
 
       const missingSkeletons = messageSkeletons.filter(
         (msg) => !existingIds.has(msg.id),

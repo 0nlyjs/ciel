@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth";
 import { createClient } from "@corsair-dev/app";
-import { dbInit, query } from "@/lib/db";
+import { db } from "@/lib/db";
+import { userIntegrations } from "@/lib/schema";
+import { and, eq } from "drizzle-orm";
 
 export async function POST(req: Request) {
   try {
@@ -36,12 +38,14 @@ export async function POST(req: Request) {
 
     // Sync with local user_integrations table
     try {
-      await dbInit();
-      await query(
-        `UPDATE user_integrations SET status = 'disconnected'
-         WHERE user_email = $1 AND provider = $2`,
-        [session.user.email, plugin]
-      );
+      await db.update(userIntegrations)
+        .set({ status: "disconnected" })
+        .where(
+          and(
+            eq(userIntegrations.userEmail, session.user.email),
+            eq(userIntegrations.provider, plugin)
+          )
+        );
     } catch (dbError) {
       console.error("[Corsair Disconnect DB Sync Error]", dbError);
     }

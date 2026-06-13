@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth";
-import { dbInit, query } from "@/lib/db";
+import { db } from "@/lib/db";
+import { conversations } from "@/lib/schema";
+import { eq, desc } from "drizzle-orm";
 
 export async function GET() {
   try {
@@ -9,12 +11,19 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await dbInit();
-    const res = await query(
-      "SELECT id, title, messages, tokens_used, created_at, updated_at FROM conversations WHERE user_email = $1 ORDER BY updated_at DESC",
-      [session.user.email]
-    );
-    return NextResponse.json({ conversations: res.rows });
+    const rows = await db.select({
+      id: conversations.id,
+      title: conversations.title,
+      messages: conversations.messages,
+      tokens_used: conversations.tokensUsed,
+      created_at: conversations.createdAt,
+      updated_at: conversations.updatedAt,
+    })
+    .from(conversations)
+    .where(eq(conversations.userEmail, session.user.email))
+    .orderBy(desc(conversations.updatedAt));
+
+    return NextResponse.json({ conversations: rows });
   } catch (error) {
     console.error("[Conversations API GET Error]", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
@@ -33,8 +42,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Conversation ID is required" }, { status: 400 });
     }
 
-    await dbInit();
-
     // Determine title from the first user message if possible
     let title = "New Conversation";
     if (messages && messages.length > 0) {
@@ -45,16 +52,24 @@ export async function POST(req: Request) {
       }
     }
 
-    await query(
-      `INSERT INTO conversations (id, user_email, title, messages, tokens_used, updated_at)
-       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
-       ON CONFLICT (id) DO UPDATE SET
-         messages = EXCLUDED.messages,
-         title = EXCLUDED.title,
-         tokens_used = EXCLUDED.tokens_used,
-         updated_at = CURRENT_TIMESTAMP`,
-      [id, session.user.email, title, JSON.stringify(messages), tokens_used || 0]
-    );
+    await db.insert(conversations)
+      .values({
+        id,
+        userEmail: session.user.email,
+        title,
+        messages: messages || [],
+        tokensUsed: tokens_used || 0,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [conversations.id],
+        set: {
+          messages: messages || [],
+          title,
+          tokensUsed: tokens_used || 0,
+          updatedAt: new Date(),
+        }
+      });
 
     return NextResponse.json({ success: true, title });
   } catch (error) {

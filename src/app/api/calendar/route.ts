@@ -1,9 +1,10 @@
 import { CorsairClient } from "@/lib/corsair";
 import { NextResponse } from "next/server";
-import { dbInit, query } from "@/lib/db";
-import { getEmbedding, getEmbeddingsBatch, formatVector } from "@/lib/embeddings";
+import { db, syncEventToGoogleCalendar, isMockId } from "@/lib/db";
+import { calendarEvents } from "@/lib/schema";
+import { getEmbedding, getEmbeddingsBatch } from "@/lib/embeddings";
 import { getServerSession } from "@/lib/auth";
-
+import { eq, and, inArray, asc, sql } from "drizzle-orm";
 
 // GET /api/calendar - List and sync all calendar events
 export async function GET() {
@@ -13,15 +14,18 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await dbInit();
-
     // 1. Fetch currently cached events from local database
-    const { rows: dbEvents } = await query(
-      `SELECT id, title, start_time, end_time, location, description, attendees 
-       FROM calendar_events 
-       WHERE user_email = $1`,
-      [session.user.email]
-    );
+    const dbEvents = await db.select({
+      id: calendarEvents.id,
+      title: calendarEvents.title,
+      startTime: calendarEvents.startTime,
+      endTime: calendarEvents.endTime,
+      location: calendarEvents.location,
+      description: calendarEvents.description,
+      attendees: calendarEvents.attendees,
+    })
+    .from(calendarEvents)
+    .where(eq(calendarEvents.userEmail, session.user.email));
 
     const dbEventsMap = new Map<string, any>();
     for (const row of dbEvents) {
@@ -39,8 +43,8 @@ export async function GET() {
           if (!dbEvt) return true; // New event
 
           // Check if any major fields differ
-          const startMatches = new Date(dbEvt.start_time).getTime() === new Date(event.start).getTime();
-          const endMatches = new Date(dbEvt.end_time).getTime() === new Date(event.end).getTime();
+          const startMatches = dbEvt.startTime && new Date(dbEvt.startTime).getTime() === new Date(event.start).getTime();
+          const endMatches = dbEvt.endTime && new Date(dbEvt.endTime).getTime() === new Date(event.end).getTime();
           const titleMatches = dbEvt.title === (event.title || "Meeting Invite");
           const locationMatches = (dbEvt.location || "") === (event.location || "");
           const descMatches = (dbEvt.description || "") === (event.description || "");
@@ -60,55 +64,37 @@ export async function GET() {
 
           const embeddings = await getEmbeddingsBatch(textsToEmbed);
 
-          const values: any[] = [];
-          const valueStrings: string[] = [];
-          let paramIndex = 1;
-
-          for (let i = 0; i < changedEvents.length; i++) {
-            const event = changedEvents[i];
+          const toInsert = changedEvents.map((event, i) => {
             const embedding = embeddings ? embeddings[i] : null;
-            const formattedEmbedding = formatVector(embedding);
+            return {
+              id: event.id,
+              userEmail: session.user.email,
+              title: event.title || "Meeting Invite",
+              startTime: event.start ? new Date(event.start) : new Date(),
+              endTime: event.end ? new Date(event.end) : new Date(Date.now() + 1800000),
+              location: event.location || "",
+              attendees: event.attendees || [],
+              description: event.description || "",
+              embedding: embedding,
+            };
+          });
 
-            const eventId = event.id;
-            const title = event.title || "Meeting Invite";
-            const start = event.start || new Date().toISOString();
-            const end = event.end || new Date(Date.now() + 1800000).toISOString();
-            const location = event.location || "";
-            const attendees = event.attendees || [];
-            const description = event.description || "";
-
-            valueStrings.push(
-              `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}::vector)`
-            );
-            values.push(
-              eventId,
-              session.user.email,
-              title,
-              start,
-              end,
-              location,
-              JSON.stringify(attendees),
-              description,
-              formattedEmbedding
-            );
-            paramIndex += 9;
-          }
-
-          if (values.length > 0) {
-            await query(
-              `INSERT INTO calendar_events (id, user_email, title, start_time, end_time, location, attendees, description, embedding)
-               VALUES ${valueStrings.join(", ")}
-               ON CONFLICT (id) DO UPDATE SET
-                 user_email = EXCLUDED.user_email,
-                 title = EXCLUDED.title,
-                 start_time = EXCLUDED.start_time,
-                 end_time = EXCLUDED.end_time,
-                 location = EXCLUDED.location,
-                 attendees = EXCLUDED.attendees,
-                 description = EXCLUDED.description,
-                 embedding = EXCLUDED.embedding`,
-              values
-            );
+          if (toInsert.length > 0) {
+            await db.insert(calendarEvents)
+              .values(toInsert)
+              .onConflictDoUpdate({
+                target: [calendarEvents.id],
+                set: {
+                  userEmail: sql`EXCLUDED.user_email`,
+                  title: sql`EXCLUDED.title`,
+                  startTime: sql`EXCLUDED.start_time`,
+                  endTime: sql`EXCLUDED.end_time`,
+                  location: sql`EXCLUDED.location`,
+                  attendees: sql`EXCLUDED.attendees`,
+                  description: sql`EXCLUDED.description`,
+                  embedding: sql`EXCLUDED.embedding`,
+                }
+              });
             console.log(`[Calendar API] Successfully batch upserted ${changedEvents.length} calendar events.`);
           }
         } else {
@@ -120,17 +106,20 @@ export async function GET() {
         const liveIds = new Set(corsairEvents.map(e => e.id));
         const deletedIds = dbEvents
           .filter(row => {
-            const start = new Date(row.start_time);
+            const start = row.startTime ? new Date(row.startTime) : null;
             const isRealId = /^[a-v0-9]+$/.test(row.id); // not a mock ID
-            return start >= timeMin && isRealId && !liveIds.has(row.id);
+            return start && start >= timeMin && isRealId && !liveIds.has(row.id);
           })
           .map(row => row.id);
 
         if (deletedIds.length > 0) {
-          await query(
-            `DELETE FROM calendar_events WHERE id = ANY($1::varchar[]) AND user_email = $2`,
-            [deletedIds, session.user.email]
-          );
+          await db.delete(calendarEvents)
+            .where(
+              and(
+                inArray(calendarEvents.id, deletedIds),
+                eq(calendarEvents.userEmail, session.user.email)
+              )
+            );
           console.log(`[Calendar API] Cleaned up ${deletedIds.length} deleted events from DB.`);
         }
       }
@@ -139,13 +128,19 @@ export async function GET() {
     }
 
     // 3. Return the fully synchronized and updated list of events
-    const { rows } = await query(
-      `SELECT id, title, start_time as "start", end_time as "end", location, attendees, description 
-       FROM calendar_events 
-       WHERE user_email = $1
-       ORDER BY start_time ASC LIMIT 100`,
-      [session.user.email]
-    );
+    const rows = await db.select({
+      id: calendarEvents.id,
+      title: calendarEvents.title,
+      start: calendarEvents.startTime,
+      end: calendarEvents.endTime,
+      location: calendarEvents.location,
+      attendees: calendarEvents.attendees,
+      description: calendarEvents.description,
+    })
+    .from(calendarEvents)
+    .where(eq(calendarEvents.userEmail, session.user.email))
+    .orderBy(asc(calendarEvents.startTime))
+    .limit(100);
 
     const formattedEvents = rows.map((row) => ({
       ...row,
@@ -169,8 +164,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await dbInit();
-
     const { id, title, start, end, location, attendees, description } = await req.json();
 
     const eventId = id || Math.random().toString();
@@ -184,32 +177,49 @@ export async function POST(req: Request) {
     // Generate vector embedding
     const textToEmbed = `Title: ${cleanTitle}\nLocation: ${cleanLocation}\nDescription: ${cleanDescription}`;
     const embedding = await getEmbedding(textToEmbed);
-    const formattedEmbedding = formatVector(embedding);
 
-    await query(
-      `INSERT INTO calendar_events (id, user_email, title, start_time, end_time, location, attendees, description, embedding)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::vector)
-       ON CONFLICT (id) DO UPDATE SET
-         user_email = EXCLUDED.user_email,
-         title = EXCLUDED.title,
-         start_time = EXCLUDED.start_time,
-         end_time = EXCLUDED.end_time,
-         location = EXCLUDED.location,
-         attendees = EXCLUDED.attendees,
-         description = EXCLUDED.description,
-         embedding = EXCLUDED.embedding`,
-      [
+    await db.insert(calendarEvents)
+      .values({
+        id: eventId,
+        userEmail: session.user.email,
+        title: cleanTitle,
+        startTime: new Date(cleanStart),
+        endTime: new Date(cleanEnd),
+        location: cleanLocation,
+        attendees: cleanAttendees,
+        description: cleanDescription,
+        embedding: embedding,
+      })
+      .onConflictDoUpdate({
+        target: [calendarEvents.id],
+        set: {
+          userEmail: sql`EXCLUDED.user_email`,
+          title: sql`EXCLUDED.title`,
+          startTime: sql`EXCLUDED.start_time`,
+          endTime: sql`EXCLUDED.end_time`,
+          location: sql`EXCLUDED.location`,
+          attendees: sql`EXCLUDED.attendees`,
+          description: sql`EXCLUDED.description`,
+          embedding: sql`EXCLUDED.embedding`,
+        }
+      });
+
+    // Explicitly check and trigger sync to Google Calendar if it's a mock ID
+    if (isMockId(eventId)) {
+      console.log(`[Calendar API POST] Mock calendar event detected. Syncing to Google Calendar...`, { eventId, userEmail: session.user.email, title: cleanTitle });
+      syncEventToGoogleCalendar(
         eventId,
         session.user.email,
         cleanTitle,
         cleanStart,
         cleanEnd,
         cleanLocation,
-        JSON.stringify(cleanAttendees),
-        cleanDescription,
-        formattedEmbedding,
-      ]
-    );
+        cleanAttendees,
+        cleanDescription
+      ).catch((err) => {
+        console.error("[Calendar API POST] Error in background calendar sync:", err);
+      });
+    }
 
     return NextResponse.json({
       success: true,
