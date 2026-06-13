@@ -4,7 +4,7 @@ import { dbInit, query } from "@/lib/db";
 import { getServerSession } from "@/lib/auth";
 import { syncUserEmails } from "@/lib/sync";
 
-// GET /api/emails - Fetch all cached emails from database
+// GET /api/emails - Fetch all cached emails from database and sync if requested
 export async function GET(req: Request) {
   try {
     const session = await getServerSession();
@@ -20,14 +20,26 @@ export async function GET(req: Request) {
     const offset = parseInt(url.searchParams.get("offset") || "0", 10);
     const syncLimit = parseInt(url.searchParams.get("sync_limit") || "150", 10);
 
-    // Sync from Corsair asynchronously if sync=true was requested
+    // Check if Gmail integration is connected
+    let gmailConnected = false;
+    try {
+      const integrationRes = await query(
+        "SELECT status FROM user_integrations WHERE user_email = $1 AND provider = 'gmail'",
+        [session.user.email]
+      );
+      gmailConnected = integrationRes.rows[0]?.status === 'connected';
+    } catch (e) {
+      console.error("[Emails API] Failed to check integration status:", e);
+    }
+
+    // Sync from Corsair inline and await it if sync=true was requested
     if (forceSync) {
       console.log(`[Emails API] Sync requested for ${session.user.email} (limit: ${syncLimit})...`);
-      after(() => {
-        syncUserEmails(session.user.email, syncLimit).catch((err) => {
-          console.error("[Emails API] Background sync failed:", err);
-        });
-      });
+      try {
+        await syncUserEmails(session.user.email, syncLimit);
+      } catch (err) {
+        console.error("[Emails API] Sync failed:", err);
+      }
     }
 
     // Get total count and fetch paginated emails concurrently
@@ -49,7 +61,11 @@ export async function GET(req: Request) {
     const rows = fetchRes.rows;
 
     // If we paginated beyond totalCount, hasMore is false
-    const hasMore = offset + limit < totalCount;
+    let hasMore = offset + limit < totalCount;
+    if (!hasMore && gmailConnected) {
+      // If we have at least filled up to the current offset, there might be more on Gmail
+      hasMore = totalCount >= offset + limit;
+    }
 
     return NextResponse.json({ 
       emails: rows, 
