@@ -24,6 +24,15 @@ export async function dbInit() {
   }
 
   try {
+    // Check if the 'emails' table exists to avoid running migration queries on every container start/cold start
+    const checkTableRes = await pool.query(
+      "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'emails');"
+    );
+    if (checkTableRes.rows[0]?.exists) {
+      initialized = true;
+      return;
+    }
+
     // 1. Enable the pgvector extension
     await pool.query("CREATE EXTENSION IF NOT EXISTS vector;");
 

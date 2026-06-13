@@ -121,6 +121,13 @@ export default function Home() {
         } finally {
           setIsRefreshing(false);
         }
+      } else if (event.data === "sync_complete") {
+        console.log("[EventSource] Sync complete. Fetching updated list from database...");
+        try {
+          await fetchEmails(false);
+        } catch (e) {
+          console.error("SSE sync_complete fetchEmails error:", e);
+        }
       } else if (event.data === "new_calendar") {
         console.log("[EventSource] Syncing calendar events...");
         setIsRefreshing(true);

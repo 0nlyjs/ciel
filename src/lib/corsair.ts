@@ -18,6 +18,7 @@ export class CorsairClient {
 
   private static cachedTenant: any = null;
   private static cachedTenantId: string = "";
+  private static cachedInstanceId: string = "";
 
   private static async getTenant(tenantId?: string) {
     const resolvedTenantId = tenantId || "guest@ciel.app";
@@ -28,23 +29,44 @@ export class CorsairClient {
     const client = this.getClient();
     if (!client) return null;
     try {
-      const { instances } = await client.instances.list();
-      
-      // Check for a specific instance ID configured in the environment
       const targetId = process.env.CORSAIR_INSTANCE_ID;
+      
+      console.log(`[Corsair getTenant] Resolving tenant. targetId=${targetId}, cachedInstanceId=${this.cachedInstanceId}`);
+      
+      // If we have a cached UUID, use it directly!
+      if (this.cachedInstanceId) {
+        console.log(`[Corsair getTenant] Using cached instance UUID: ${this.cachedInstanceId}`);
+        const tenant = client.instance(this.cachedInstanceId).tenant(resolvedTenantId);
+        this.cachedTenant = tenant;
+        this.cachedTenantId = resolvedTenantId;
+        return tenant;
+      }
+
+      // Otherwise, list instances to resolve it (only happens once)
+      console.log("[Corsair getTenant] Listing instances to resolve name...");
+      const { instances } = await client.instances.list();
       let targetInstance = null;
       if (targetId) {
         targetInstance = instances.find(
           (inst) => inst.id === targetId || inst.name === targetId
         );
       }
-      
+
       // Fallback: look for active instance, then default to first
       if (!targetInstance) {
         targetInstance = instances.find(inst => inst.status === "active") || instances[0];
       }
-      
-      if (!targetInstance) return null;
+
+      if (!targetInstance) {
+        console.warn("[Corsair getTenant] No instances found!");
+        return null;
+      }
+
+      console.log(`[Corsair getTenant] Resolved instance to ID: ${targetInstance.id} (Name: ${targetInstance.name})`);
+
+      // Cache the resolved UUID for subsequent calls
+      this.cachedInstanceId = targetInstance.id;
+
       const tenant = client.instance(targetInstance.id).tenant(resolvedTenantId);
       this.cachedTenant = tenant;
       this.cachedTenantId = resolvedTenantId;
@@ -511,7 +533,7 @@ export class CorsairClient {
       const res = (await tenant.run("gmail.api.messages.list", {
         userId: "me",
         maxResults: maxResults,
-        includeSpamTrash: true
+        includeSpamTrash: false
       })) as any;
       if (res.success && res.data && res.data.messages) {
         return res.data.messages;

@@ -1,11 +1,12 @@
 import { CorsairClient } from "@/lib/corsair";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { dbInit, query } from "@/lib/db";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { getEmbedding, getEmbeddingsBatch, formatVector } from "@/lib/embeddings";
+import { activeClients } from "@/app/api/sync/stream/route";
 
 const getOpenAIClient = () => {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -154,6 +155,57 @@ async function verifyReadStatusInBackground(checkIds: string[], userEmail: strin
   console.log(`[Background Sync] Finished background verification of ${checkIds.length} candidate emails.`);
 }
 
+async function cleanDeletedEmails(skeletons: any[], userEmail: string) {
+  if (skeletons.length === 0) return;
+  const skeletonIds = skeletons.map((s) => s.id);
+
+  console.log(`[Sync Cleanup] Starting background cleanup for deleted emails...`);
+  try {
+    // 1. Find the minimum date of the skeletons that exist in the database
+    const minDateRes = await query(
+      "SELECT MIN(date) as min_date FROM emails WHERE id = ANY($1) AND user_email = $2",
+      [skeletonIds, userEmail]
+    );
+    const minDate = minDateRes.rows[0]?.min_date;
+
+    if (minDate) {
+      console.log(`[Sync Cleanup] Threshold date found: ${minDate}`);
+      // 2. Delete any emails for this user that are newer than or equal to minDate but not in the skeletons list
+      const deleteRes = await query(
+        `DELETE FROM emails 
+         WHERE user_email = $1 
+           AND date >= $2 
+           AND NOT (id = ANY($3))`,
+        [userEmail, minDate, skeletonIds]
+      );
+      if (deleteRes.rowCount && deleteRes.rowCount > 0) {
+        console.log(`[Sync Cleanup] Deleted ${deleteRes.rowCount} emails from database that were deleted/trashed on Gmail.`);
+      }
+    } else {
+      console.log(`[Sync Cleanup] No minimum date found among skeleton IDs in database, skipping cleanup.`);
+    }
+  } catch (err) {
+    console.error("[Sync Cleanup] Error cleaning up deleted emails:", err);
+  }
+}
+
+function broadcastSyncComplete(userEmail: string) {
+  const clientControllers = activeClients.get(userEmail);
+  if (clientControllers && clientControllers.length > 0) {
+    console.log(`[Sync Complete] Broadcasting sync_complete event to ${clientControllers.length} client streams for ${userEmail}`);
+    const eventData = new TextEncoder().encode("data: sync_complete\n\n");
+    clientControllers.forEach((controller) => {
+      try {
+        controller.enqueue(eventData);
+      } catch (e) {
+        console.error("[Sync Complete] Failed to enqueue to client controller:", e);
+      }
+    });
+  } else {
+    console.log(`[Sync Complete] No active client stream sessions for user: ${userEmail}`);
+  }
+}
+
 async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
   if (skeletons.length === 0) return;
 
@@ -217,9 +269,11 @@ async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
   );
 
   // 4. Generate and update vector embeddings asynchronously in the background
-  generateAndSaveEmbeddings(parsedEmails, userEmail).catch((err) => {
-    console.error("[Sync] Background embeddings launcher error:", err);
-  });
+  setTimeout(() => {
+    generateAndSaveEmbeddings(parsedEmails, userEmail).catch((err) => {
+      console.error("[Sync] Background embeddings launcher error:", err);
+    });
+  }, 0);
 }
 
 async function runBackgroundSyncForRemaining(
@@ -301,8 +355,10 @@ export async function GET(req: Request) {
 
           if (checkIds.length > 0) {
             console.log(`[Emails API] Launching background check for ${checkIds.length} candidate emails...`);
-            verifyReadStatusInBackground(checkIds, session.user.email).catch((err) => {
-              console.error("[Emails API] Background candidate check error:", err);
+            after(() => {
+              verifyReadStatusInBackground(checkIds, session.user.email).catch((err) => {
+                console.error("[Emails API] Background candidate check error:", err);
+              });
             });
           }
 
@@ -320,32 +376,27 @@ export async function GET(req: Request) {
             `[Emails API] Found ${missingSkeletons.length} missing emails to fetch.`,
           );
 
-          // Phase 1: Sync first 50 missing emails immediately to return quickly
-          const firstBatch = missingSkeletons.slice(0, 50);
-          const remainingBatch = missingSkeletons.slice(50);
-
-          if (firstBatch.length > 0) {
-            console.log(
-              `[Emails API] Syncing ${firstBatch.length} latest emails immediately...`,
-            );
-            await syncBatchOfSkeletons(firstBatch, session.user.email);
-          }
-
-          // Phase 2: Start background sync for the remaining emails (asynchronous)
-          if (remainingBatch.length > 0) {
-            console.log(
-              `[Emails API] Phase 2: Launching background sync for ${remainingBatch.length} remaining emails...`,
-            );
-            runBackgroundSyncForRemaining(
-              remainingBatch,
-              session.user.email,
-            ).catch((err) => {
-              console.error(
-                "[Emails API] Background sync launcher error:",
-                err,
-              );
+          // Defer all missing email fetching, insertions, and deletion cleanup to background sequence
+          after(() => {
+            (async () => {
+              if (missingSkeletons.length > 0) {
+                console.log(
+                  `[Emails API] Background Sync: Fetching and inserting ${missingSkeletons.length} missing emails...`,
+                );
+                await runBackgroundSyncForRemaining(
+                  missingSkeletons,
+                  session.user.email,
+                );
+              }
+              // Run deletion cleanup after ensuring missing emails are in DB
+              await cleanDeletedEmails(messageSkeletons, session.user.email);
+              
+              // Broadcast sync_complete to notify the UI to refresh from DB!
+              broadcastSyncComplete(session.user.email);
+            })().catch((err) => {
+              console.error("[Emails API] Background sync pipeline error:", err);
             });
-          }
+          });
         }
       } catch (syncError) {
         console.error("[Emails API] Sync error from Corsair:", syncError);
