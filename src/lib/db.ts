@@ -1,4 +1,5 @@
 import { Pool } from "@neondatabase/serverless";
+import { CorsairClient } from "@/lib/corsair";
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -18,8 +19,98 @@ if (process.env.NODE_ENV !== "production") {
   globalForDb.pool = pool;
 }
 
+function isMockId(id: string): boolean {
+  if (typeof id !== "string") return false;
+  // Google Calendar event ID format: lowercase alphanumeric [a-v0-9]
+  // Mock IDs (generated via Math.random().toString()) contain a decimal dot.
+  // Or other custom IDs containing uppercase, dash, dots, etc.
+  return !/^[a-v0-9]+$/.test(id);
+}
+
+async function syncEventToGoogleCalendar(
+  mockId: string,
+  userEmail: string,
+  title: string,
+  start: any,
+  end: any,
+  location: string,
+  attendees: any,
+  description: string
+) {
+  try {
+    // 1. Parse attendees
+    let cleanAttendees: string[] = [];
+    if (Array.isArray(attendees)) {
+      cleanAttendees = attendees;
+    } else if (typeof attendees === "string") {
+      try {
+        const parsed = JSON.parse(attendees);
+        if (Array.isArray(parsed)) {
+          cleanAttendees = parsed;
+        } else if (typeof parsed === "string") {
+          cleanAttendees = [parsed];
+        }
+      } catch (e) {
+        cleanAttendees = [attendees];
+      }
+    }
+
+    // 2. Format start/end times to ISO strings
+    const startISO = start instanceof Date ? start.toISOString() : new Date(start).toISOString();
+    const endISO = end instanceof Date ? end.toISOString() : new Date(end).toISOString();
+
+    console.log(`[DB Calendar Sync] Syncing event to Google Calendar via Corsair: "${title}" for ${userEmail}`);
+
+    // 3. Call CorsairClient.createCalendarInvite
+    const event = await CorsairClient.createCalendarInvite(
+      title,
+      cleanAttendees,
+      startISO,
+      endISO,
+      location || "",
+      description || "",
+      userEmail
+    );
+
+    // 4. Check if we got a real Google Calendar ID
+    if (event && event.id && !isMockId(event.id)) {
+      console.log(`[DB Calendar Sync] Successfully created Google Calendar event. New ID: ${event.id}. Updating DB...`);
+
+      // Update the DB record's ID to the real Google Calendar ID
+      await pool.query(
+        `UPDATE calendar_events SET id = $1 WHERE id = $2`,
+        [event.id, mockId]
+      );
+      console.log(`[DB Calendar Sync] Database event ID updated from ${mockId} to ${event.id}`);
+    } else {
+      console.warn(`[DB Calendar Sync] Did not get a real Google Calendar ID. Leaving event ${mockId} as local-only.`);
+    }
+  } catch (error) {
+    console.error(`[DB Calendar Sync] Error syncing local event ${mockId} to Google Calendar:`, error);
+  }
+}
+
 export async function query(text: string, params?: any[]) {
-  return pool.query(text, params);
+  const result = await pool.query(text, params);
+
+  // Hook to detect inserts to calendar_events with a mock ID
+  try {
+    const isCalendarInsert = /insert\s+into\s+(public\.)?calendar_events/i.test(text);
+    if (isCalendarInsert && params && params.length === 9) {
+      const [id, userEmail, title, start, end, location, attendees, description] = params;
+      if (typeof id === "string" && isMockId(id)) {
+        console.log(`[DB Query Hook] Mock calendar event detected. Syncing to Google Calendar...`, { id, userEmail, title });
+        // Start background sync
+        syncEventToGoogleCalendar(id, userEmail, title, start, end, location, attendees, description).catch(err => {
+          console.error("[DB Query Hook] Error in background calendar sync:", err);
+        });
+      }
+    }
+  } catch (err) {
+    console.error("[DB Query Hook] Error checking calendar insert:", err);
+  }
+
+  return result;
 }
 
 let initialized = false;
@@ -60,25 +151,73 @@ export async function dbInit() {
     // 2. Create users table first for credentials auth and foreign key references
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
+        id VARCHAR(255) PRIMARY KEY,
         name VARCHAR(255),
         email VARCHAR(255) UNIQUE NOT NULL,
         password VARCHAR(255),
         verified BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        image VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
-    // Ensure verified column exists
-    await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE;");
-    // Ensure password column is nullable
-    await pool.query("ALTER TABLE users ALTER COLUMN password DROP NOT NULL;");
+    // Create session table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "session" (
+        "id" VARCHAR(255) PRIMARY KEY,
+        "expiresAt" TIMESTAMP NOT NULL,
+        "token" VARCHAR(255) NOT NULL UNIQUE,
+        "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "ipAddress" VARCHAR(255),
+        "userAgent" VARCHAR(255),
+        "userId" VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE
+      );
+    `);
+
+    // Create account table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "account" (
+        "id" VARCHAR(255) PRIMARY KEY,
+        "accountId" VARCHAR(255) NOT NULL,
+        "providerId" VARCHAR(255) NOT NULL,
+        "userId" VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        "accessToken" TEXT,
+        "refreshToken" TEXT,
+        "idToken" TEXT,
+        "accessTokenExpiresAt" TIMESTAMP,
+        "refreshTokenExpiresAt" TIMESTAMP,
+        "scope" TEXT,
+        "password" TEXT,
+        "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Create verification table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "verification" (
+        "id" VARCHAR(255) PRIMARY KEY,
+        "identifier" VARCHAR(255) NOT NULL,
+        "value" VARCHAR(255) NOT NULL,
+        "expiresAt" TIMESTAMP NOT NULL,
+        "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
 
     // 3. Seed Guest User if it does not exist
     await pool.query(`
-      INSERT INTO users (name, email, password, verified)
-      VALUES ('Guest Node', 'guest@ciel.app', NULL, TRUE)
+      INSERT INTO users (id, name, email, password, verified)
+      VALUES ('guest-id', 'Guest Node', 'guest@ciel.app', NULL, TRUE)
       ON CONFLICT (email) DO NOTHING;
+    `);
+
+    await pool.query(`
+      INSERT INTO "account" ("id", "accountId", "providerId", "userId", "password", "createdAt", "updatedAt")
+      VALUES ('guest-account-id', 'guest@ciel.app', 'credential', 'guest-id', '38178c654e34df255fbdca65daba323d:8301a1c0360b57632b48c502952970b306412bd89320ece0add0faa79ecb7453c70b58e7ae79314eee8fa4df603e28dcd44894272ab0680c2038f05c170ea979', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT (id) DO NOTHING;
     `);
 
     // 4. Create emails table with embedding vector

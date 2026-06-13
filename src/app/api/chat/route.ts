@@ -6,8 +6,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { dbInit, query as queryDb } from "@/lib/db";
 import { getEmbedding, formatVector } from "@/lib/embeddings";
 import { CorsairClient } from "@/lib/corsair";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getServerSession } from "@/lib/auth";
 
 // lazy load openai
 const getOpenAIClient = () => {
@@ -104,7 +103,7 @@ const handleFallbackAI = async (prompt: string, tenantId: string): Promise<{ tex
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -125,13 +124,16 @@ export async function POST(req: Request) {
     await dbInit();
 
     // run vercel ai sdk with tools using tool() and jsonSchema() wrappers
+    const currentDateTime = new Date().toISOString();
     const response = await generateText({
       model: openaiClient.chat("gpt-4o-mini"),
       system: `You are Ciel, the sentient AI workspace mind from Tempest. 
 Your task is to help the user manage their email and calendar workflows.
 You have access to tools that connect to Gmail and Google Calendar.
 When the user asks you to perform actions like sending emails or creating calendar invites, you must execute the corresponding tools.
-Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
+Always answer in a precise, helpful, and slightly robotic/analytical tone.
+
+The current system date and time is ${new Date().toString()} (ISO: ${currentDateTime}). Use this date/time as the reference point for relative dates like "today", "tomorrow", "next week", "Friday", etc.`,
       messages: messages,
       tools: {
         list_emails: tool({

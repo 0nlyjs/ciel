@@ -1,5 +1,4 @@
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getServerSession } from "@/lib/auth";
 import { CorsairClient } from "@/lib/corsair";
 import { syncUserEmails } from "@/lib/sync";
 
@@ -10,7 +9,7 @@ export const activeClients = new Map<string, ReadableStreamDefaultController[]>(
 
 export async function GET(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     if (!session?.user?.email) {
       return new Response("Unauthorized", { status: 401 });
     }

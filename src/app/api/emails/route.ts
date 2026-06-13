@@ -1,14 +1,13 @@
 import { CorsairClient } from "@/lib/corsair";
 import { NextResponse, after } from "next/server";
 import { dbInit, query } from "@/lib/db";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getServerSession } from "@/lib/auth";
 import { syncUserEmails } from "@/lib/sync";
 
 // GET /api/emails - Fetch all cached emails from database
 export async function GET(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -69,7 +68,7 @@ export async function GET(req: Request) {
 // POST /api/emails - Perform operations (mark read, archive)
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

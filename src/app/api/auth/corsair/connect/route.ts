@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getServerSession } from "@/lib/auth";
 import { createClient } from "@corsair-dev/app";
 
 export async function GET(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -32,7 +31,7 @@ export async function GET(req: Request) {
     }
 
     const tenantId = session.user.email;
-    const returnTo = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/?connected=${plugin}`;
+    const returnTo = `${process.env.BETTER_AUTH_URL || "http://localhost:3000"}/?connected=${plugin}`;
 
     const t = corsair.instance(activeInstance.id).tenant(tenantId);
     const { authorizeUrl } = await t.plugins.oauth.authorizeUrl(plugin, returnTo);

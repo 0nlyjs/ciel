@@ -94,19 +94,33 @@ async function generateAndSaveEmbeddings(parsedEmails: any[], userEmail: string)
   try {
     const embeddings = await getEmbeddingsBatch(textsToEmbed);
     if (embeddings && embeddings.length > 0) {
-      await Promise.all(
-        parsedEmails.map(async (email, i) => {
-          const embedding = embeddings[i];
-          if (embedding) {
-            const formatted = formatVector(embedding);
-            await query(
-              "UPDATE emails SET embedding = $1::vector WHERE id = $2 AND user_email = $3",
-              [formatted, email.id, userEmail]
-            );
-          }
-        })
-      );
-      console.log(`[Sync] Successfully generated and updated background embeddings for ${parsedEmails.length} emails.`);
+      const values: any[] = [];
+      const valueStrings: string[] = [];
+      let paramIndex = 1;
+
+      for (let i = 0; i < parsedEmails.length; i++) {
+        const email = parsedEmails[i];
+        const embedding = embeddings[i];
+        if (embedding) {
+          const formatted = formatVector(embedding);
+          valueStrings.push(`($${paramIndex}, $${paramIndex + 1}::vector)`);
+          values.push(email.id, formatted);
+          paramIndex += 2;
+        }
+      }
+
+      if (values.length > 0) {
+        values.push(userEmail);
+        const userEmailParam = `$${paramIndex}`;
+        await query(
+          `UPDATE emails 
+           SET embedding = temp.val::vector
+           FROM (VALUES ${valueStrings.join(", ")}) AS temp(id, val)
+           WHERE emails.id = temp.id AND emails.user_email = ${userEmailParam}`,
+          values
+        );
+        console.log(`[Sync] Successfully generated and updated background embeddings for ${parsedEmails.length} emails in a single batch query.`);
+      }
     }
   } catch (err) {
     console.error("[Sync] Background embeddings generation error:", err);
@@ -219,24 +233,46 @@ async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
     }
   }
 
-  await Promise.all(
-    parsedEmails.map(async (email) => {
+  if (parsedEmails.length > 0) {
+    const values: any[] = [];
+    const valueStrings: string[] = [];
+    let paramIndex = 1;
+
+    for (const email of parsedEmails) {
       const { priority, category } = runKeywordFallback(email.subject, email.body);
-      try {
-        await query(
-          `INSERT INTO emails (id, user_email, from_name, from_email, subject, body, date, read, priority, category, embedding)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL)
-           ON CONFLICT (id) DO UPDATE SET 
-             read = EXCLUDED.read,
-             priority = EXCLUDED.priority,
-             category = EXCLUDED.category`,
-          [email.id, userEmail, email.fromName, email.fromEmail, email.subject, email.body, email.date, email.read, priority, category]
-        );
-      } catch (err: any) {
-        console.error(`[Sync] Failed to insert email ${email.id} into database:`, err.message);
-      }
-    })
-  );
+      valueStrings.push(
+        `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, NULL)`
+      );
+      values.push(
+        email.id,
+        userEmail,
+        email.fromName,
+        email.fromEmail,
+        email.subject,
+        email.body,
+        email.date,
+        email.read,
+        priority,
+        category
+      );
+      paramIndex += 10;
+    }
+
+    try {
+      await query(
+        `INSERT INTO emails (id, user_email, from_name, from_email, subject, body, date, read, priority, category, embedding)
+         VALUES ${valueStrings.join(", ")}
+         ON CONFLICT (id) DO UPDATE SET 
+           read = EXCLUDED.read,
+           priority = EXCLUDED.priority,
+           category = EXCLUDED.category`,
+        values
+      );
+      console.log(`[Sync] Successfully batch inserted/updated ${parsedEmails.length} emails in a single query.`);
+    } catch (err: any) {
+      console.error(`[Sync] Failed to batch insert emails into database:`, err.message);
+    }
+  }
 
   setTimeout(() => {
     generateAndSaveEmbeddings(parsedEmails, userEmail).catch((err) => {
