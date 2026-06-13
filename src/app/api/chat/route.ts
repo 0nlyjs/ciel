@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateText, tool, jsonSchema, stepCountIs } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
-import { db, syncEventToGoogleCalendar, isMockId } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getEmbedding } from "@/lib/embeddings";
 import { CorsairClient } from "@/lib/corsair";
 import { getServerSession } from "@/lib/auth";
@@ -16,7 +16,7 @@ const getOpenAIClient = () => {
 };
 
 // regex fallback for simple commands when offline/no api key
-const handleFallbackAI = async (prompt: string, tenantId: string): Promise<{ text: string; actionTriggered?: string }> => {
+const handleFallbackAI = async (prompt: string, tenantId: string, userName: string): Promise<{ text: string; actionTriggered?: string }> => {
   const queryText = prompt.toLowerCase();
 
   if (queryText.includes("calendar") && (queryText.includes("invite") || queryText.includes("send") || queryText.includes("schedule"))) {
@@ -63,32 +63,9 @@ const handleFallbackAI = async (prompt: string, tenantId: string): Promise<{ tex
     const emailMatch = prompt.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
     const email = emailMatch ? emailMatch[0] : "dev@corsair.dev";
     const subject = "Sync Confirmation";
-    const body = "Hi there, confirming our scheduled coordinates. Let's sync up as planned.";
+    const body = `Hi there, confirming our scheduled coordinates. Let's sync up as planned.\n\nBest regards,\n${userName}`;
 
     await CorsairClient.sendEmail(email, subject, body, tenantId);
-
-    // Cache in DB
-    const textToEmbed = `To: ${email}\nSubject: ${subject}\nBody: ${body}`;
-    const embedding = await getEmbedding(textToEmbed);
-
-    await db.insert(emails)
-      .values({
-        id: Math.random().toString(),
-        userEmail: tenantId,
-        fromName: "You",
-        fromEmail: tenantId || "user@ciel.app",
-        subject,
-        body,
-        date: new Date().toISOString(),
-        read: true,
-        priority: "medium",
-        category: "work",
-        embedding: embedding,
-      })
-      .onConflictDoUpdate({
-        target: [emails.id],
-        set: { subject },
-      });
 
     return {
       text: `Acknowledged. I have drafted and sent the email to ${email} confirming our synchronization and schedule.`,
@@ -116,6 +93,8 @@ export async function POST(req: Request) {
     }
 
     const tenantId = session.user.email;
+    const userName = session.user.name || "User";
+    const userEmail = session.user.email;
     const { messages, conversationId } = await req.json();
     const lastUserMessage = messages[messages.length - 1];
 
@@ -124,7 +103,7 @@ export async function POST(req: Request) {
     // no api key? use local regex fallback
     if (!openaiClient) {
       console.warn("[Ciel Chat API] OPENAI_API_KEY is not configured. Falling back to local AI simulation.");
-      const fallbackResult = await handleFallbackAI(lastUserMessage.content, tenantId);
+      const fallbackResult = await handleFallbackAI(lastUserMessage.content, tenantId, userName);
       return NextResponse.json({ text: fallbackResult.text, fallback: true, tokens: 0 });
     }
 
@@ -188,8 +167,20 @@ export async function POST(req: Request) {
       system: `You are Ciel, the sentient AI workspace mind from Tempest. 
 Your task is to help the user manage their email and calendar workflows.
 You have access to tools that connect to Gmail and Google Calendar.
-When the user asks you to perform actions like sending emails or creating calendar invites, you must execute the corresponding tools.
-Write in a professional, natural, and workspace-focused tone.
+
+USER IDENTITY:
+- The current user is ${userName} (${userEmail}). 
+- Always sign off emails with this user's name ("${userName}") rather than placeholders like "[Your Name]" or "User" unless the user explicitly tells you to sign off differently. Use this personal detail to write emails exactly as if you were the user themselves.
+
+CONFIRMATION & EDIT LOOP (CRITICAL):
+1. BEFORE calling the "send_email" or "create_calendar_invite" tools, you MUST first draft the email or calendar event and present it to the user for review.
+2. Show the final details clearly:
+   - For emails: Recipient, Subject, and final Body.
+   - For calendar events: Title, Start Time, End Time, Location, Description, and Attendees.
+3. Explicitly ask the user for confirmation (e.g., "Should I send this email?", "Would you like me to schedule this event?").
+4. Do NOT call "send_email" or "create_calendar_invite" in the same turn that you present the draft.
+5. If the user requests modifications or changes to the draft, adjust the draft and present it again for confirmation.
+6. ONLY execute the tool ("send_email" or "create_calendar_invite") in the turn after the user explicitly confirms (e.g., "yes", "send it", "looks good", "proceed", "schedule it").
 
 When summarizing emails or the user's day:
 - Generate a narrative, cohesive paragraph-style summary rather than simple bulleted lists or nested numbering formats.
@@ -346,29 +337,7 @@ The current system date and time is ${new Date().toString()} (ISO: ${currentDate
             console.log("[Tool] Sending email to:", to, "(user:", tenantId, ")");
             try {
               const sent = await CorsairClient.sendEmail(to, subject, body, tenantId);
-
-              // Cache in DB
-              const emailId = Math.random().toString();
-              const dateStr = new Date().toISOString();
-              const textToEmbed = `To: ${to}\nSubject: ${subject}\nBody: ${body}`;
-              const embedding = await getEmbedding(textToEmbed);
-
-              await db.insert(emails)
-                .values({
-                  id: emailId,
-                  userEmail: tenantId,
-                  fromName: "You",
-                  fromEmail: tenantId || "user@ciel.app",
-                  subject,
-                  body,
-                  date: dateStr,
-                  read: true,
-                  priority: "medium",
-                  category: "work",
-                  embedding: embedding,
-                });
-
-              return { success: sent, message: "Email sent and cached locally." };
+              return { success: sent, message: "Email sent successfully." };
             } catch (err: any) {
               console.error("[Tool send_email error]", err);
               return { success: false, error: err.message };
@@ -424,10 +393,6 @@ The current system date and time is ${new Date().toString()} (ISO: ${currentDate
                 tenantId
               );
 
-              // Cache in DB
-              const textToEmbed = `Title: ${title}\nLocation: ${location}\nDescription: ${description}`;
-              const embedding = await getEmbedding(textToEmbed);
-
               await db.insert(calendarEvents)
                 .values({
                   id: event.id,
@@ -438,7 +403,7 @@ The current system date and time is ${new Date().toString()} (ISO: ${currentDate
                   location: location || "",
                   attendees: cleanAttendees,
                   description: description || "",
-                  embedding: embedding,
+                  embedding: null,
                 });
 
               return { success: true, event };

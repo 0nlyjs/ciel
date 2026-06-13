@@ -223,35 +223,7 @@ Do not write any markdown code block wrap, only raw JSON.`,
       // 1. Send via Corsair Gmail Client
       await CorsairClient.sendEmail(to, subject, emailBody, session.user.email);
 
-      // 2. Cache locally in Postgres emails table
-      const emailId = "sent-" + Math.random().toString(36).substring(2, 12);
-      const dateStr = new Date().toISOString();
-
-      let embedding: number[] | null = null;
-      try {
-        const { getEmbedding } = await import("@/lib/embeddings");
-        const textToEmbed = `To: ${to}\nSubject: ${subject}\nBody: ${emailBody}`;
-        embedding = await getEmbedding(textToEmbed);
-      } catch (embErr) {
-        console.error("[Emails API] Failed to generate embedding for sent email:", embErr);
-      }
-
-      await db.insert(emails)
-        .values({
-          id: emailId,
-          userEmail: session.user.email,
-          fromName: "You",
-          fromEmail: session.user.email,
-          subject,
-          body: emailBody,
-          date: dateStr,
-          read: true,
-          priority: "medium",
-          category: "work",
-          embedding: embedding,
-        });
-
-      return NextResponse.json({ success: true, message: "Email sent successfully and cached locally." });
+      return NextResponse.json({ success: true, message: "Email sent successfully." });
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });

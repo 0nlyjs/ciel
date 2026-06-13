@@ -533,7 +533,8 @@ export class CorsairClient {
       const res = (await tenant.run("gmail.api.messages.list", {
         userId: "me",
         maxResults: maxResults,
-        includeSpamTrash: false
+        includeSpamTrash: false,
+        q: "label:INBOX"
       })) as any;
       if (res.success && res.data && res.data.messages) {
         return res.data.messages;

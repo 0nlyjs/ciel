@@ -25,8 +25,6 @@ export const auth = betterAuth({
     modelName: "users",
     fields: {
       emailVerified: "verified",
-      createdAt: "created_at",
-      updatedAt: "updated_at",
     },
   },
   emailVerification: {
