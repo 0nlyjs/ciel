@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { activeClients } from "@/app/api/sync/stream/route";
+import { NextResponse, after } from "next/server";
+import { syncUserEmails } from "@/lib/sync";
 
 export async function POST(req: Request) {
   try {
@@ -31,21 +31,12 @@ export async function POST(req: Request) {
 
     console.log(`[Gmail Webhook] New email notification received for email: ${emailAddress}`);
 
-    // Notify any active SSE stream listeners for this user
-    const clientControllers = activeClients.get(emailAddress);
-    if (clientControllers && clientControllers.length > 0) {
-      console.log(`[Gmail Webhook] Broadcasting 'new_email' event to ${clientControllers.length} active client streams for ${emailAddress}`);
-      const eventData = new TextEncoder().encode("data: new_email\n\n");
-      clientControllers.forEach((controller) => {
-        try {
-          controller.enqueue(eventData);
-        } catch (e) {
-          console.error("[Gmail Webhook] Failed to enqueue to client controller:", e);
-        }
+    // Trigger full background sync asynchronously in the background
+    after(() => {
+      syncUserEmails(emailAddress).catch((err) => {
+        console.error(`[Gmail Webhook] Background sync failed for ${emailAddress}:`, err);
       });
-    } else {
-      console.log(`[Gmail Webhook] No active client stream sessions for user: ${emailAddress}`);
-    }
+    });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

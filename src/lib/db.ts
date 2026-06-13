@@ -6,9 +6,17 @@ if (!connectionString) {
   console.warn("DATABASE_URL is not set. Database operations will fail or be bypassed.");
 }
 
-export const pool = new Pool({
+const globalForDb = globalThis as unknown as {
+  pool: Pool | undefined;
+};
+
+export const pool = globalForDb.pool ?? new Pool({
   connectionString,
 });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForDb.pool = pool;
+}
 
 export async function query(text: string, params?: any[]) {
   return pool.query(text, params);
@@ -29,6 +37,17 @@ export async function dbInit() {
       "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'emails');"
     );
     if (checkTableRes.rows[0]?.exists) {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS conversations (
+          id VARCHAR(255) PRIMARY KEY,
+          user_email VARCHAR(255) REFERENCES users(email) ON DELETE CASCADE,
+          title VARCHAR(255) DEFAULT 'New Conversation',
+          messages JSONB DEFAULT '[]',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      await pool.query("CREATE INDEX IF NOT EXISTS idx_conversations_user_email ON conversations(user_email);");
       initialized = true;
       return;
     }
@@ -152,6 +171,19 @@ export async function dbInit() {
     // 8. Create pgvector HNSW indexes for optimized semantic search
     await pool.query("CREATE INDEX IF NOT EXISTS idx_emails_embedding ON emails USING hnsw (embedding vector_cosine_ops);");
     await pool.query("CREATE INDEX IF NOT EXISTS idx_calendar_events_embedding ON calendar_events USING hnsw (embedding vector_cosine_ops);");
+
+    // 9. Create conversations table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS conversations (
+        id VARCHAR(255) PRIMARY KEY,
+        user_email VARCHAR(255) REFERENCES users(email) ON DELETE CASCADE,
+        title VARCHAR(255) DEFAULT 'New Conversation',
+        messages JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_conversations_user_email ON conversations(user_email);");
 
     console.log("[Database] Neon DB tables verified/created successfully with security optimizations.");
     initialized = true;

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useCielStore } from "@/store/useCielStore";
 import { useSession, signIn, signOut } from "next-auth/react";
+import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -69,6 +70,44 @@ export default function Home() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [conversationsList, setConversationsList] = useState<any[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  const fetchConversations = async () => {
+    try {
+      const res = await fetch("/api/chat/conversations");
+      if (res.ok) {
+        const data = await res.json();
+        setConversationsList(data.conversations || []);
+      }
+    } catch (e) {
+      console.error("Failed to fetch conversations", e);
+    }
+  };
+
+  const saveConversation = async (convId: string, messages: any[]) => {
+    try {
+      await fetch("/api/chat/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: convId, messages }),
+      });
+      fetchConversations();
+    } catch (e) {
+      console.error("Failed to save conversation", e);
+    }
+  };
+
+  useEffect(() => {
+    if (activeView === "chat") {
+      fetchConversations();
+      if (!activeConversationId) {
+        setActiveConversationId(Math.random().toString(36).substring(2, 15));
+      }
+    }
+  }, [activeView, activeConversationId]);
 
   useEffect(() => {
     setMounted(true);
@@ -163,41 +202,89 @@ export default function Home() {
   };
 
   // Handle Chat message submit
-  const handleChatSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleChatSubmit = async (e?: React.SyntheticEvent) => {
+    if (e) e.preventDefault();
     if (!chatInput.trim() || isSendingChat) return;
 
     const userMsg = chatInput.trim();
     setChatInput("");
-    addChatMessage({ role: "user", content: userMsg });
+    
+    const newUserMessage = {
+      id: Math.random().toString(),
+      role: "user" as const,
+      content: userMsg,
+      timestamp: new Date()
+    };
+    const updatedMessagesWithUser = [...chatMessages, newUserMessage];
+    useCielStore.setState({ chatMessages: updatedMessagesWithUser });
     setIsSendingChat(true);
 
+    const currentConvId = activeConversationId || Math.random().toString(36).substring(2, 15);
+    if (!activeConversationId) {
+      setActiveConversationId(currentConvId);
+    }
+    await saveConversation(currentConvId, updatedMessagesWithUser);
+
     try {
-      // Re-fetch all messages to build list including the new one
-      const updatedMessages = [...chatMessages, { role: "user", content: userMsg }];
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: updatedMessages.map(m => ({ role: m.role, content: m.content }))
+          messages: updatedMessagesWithUser.map(m => ({ role: m.role, content: m.content }))
         }),
       });
 
+      let finalMessages = updatedMessagesWithUser;
       if (res.ok) {
         const data = await res.json();
-        addChatMessage({ role: "assistant", content: data.text });
+        const assistantMsg = {
+          id: Math.random().toString(),
+          role: "assistant" as const,
+          content: data.text,
+          timestamp: new Date()
+        };
+        finalMessages = [...updatedMessagesWithUser, assistantMsg];
       } else {
-        addChatMessage({ role: "assistant", content: "Error communicating with the backend chatbot API." });
+        const errorMsg = {
+          id: Math.random().toString(),
+          role: "assistant" as const,
+          content: "Error communicating with the backend chatbot API.",
+          timestamp: new Date()
+        };
+        finalMessages = [...updatedMessagesWithUser, errorMsg];
       }
+      useCielStore.setState({ chatMessages: finalMessages });
+      await saveConversation(currentConvId, finalMessages);
     } catch (err) {
       console.error("Chat error:", err);
-      addChatMessage({ role: "assistant", content: "An unexpected error occurred during chat transmission." });
+      const errorMsg = {
+        id: Math.random().toString(),
+        role: "assistant" as const,
+        content: "An unexpected error occurred during chat transmission.",
+        timestamp: new Date()
+      };
+      const finalMessages = [...updatedMessagesWithUser, errorMsg];
+      useCielStore.setState({ chatMessages: finalMessages });
+      await saveConversation(currentConvId, finalMessages);
     } finally {
       setIsSendingChat(false);
       // Automatically refresh data in case tool execution made changes
       fetchEmails();
       fetchCalendarEvents();
     }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleChatSubmit(e);
+    }
+  };
+
+  const handleStartFreshChat = () => {
+    const newId = Math.random().toString(36).substring(2, 15);
+    setActiveConversationId(newId);
+    useCielStore.setState({ chatMessages: [] });
   };
 
   if (status === "loading") {
@@ -233,7 +320,7 @@ export default function Home() {
 
   // Dashboard / Authenticated View
   return (
-    <div className={`min-h-screen ${bgClass} p-6 font-mono flex flex-col transition-colors duration-300`}>
+    <div className={`${activeView === "chat" ? "h-screen overflow-hidden" : "min-h-screen"} ${bgClass} p-6 font-mono flex flex-col transition-colors duration-300`}>
       {/* Header */}
       <header className={`${headerBgClass} pb-4 mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4`}>
         <div>
@@ -255,109 +342,111 @@ export default function Home() {
       </header>
 
       {/* Integration Connections Panel */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {/* Gmail status */}
-        <div className={`border ${borderClass} ${cardBgClass} p-4 rounded flex flex-col justify-between`}>
-          <div>
-            <h2 className={`text-xs font-bold ${textWhiteClass} mb-1 uppercase tracking-wider`}>Gmail Integration</h2>
-            <p className={`text-xs ${textMutedClass} mb-3`}>Corsair synchronization status for user emails.</p>
-            <div className="flex items-center gap-2 mb-4">
-              <span className={`inline-block w-2.5 h-2.5 rounded-full ${gmailConnected ? "bg-green-500" : "bg-red-500"}`} />
-              <span className="text-xs">{gmailConnected ? "CONNECTED" : "DISCONNECTED"}</span>
+      {activeView !== "chat" && (
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* Gmail status */}
+          <div className={`border ${borderClass} ${cardBgClass} p-4 rounded flex flex-col justify-between`}>
+            <div>
+              <h2 className={`text-xs font-bold ${textWhiteClass} mb-1 uppercase tracking-wider`}>Gmail Integration</h2>
+              <p className={`text-xs ${textMutedClass} mb-3`}>Corsair synchronization status for user emails.</p>
+              <div className="flex items-center gap-2 mb-4">
+                <span className={`inline-block w-2.5 h-2.5 rounded-full ${gmailConnected ? "bg-green-500" : "bg-red-500"}`} />
+                <span className="text-xs">{gmailConnected ? "CONNECTED" : "DISCONNECTED"}</span>
+              </div>
             </div>
+            {gmailConnected ? (
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/auth/corsair/disconnect", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ plugin: "gmail" }),
+                    });
+                    if (res.ok) {
+                      fetchIntegrationStatus();
+                      fetchLocalIntegrations();
+                    }
+                  } catch (e) {
+                    console.error("Disconnect gmail failed:", e);
+                  }
+                }}
+                className="text-center w-full py-2 bg-red-950/60 hover:bg-red-900/60 text-red-200 border border-red-900 rounded text-xs uppercase font-bold cursor-pointer"
+              >
+                Disconnect Gmail
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/auth/corsair/connect?plugin=gmail");
+                    const data = await res.json();
+                    if (data.authorizeUrl) {
+                      window.location.href = data.authorizeUrl;
+                    }
+                  } catch (e) {
+                    console.error("Failed to connect gmail:", e);
+                  }
+                }}
+                className={`text-center w-full py-2 ${buttonBgClass} rounded text-xs uppercase font-bold cursor-pointer`}
+              >
+                Connect Gmail
+              </button>
+            )}
           </div>
-          {gmailConnected ? (
-            <button
-              onClick={async () => {
-                try {
-                  const res = await fetch("/api/auth/corsair/disconnect", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ plugin: "gmail" }),
-                  });
-                  if (res.ok) {
-                    fetchIntegrationStatus();
-                    fetchLocalIntegrations();
-                  }
-                } catch (e) {
-                  console.error("Disconnect gmail failed:", e);
-                }
-              }}
-              className="text-center w-full py-2 bg-red-950/60 hover:bg-red-900/60 text-red-200 border border-red-900 rounded text-xs uppercase font-bold cursor-pointer"
-            >
-              Disconnect Gmail
-            </button>
-          ) : (
-            <button
-              onClick={async () => {
-                try {
-                  const res = await fetch("/api/auth/corsair/connect?plugin=gmail");
-                  const data = await res.json();
-                  if (data.authorizeUrl) {
-                    window.location.href = data.authorizeUrl;
-                  }
-                } catch (e) {
-                  console.error("Failed to connect gmail:", e);
-                }
-              }}
-              className={`text-center w-full py-2 ${buttonBgClass} rounded text-xs uppercase font-bold cursor-pointer`}
-            >
-              Connect Gmail
-            </button>
-          )}
-        </div>
 
-        {/* Calendar status */}
-        <div className={`border ${borderClass} ${cardBgClass} p-4 rounded flex flex-col justify-between`}>
-          <div>
-            <h2 className={`text-xs font-bold ${textWhiteClass} mb-1 uppercase tracking-wider`}>Google Calendar</h2>
-            <p className={`text-xs ${textMutedClass} mb-3`}>Corsair synchronization status for user schedules.</p>
-            <div className="flex items-center gap-2 mb-4">
-              <span className={`inline-block w-2.5 h-2.5 rounded-full ${calendarConnected ? "bg-green-500" : "bg-red-500"}`} />
-              <span className="text-xs">{calendarConnected ? "CONNECTED" : "DISCONNECTED"}</span>
+          {/* Calendar status */}
+          <div className={`border ${borderClass} ${cardBgClass} p-4 rounded flex flex-col justify-between`}>
+            <div>
+              <h2 className={`text-xs font-bold ${textWhiteClass} mb-1 uppercase tracking-wider`}>Google Calendar</h2>
+              <p className={`text-xs ${textMutedClass} mb-3`}>Corsair synchronization status for user schedules.</p>
+              <div className="flex items-center gap-2 mb-4">
+                <span className={`inline-block w-2.5 h-2.5 rounded-full ${calendarConnected ? "bg-green-500" : "bg-red-500"}`} />
+                <span className="text-xs">{calendarConnected ? "CONNECTED" : "DISCONNECTED"}</span>
+              </div>
             </div>
+            {calendarConnected ? (
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/auth/corsair/disconnect", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ plugin: "googlecalendar" }),
+                    });
+                    if (res.ok) {
+                      fetchIntegrationStatus();
+                      fetchLocalIntegrations();
+                    }
+                  } catch (e) {
+                    console.error("Disconnect calendar failed:", e);
+                  }
+                }}
+                className="text-center w-full py-2 bg-red-950/60 hover:bg-red-900/60 text-red-200 border border-red-900 rounded text-xs uppercase font-bold cursor-pointer"
+              >
+                Disconnect Calendar
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/auth/corsair/connect?plugin=googlecalendar");
+                    const data = await res.json();
+                    if (data.authorizeUrl) {
+                      window.location.href = data.authorizeUrl;
+                    }
+                  } catch (e) {
+                    console.error("Failed to connect calendar:", e);
+                  }
+                }}
+                className={`text-center w-full py-2 ${buttonBgClass} rounded text-xs uppercase font-bold cursor-pointer`}
+              >
+                Connect Calendar
+              </button>
+            )}
           </div>
-          {calendarConnected ? (
-            <button
-              onClick={async () => {
-                try {
-                  const res = await fetch("/api/auth/corsair/disconnect", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ plugin: "googlecalendar" }),
-                  });
-                  if (res.ok) {
-                    fetchIntegrationStatus();
-                    fetchLocalIntegrations();
-                  }
-                } catch (e) {
-                  console.error("Disconnect calendar failed:", e);
-                }
-              }}
-              className="text-center w-full py-2 bg-red-950/60 hover:bg-red-900/60 text-red-200 border border-red-900 rounded text-xs uppercase font-bold cursor-pointer"
-            >
-              Disconnect Calendar
-            </button>
-          ) : (
-            <button
-              onClick={async () => {
-                try {
-                  const res = await fetch("/api/auth/corsair/connect?plugin=googlecalendar");
-                  const data = await res.json();
-                  if (data.authorizeUrl) {
-                    window.location.href = data.authorizeUrl;
-                  }
-                } catch (e) {
-                  console.error("Failed to connect calendar:", e);
-                }
-              }}
-              className={`text-center w-full py-2 ${buttonBgClass} rounded text-xs uppercase font-bold cursor-pointer`}
-            >
-              Connect Calendar
-            </button>
-          )}
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Main Workspace Console */}
       <div className={`flex-1 flex flex-col border ${borderClass} ${cardBgClass} rounded overflow-hidden`}>
@@ -396,57 +485,59 @@ export default function Home() {
         </div>
 
         {/* Console Action Bar */}
-        <div className={`${actionContainerBgClass} border-b ${borderClass} p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4`}>
-          <form onSubmit={handleSearchSubmit} className="flex-1 flex gap-2">
-            <input
-              type="text"
-              placeholder="Search Emails & Calendar events (triggers vector search DB lookup)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className={`flex-1 ${inputBgClass} border ${borderClass} text-xs px-3 py-2 outline-none rounded`}
-            />
-            <button
-              type="submit"
-              className={`${buttonBgClass} text-xs px-4 py-2 font-bold uppercase rounded`}
-            >
-              Search
-            </button>
-          </form>
-          
-          <div className="flex gap-2 shrink-0">
-            <button
-              onClick={async () => {
-                setIsRefreshing(true);
-                try {
-                  await Promise.all([
-                    fetchIntegrationStatus(),
-                    fetchLocalIntegrations(),
-                    fetchEmails(true),
-                    fetchCalendarEvents()
-                  ]);
-                } catch (e) {
-                  console.error("Refresh failed:", e);
-                } finally {
-                  setIsRefreshing(false);
-                }
-              }}
-              disabled={isRefreshing}
-              className={`${buttonBgClass} text-xs px-4 py-2 font-bold uppercase rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
-            >
-              {isRefreshing ? (
-                <>
-                  <span className="w-3 h-3 border-2 border-t-transparent border-current rounded-full animate-spin shrink-0" />
-                  Refreshing...
-                </>
-              ) : (
-                "Refresh All Data"
-              )}
-            </button>
+        {activeView !== "chat" && (
+          <div className={`${actionContainerBgClass} border-b ${borderClass} p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4`}>
+            <form onSubmit={handleSearchSubmit} className="flex-1 flex gap-2">
+              <input
+                type="text"
+                placeholder="Search Emails & Calendar events (triggers vector search DB lookup)..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`flex-1 ${inputBgClass} border ${borderClass} text-xs px-3 py-2 outline-none rounded`}
+              />
+              <button
+                type="submit"
+                className={`${buttonBgClass} text-xs px-4 py-2 font-bold uppercase rounded`}
+              >
+                Search
+              </button>
+            </form>
+            
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={async () => {
+                  setIsRefreshing(true);
+                  try {
+                    await Promise.all([
+                      fetchIntegrationStatus(),
+                      fetchLocalIntegrations(),
+                      fetchEmails(true),
+                      fetchCalendarEvents()
+                    ]);
+                  } catch (e) {
+                    console.error("Refresh failed:", e);
+                  } finally {
+                    setIsRefreshing(false);
+                  }
+                }}
+                disabled={isRefreshing}
+                className={`${buttonBgClass} text-xs px-4 py-2 font-bold uppercase rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
+              >
+                {isRefreshing ? (
+                  <>
+                    <span className="w-3 h-3 border-2 border-t-transparent border-current rounded-full animate-spin shrink-0" />
+                    Refreshing...
+                  </>
+                ) : (
+                  "Refresh All Data"
+                )}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Tab Contents */}
-        <div className="flex-1 p-6 overflow-y-auto max-h-[50vh]">
+        <div className={`flex-1 p-6 flex flex-col min-h-0 ${activeView === "chat" ? "" : "overflow-y-auto max-h-[50vh]"}`}>
           {/* EMAILS VIEW */}
           {activeView === "emails" && (
             <div className="space-y-4">
@@ -619,47 +710,141 @@ export default function Home() {
 
           {/* AI CHAT CONSOLE */}
           {activeView === "chat" && (
-            <div className="flex flex-col h-full space-y-4 min-h-[300px]">
-              <div className={`flex-1 space-y-3 ${innerCardBgClass} p-4 border ${border900Class} rounded overflow-y-auto max-h-[350px]`}>
-                {chatMessages.map((msg) => (
-                  <div key={msg.id} className="text-xs leading-relaxed">
-                    <span className={`font-bold ${msg.role === "user" ? "text-cyan-400" : "text-purple-400"} uppercase mr-2`}>
-                      [{msg.role}]:
-                    </span>
-                    <span className={isDark ? "text-gray-300" : "text-gray-700"}>{msg.content}</span>
+            <div className="flex flex-1 min-h-0 gap-4">
+              {/* Main Chat Box */}
+              <div className="flex-1 flex flex-col min-h-0 space-y-4">
+                {/* Chat Header Controls */}
+                <div className={`flex items-center justify-between border-b ${borderClass} pb-3`}>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse" />
+                    <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-wider`}>Active Session</h3>
+                    {activeConversationId && (
+                      <span className="text-[10px] text-zinc-500 font-mono">({activeConversationId})</span>
+                    )}
                   </div>
-                ))}
-                {isSendingChat && (
-                  <div className="text-xs text-gray-500 animate-pulse">
-                    <span>[assistant]: Thinking and generating tool responses...</span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={handleStartFreshChat}
+                      className="text-[10px] px-3 py-1.5 bg-purple-950/40 hover:bg-purple-900/60 text-purple-200 border border-purple-800 rounded font-bold uppercase cursor-pointer transition-colors"
+                    >
+                      + New Chat (Fresh Context)
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowHistory(!showHistory);
+                        if (!showHistory) {
+                          fetchConversations();
+                        }
+                      }}
+                      className="text-[10px] px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 rounded font-bold uppercase cursor-pointer transition-colors flex items-center gap-1.5"
+                    >
+                      <span>History</span>
+                      <span className="bg-gray-900 px-1 py-0.2 rounded text-[9px] text-zinc-400">
+                        {conversationsList.length}
+                      </span>
+                    </button>
                   </div>
-                )}
+                </div>
+
+                {/* Messages Container */}
+                <div className={`flex-1 space-y-3 ${innerCardBgClass} p-4 border ${border900Class} rounded overflow-y-auto min-h-0`}>
+                  {chatMessages.map((msg) => (
+                    <div key={msg.id} className="text-xs leading-relaxed flex items-start gap-1">
+                      <span className={`font-bold ${msg.role === "user" ? "text-cyan-400" : "text-purple-400"} uppercase shrink-0 mt-[2px]`}>
+                        [{msg.role}]:
+                      </span>
+                      <div className="flex-1">
+                        <MarkdownRenderer content={msg.content} isDark={isDark} />
+                      </div>
+                    </div>
+                  ))}
+                  {isSendingChat && (
+                    <div className="text-xs text-gray-500 animate-pulse">
+                      <span>[assistant]: Thinking and generating tool responses...</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Textarea Input Form */}
+                <form onSubmit={handleChatSubmit} className={`relative border ${borderClass} ${inputBgClass} rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-purple-600 transition-all`}>
+                  <textarea
+                    placeholder="Ask Ciel to send emails, list messages, or schedule meetings..."
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    disabled={isSendingChat}
+                    rows={3}
+                    className="w-full bg-transparent text-sm p-4 pb-12 outline-none resize-none disabled:opacity-50"
+                  />
+                  <div className="absolute bottom-2.5 right-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={clearChat}
+                      className={`text-xs px-3 py-1.5 font-bold uppercase rounded transition-colors ${
+                        isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-black"
+                      }`}
+                    >
+                      Clear
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSendingChat || !chatInput.trim()}
+                      className="bg-purple-800 hover:bg-purple-700 disabled:bg-gray-100 dark:disabled:bg-zinc-800 disabled:text-gray-400 dark:disabled:text-zinc-600 text-white text-xs px-4 py-1.5 font-bold uppercase rounded transition-colors"
+                    >
+                      Send
+                    </button>
+                  </div>
+                </form>
               </div>
 
-              <form onSubmit={handleChatSubmit} className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Ask Ciel to send emails, list messages, or schedule meetings..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  disabled={isSendingChat}
-                  className={`flex-1 ${inputBgClass} border ${borderClass} text-xs px-3 py-2 outline-none rounded disabled:opacity-50`}
-                />
-                <button
-                  type="submit"
-                  disabled={isSendingChat || !chatInput.trim()}
-                  className="bg-purple-800 hover:bg-purple-700 disabled:bg-gray-800 text-white text-xs px-4 py-2 font-bold uppercase rounded shrink-0"
-                >
-                  Send
-                </button>
-                <button
-                  type="button"
-                  onClick={clearChat}
-                  className={`${buttonBgClass} text-xs px-3 py-2 font-bold uppercase rounded shrink-0`}
-                >
-                  Clear
-                </button>
-              </form>
+              {/* Collapsible History Panel */}
+              {showHistory && (
+                <div className={`w-72 border-l ${borderClass} pl-4 flex flex-col min-h-0 shrink-0`}>
+                  <div className={`flex items-center justify-between border-b ${borderClass} pb-3 mb-3`}>
+                    <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-wider`}>
+                      Conversation History
+                    </h3>
+                    <button
+                      onClick={() => setShowHistory(false)}
+                      className="text-xs text-zinc-500 hover:text-zinc-300 font-bold"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
+                    {conversationsList.length === 0 ? (
+                      <div className="text-[10px] text-zinc-500 text-center py-8">
+                        No saved conversations found.
+                      </div>
+                    ) : (
+                      conversationsList.map((conv) => {
+                        const isSelected = activeConversationId === conv.id;
+                        return (
+                          <button
+                            key={conv.id}
+                            onClick={() => {
+                              setActiveConversationId(conv.id);
+                              useCielStore.setState({ chatMessages: conv.messages || [] });
+                            }}
+                            className={`w-full text-left p-3 border rounded transition-all flex flex-col gap-1 cursor-pointer text-xs ${
+                              isSelected
+                                ? (isDark ? "bg-purple-950/30 border-purple-800 text-white" : "bg-purple-50 border-purple-300 text-purple-950")
+                                : (isDark ? "bg-[#141724]/40 border-slate-800/80 text-gray-400 hover:bg-[#141724]/80 hover:text-white" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-black")
+                            }`}
+                          >
+                            <span className="font-bold truncate text-[11px] block">{conv.title || "Untitled Chat"}</span>
+                            <span className="text-[9px] text-zinc-500 font-mono truncate">ID: {conv.id}</span>
+                            <span className="text-[8px] text-zinc-600 self-end mt-1">
+                              {new Date(conv.updated_at).toLocaleString()}
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

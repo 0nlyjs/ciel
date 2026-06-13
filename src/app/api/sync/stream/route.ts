@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { CorsairClient } from "@/lib/corsair";
+import { syncUserEmails } from "@/lib/sync";
 
 export const dynamic = "force-dynamic";
 
@@ -53,8 +54,10 @@ export async function GET(req: Request) {
             if (skeletons && skeletons.length > 0) {
               const latestId = skeletons[0].id;
               if (lastCheckedId && latestId !== lastCheckedId) {
-                console.log(`[SSE Stream] Local poller detected new email ${latestId} for ${email}. Notifying client...`);
-                controller.enqueue(new TextEncoder().encode("data: new_email\n\n"));
+                console.log(`[SSE Stream] Local poller detected new email ${latestId} for ${email}. Triggering background sync...`);
+                syncUserEmails(email).catch((err) => {
+                  console.error("[SSE Stream] Background poller sync failed:", err);
+                });
               }
               lastCheckedId = latestId;
             }
