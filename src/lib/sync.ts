@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { emails } from "@/lib/schema";
 import { getEmbeddingsBatch } from "@/lib/embeddings";
 import { activeClients } from "@/app/api/sync/stream/route";
-import { eq, and, desc, inArray, notInArray, sql } from "drizzle-orm";
+import { eq, and, desc, inArray, notInArray, sql, isNull } from "drizzle-orm";
 
 function runKeywordFallback(subject: string, body: string) {
   const content = `${subject} ${body}`.toLowerCase();
@@ -338,6 +338,37 @@ export async function syncUserEmails(userEmail: string, syncLimit: number = 200)
       if (missingSkeletons.length > 0) {
         console.log(`[Sync Service] Fetching and inserting ${missingSkeletons.length} missing emails...`);
         await runBackgroundSyncForRemaining(missingSkeletons, userEmail);
+      }
+
+      // Check for cached emails missing embeddings to backfill them
+      const missingEmbeddingsRes = await db.select({
+        id: emails.id,
+        fromName: emails.fromName,
+        fromEmail: emails.fromEmail,
+        subject: emails.subject,
+        body: emails.body,
+      })
+      .from(emails)
+      .where(
+        and(
+          eq(emails.userEmail, userEmail),
+          isNull(emails.embedding)
+        )
+      )
+      .limit(100);
+
+      if (missingEmbeddingsRes.length > 0) {
+        console.log(`[Sync Service] Found ${missingEmbeddingsRes.length} existing emails missing embeddings. Generating in background...`);
+        const parsedEmailsForBackfill = missingEmbeddingsRes.map((e) => ({
+          id: e.id,
+          textToEmbed: `From: ${e.fromName || "Unknown"} <${e.fromEmail || "unknown@domain.com"}>\nSubject: ${e.subject || ""}\nBody: ${e.body || ""}`,
+        }));
+
+        setTimeout(() => {
+          generateAndSaveEmbeddings(parsedEmailsForBackfill, userEmail).catch((err) => {
+            console.error("[Sync] Background backfill embeddings launcher error:", err);
+          });
+        }, 0);
       }
 
       await cleanDeletedEmails(messageSkeletons, userEmail);

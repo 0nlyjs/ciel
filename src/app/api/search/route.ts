@@ -72,7 +72,7 @@ export async function GET(req: Request) {
     if (embedding) {
       console.log(`[Search API] Performing fast vector search for: "${lowerQuery}" (user: ${session.user.email})`);
 
-      const emailResult =
+      let emailResult =
         type === "calendar"
           ? []
           : await db.select({
@@ -91,7 +91,7 @@ export async function GET(req: Request) {
             .orderBy(cosineDistance(emails.embedding, embedding))
             .limit(20);
 
-      const calendarResult =
+      let calendarResult =
         type === "email"
           ? []
           : (
@@ -114,6 +114,71 @@ export async function GET(req: Request) {
               start: row.start instanceof Date ? row.start.toISOString().split(".")[0] : row.start,
               end: row.end instanceof Date ? row.end.toISOString().split(".")[0] : row.end,
             }));
+
+      // If vector search returned 0 items, fall back to ILIKE search for that entity
+      const searchPattern = `%${lowerQuery}%`;
+
+      if (type !== "calendar" && emailResult.length === 0) {
+        console.log(`[Search API] Vector search returned 0 emails. Falling back to SQL ILIKE search for: "${lowerQuery}"`);
+        emailResult = await db.select({
+          id: emails.id,
+          from: emails.fromName,
+          fromEmail: emails.fromEmail,
+          subject: emails.subject,
+          body: emails.body,
+          date: emails.date,
+          read: emails.read,
+          priority: emails.priority,
+          category: emails.category,
+        })
+        .from(emails)
+        .where(
+          and(
+            eq(emails.userEmail, session.user.email),
+            or(
+              ilike(emails.subject, searchPattern),
+              ilike(emails.body, searchPattern),
+              ilike(emails.fromName, searchPattern),
+              ilike(emails.fromEmail, searchPattern)
+            )
+          )
+        )
+        .orderBy(desc(emails.createdAt))
+        .limit(20);
+      }
+
+      if (type !== "email" && calendarResult.length === 0) {
+        console.log(`[Search API] Vector search returned 0 calendar events. Falling back to SQL ILIKE search for: "${lowerQuery}"`);
+        calendarResult = (
+          await db.select({
+            id: calendarEvents.id,
+            title: calendarEvents.title,
+            start: calendarEvents.startTime,
+            end: calendarEvents.endTime,
+            location: calendarEvents.location,
+            attendees: calendarEvents.attendees,
+            description: calendarEvents.description,
+          })
+          .from(calendarEvents)
+          .where(
+            and(
+              eq(calendarEvents.userEmail, session.user.email),
+              or(
+                ilike(calendarEvents.title, searchPattern),
+                ilike(calendarEvents.description, searchPattern),
+                ilike(calendarEvents.location, searchPattern)
+              )
+            )
+          )
+          .orderBy(asc(calendarEvents.startTime))
+          .limit(20)
+        ).map((row) => ({
+          ...row,
+          attendees: Array.isArray(row.attendees) ? row.attendees : [],
+          start: row.start instanceof Date ? row.start.toISOString().split(".")[0] : row.start,
+          end: row.end instanceof Date ? row.end.toISOString().split(".")[0] : row.end,
+        }));
+      }
 
       return NextResponse.json({ emails: emailResult, calendarEvents: calendarResult });
     }

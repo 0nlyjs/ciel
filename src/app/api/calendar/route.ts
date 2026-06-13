@@ -4,7 +4,7 @@ import { db, syncEventToGoogleCalendar, isMockId } from "@/lib/db";
 import { calendarEvents } from "@/lib/schema";
 import { getEmbedding, getEmbeddingsBatch } from "@/lib/embeddings";
 import { getServerSession } from "@/lib/auth";
-import { eq, and, inArray, asc, sql } from "drizzle-orm";
+import { eq, and, inArray, asc, sql, isNull } from "drizzle-orm";
 
 // GET /api/calendar - List and sync all calendar events
 export async function GET() {
@@ -152,6 +152,58 @@ export async function GET() {
           console.log(
             `[Calendar API] Cleaned up ${deletedIds.length} deleted events from DB.`,
           );
+        }
+
+        // Check for cached calendar events missing embeddings to backfill them
+        const missingCalendarEmbeddings = await db.select({
+          id: calendarEvents.id,
+          title: calendarEvents.title,
+          location: calendarEvents.location,
+          description: calendarEvents.description,
+        })
+        .from(calendarEvents)
+        .where(
+          and(
+            eq(calendarEvents.userEmail, session.user.email),
+            isNull(calendarEvents.embedding)
+          )
+        )
+        .limit(100);
+
+        if (missingCalendarEmbeddings.length > 0) {
+          console.log(`[Calendar API] Found ${missingCalendarEmbeddings.length} calendar events missing embeddings. Scheduling backfill...`);
+          after(async () => {
+            const textsToEmbed = missingCalendarEmbeddings.map((event) => {
+              const title = event.title || "Meeting Invite";
+              const location = event.location || "";
+              const description = event.description || "";
+              return `Title: ${title}\nLocation: ${location}\nDescription: ${description}`;
+            });
+
+            try {
+              const embeddings = await getEmbeddingsBatch(textsToEmbed);
+              if (embeddings && embeddings.length > 0) {
+                await Promise.all(
+                  missingCalendarEmbeddings.map(async (event, i) => {
+                    const embedding = embeddings[i];
+                    if (embedding) {
+                      await db.update(calendarEvents)
+                        .set({ embedding })
+                        .where(
+                          and(
+                            eq(calendarEvents.id, event.id),
+                            eq(calendarEvents.userEmail, session.user.email)
+                          )
+                        );
+                    }
+                  })
+                );
+                console.log(`[Calendar API] Successfully backfilled ${missingCalendarEmbeddings.length} calendar event embeddings in background.`);
+              }
+            } catch (err) {
+              console.error("[Calendar API] Failed to backfill calendar embeddings in background:", err);
+            }
+          });
         }
       }
     } catch (syncError) {
