@@ -35,8 +35,34 @@ export default function Home() {
   const addChatMessage = useCielStore((s) => s.addChatMessage);
   const clearChat = useCielStore((s) => s.clearChat);
 
+  // Settings & Integrations state
+  const theme = useCielStore((s) => s.theme);
+  const syncInterval = useCielStore((s) => s.syncInterval);
+  const aiAutoPriority = useCielStore((s) => s.aiAutoPriority);
+  const localIntegrations = useCielStore((s) => s.localIntegrations);
+  const fetchSettings = useCielStore((s) => s.fetchSettings);
+  const updateSettings = useCielStore((s) => s.updateSettings);
+  const fetchLocalIntegrations = useCielStore((s) => s.fetchLocalIntegrations);
+
+  const isDark = theme === "dark";
+  const bgClass = isDark ? "bg-[#0a0b0d] text-gray-300" : "bg-[#f3f4f6] text-gray-700";
+  const headerBgClass = isDark ? "border-b border-gray-800" : "border-b border-gray-200";
+  const borderClass = isDark ? "border-gray-800" : "border-gray-200";
+  const border900Class = isDark ? "border-gray-900" : "border-gray-200";
+  const cardBgClass = isDark ? "bg-[#0d0e12] border-gray-800" : "bg-white border-gray-200 shadow-sm";
+  const innerCardBgClass = isDark ? "bg-[#0a0b0d]" : "bg-gray-50";
+  const activeTabClass = isDark ? "bg-[#0a0b0d] text-white" : "bg-white text-gray-900";
+  const inactiveTabClass = isDark ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600";
+  const tabContainerBgClass = isDark ? "bg-[#0e1014]" : "bg-gray-100";
+  const actionContainerBgClass = isDark ? "bg-[#0b0c10]" : "bg-gray-50";
+  const inputBgClass = isDark ? "bg-[#0a0b0d] border-gray-800 text-white" : "bg-white border-gray-300 text-gray-900";
+  const buttonBgClass = isDark ? "bg-gray-800 hover:bg-gray-700 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-800";
+  const textWhiteClass = isDark ? "text-white" : "text-gray-900";
+  const textMutedClass = isDark ? "text-gray-500" : "text-gray-400";
+  const accordionHeaderBgClass = isDark ? "bg-[#0c0d12]" : "bg-gray-50";
+
   // Tab State
-  const [activeView, setActiveView] = useState<"emails" | "calendar" | "chat" | "store">("emails");
+  const [activeView, setActiveView] = useState<"emails" | "calendar" | "chat" | "store" | "settings">("emails");
   const [chatInput, setChatInput] = useState("");
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
@@ -63,6 +89,8 @@ export default function Home() {
   useEffect(() => {
     if (status === "authenticated") {
       fetchIntegrationStatus();
+      fetchSettings();
+      fetchLocalIntegrations();
       // Fetch cached emails instantly from database
       fetchEmails().then(() => {
         // Trigger background sync to pull new and remaining emails
@@ -70,7 +98,7 @@ export default function Home() {
       });
       fetchCalendarEvents();
     }
-  }, [status, fetchIntegrationStatus, fetchEmails, fetchCalendarEvents]);
+  }, [status, fetchIntegrationStatus, fetchSettings, fetchLocalIntegrations, fetchEmails, fetchCalendarEvents]);
 
   // Handle Search Submission
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -154,21 +182,21 @@ export default function Home() {
 
   // Dashboard / Authenticated View
   return (
-    <div className="min-h-screen bg-[#0a0b0d] text-gray-300 p-6 font-mono flex flex-col">
+    <div className={`min-h-screen ${bgClass} p-6 font-mono flex flex-col transition-colors duration-300`}>
       {/* Header */}
-      <header className="border-b border-gray-800 pb-4 mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <header className={`${headerBgClass} pb-4 mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4`}>
         <div>
-          <h1 className="text-lg font-bold text-white uppercase tracking-widest">CIEL // DEV CONSOLE</h1>
-          <p className="text-xs text-gray-500 uppercase">Backend Integration Testing Dashboard</p>
+          <h1 className={`text-lg font-bold ${textWhiteClass} uppercase tracking-widest`}>CIEL // DEV CONSOLE</h1>
+          <p className={`text-xs ${textMutedClass} uppercase`}>Backend Integration Testing Dashboard</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-4 text-xs">
-          <span className="text-gray-500">
-            USER: <span className="text-white">{session?.user?.email}</span>
+          <span className={textMutedClass}>
+            USER: <span className={textWhiteClass}>{session?.user?.email}</span>
           </span>
           <button
             onClick={() => signOut()}
-            className="border border-gray-800 px-3 py-1.5 hover:bg-gray-900 rounded text-gray-400 hover:text-white"
+            className={`border ${borderClass} px-3 py-1.5 hover:bg-gray-500/10 rounded ${isDark ? "text-gray-400 hover:text-white" : "text-gray-600 hover:text-black"}`}
           >
             Sign Out
           </button>
@@ -178,10 +206,10 @@ export default function Home() {
       {/* Integration Connections Panel */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {/* Gmail status */}
-        <div className="border border-gray-800 bg-[#0d0e12] p-4 rounded flex flex-col justify-between">
+        <div className={`border ${borderClass} ${cardBgClass} p-4 rounded flex flex-col justify-between`}>
           <div>
-            <h2 className="text-xs font-bold text-white mb-1 uppercase tracking-wider">Gmail Integration</h2>
-            <p className="text-xs text-gray-500 mb-3">Corsair synchronization status for user emails.</p>
+            <h2 className={`text-xs font-bold ${textWhiteClass} mb-1 uppercase tracking-wider`}>Gmail Integration</h2>
+            <p className={`text-xs ${textMutedClass} mb-3`}>Corsair synchronization status for user emails.</p>
             <div className="flex items-center gap-2 mb-4">
               <span className={`inline-block w-2.5 h-2.5 rounded-full ${gmailConnected ? "bg-green-500" : "bg-red-500"}`} />
               <span className="text-xs">{gmailConnected ? "CONNECTED" : "DISCONNECTED"}</span>
@@ -198,6 +226,7 @@ export default function Home() {
                   });
                   if (res.ok) {
                     fetchIntegrationStatus();
+                    fetchLocalIntegrations();
                   }
                 } catch (e) {
                   console.error("Disconnect gmail failed:", e);
@@ -220,7 +249,7 @@ export default function Home() {
                   console.error("Failed to connect gmail:", e);
                 }
               }}
-              className="text-center w-full py-2 bg-gray-800 hover:bg-gray-700 text-white rounded text-xs uppercase font-bold cursor-pointer"
+              className={`text-center w-full py-2 ${buttonBgClass} rounded text-xs uppercase font-bold cursor-pointer`}
             >
               Connect Gmail
             </button>
@@ -228,10 +257,10 @@ export default function Home() {
         </div>
 
         {/* Calendar status */}
-        <div className="border border-gray-800 bg-[#0d0e12] p-4 rounded flex flex-col justify-between">
+        <div className={`border ${borderClass} ${cardBgClass} p-4 rounded flex flex-col justify-between`}>
           <div>
-            <h2 className="text-xs font-bold text-white mb-1 uppercase tracking-wider">Google Calendar</h2>
-            <p className="text-xs text-gray-500 mb-3">Corsair synchronization status for user schedules.</p>
+            <h2 className={`text-xs font-bold ${textWhiteClass} mb-1 uppercase tracking-wider`}>Google Calendar</h2>
+            <p className={`text-xs ${textMutedClass} mb-3`}>Corsair synchronization status for user schedules.</p>
             <div className="flex items-center gap-2 mb-4">
               <span className={`inline-block w-2.5 h-2.5 rounded-full ${calendarConnected ? "bg-green-500" : "bg-red-500"}`} />
               <span className="text-xs">{calendarConnected ? "CONNECTED" : "DISCONNECTED"}</span>
@@ -248,6 +277,7 @@ export default function Home() {
                   });
                   if (res.ok) {
                     fetchIntegrationStatus();
+                    fetchLocalIntegrations();
                   }
                 } catch (e) {
                   console.error("Disconnect calendar failed:", e);
@@ -270,7 +300,7 @@ export default function Home() {
                   console.error("Failed to connect calendar:", e);
                 }
               }}
-              className="text-center w-full py-2 bg-gray-800 hover:bg-gray-700 text-white rounded text-xs uppercase font-bold cursor-pointer"
+              className={`text-center w-full py-2 ${buttonBgClass} rounded text-xs uppercase font-bold cursor-pointer`}
             >
               Connect Calendar
             </button>
@@ -279,48 +309,54 @@ export default function Home() {
       </section>
 
       {/* Main Workspace Console */}
-      <div className="flex-1 flex flex-col border border-gray-800 bg-[#0d0e12] rounded overflow-hidden">
+      <div className={`flex-1 flex flex-col border ${borderClass} ${cardBgClass} rounded overflow-hidden`}>
         {/* Navigation Tabs */}
-        <div className="border-b border-gray-800 flex bg-[#0e1014] text-xs">
+        <div className={`border-b ${borderClass} flex ${tabContainerBgClass} text-xs`}>
           <button
             onClick={() => setActiveView("emails")}
-            className={`px-4 py-3 border-r border-gray-800 font-bold uppercase tracking-wider ${activeView === "emails" ? "bg-[#0a0b0d] text-white" : "text-gray-500 hover:text-gray-300"}`}
+            className={`px-4 py-3 border-r ${borderClass} font-bold uppercase tracking-wider ${activeView === "emails" ? activeTabClass : inactiveTabClass}`}
           >
             Emails ({emailsTotal})
           </button>
           <button
             onClick={() => setActiveView("calendar")}
-            className={`px-4 py-3 border-r border-gray-800 font-bold uppercase tracking-wider ${activeView === "calendar" ? "bg-[#0a0b0d] text-white" : "text-gray-500 hover:text-gray-300"}`}
+            className={`px-4 py-3 border-r ${borderClass} font-bold uppercase tracking-wider ${activeView === "calendar" ? activeTabClass : inactiveTabClass}`}
           >
             Calendar ({calendarEvents.length})
           </button>
           <button
             onClick={() => setActiveView("chat")}
-            className={`px-4 py-3 border-r border-gray-800 font-bold uppercase tracking-wider ${activeView === "chat" ? "bg-[#0a0b0d] text-white" : "text-gray-500 hover:text-gray-300"}`}
+            className={`px-4 py-3 border-r ${borderClass} font-bold uppercase tracking-wider ${activeView === "chat" ? activeTabClass : inactiveTabClass}`}
           >
             AI Chat Console ({chatMessages.length})
           </button>
           <button
+            onClick={() => setActiveView("settings")}
+            className={`px-4 py-3 border-r ${borderClass} font-bold uppercase tracking-wider ${activeView === "settings" ? activeTabClass : inactiveTabClass}`}
+          >
+            Settings & Integrations
+          </button>
+          <button
             onClick={() => setActiveView("store")}
-            className={`px-4 py-3 font-bold uppercase tracking-wider ${activeView === "store" ? "bg-[#0a0b0d] text-white" : "text-gray-500 hover:text-gray-300"}`}
+            className={`px-4 py-3 font-bold uppercase tracking-wider ${activeView === "store" ? activeTabClass : inactiveTabClass}`}
           >
             Zustand Store Dump
           </button>
         </div>
 
         {/* Console Action Bar */}
-        <div className="bg-[#0b0c10] border-b border-gray-800 p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        <div className={`${actionContainerBgClass} border-b ${borderClass} p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4`}>
           <form onSubmit={handleSearchSubmit} className="flex-1 flex gap-2">
             <input
               type="text"
               placeholder="Search Emails & Calendar events (triggers vector search DB lookup)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 bg-[#0a0b0d] border border-gray-800 text-xs px-3 py-2 text-white outline-none rounded"
+              className={`flex-1 ${inputBgClass} border ${borderClass} text-xs px-3 py-2 outline-none rounded`}
             />
             <button
               type="submit"
-              className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-4 py-2 font-bold uppercase rounded"
+              className={`${buttonBgClass} text-xs px-4 py-2 font-bold uppercase rounded`}
             >
               Search
             </button>
@@ -330,10 +366,11 @@ export default function Home() {
             <button
               onClick={() => {
                 fetchIntegrationStatus();
+                fetchLocalIntegrations();
                 fetchEmails(true);
                 fetchCalendarEvents();
               }}
-              className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-4 py-2 font-bold uppercase rounded cursor-pointer"
+              className={`${buttonBgClass} text-xs px-4 py-2 font-bold uppercase rounded cursor-pointer`}
             >
               Refresh All Data
             </button>
@@ -345,8 +382,8 @@ export default function Home() {
           {/* EMAILS VIEW */}
           {activeView === "emails" && (
             <div className="space-y-4">
-              <div className="flex justify-between items-center pb-2 border-b border-gray-900">
-                <span className="text-xs uppercase tracking-wider text-gray-500">
+              <div className={`flex justify-between items-center pb-2 border-b ${border900Class}`}>
+                <span className={`text-xs uppercase tracking-wider ${textMutedClass}`}>
                   Inbox Sync Log (Showing {startRange}-{endRange} of {emailsTotal} entries)
                 </span>
                 
@@ -360,7 +397,7 @@ export default function Home() {
                       }
                     }}
                     disabled={emailsPage <= 1}
-                    className="px-2 py-1 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 disabled:bg-gray-950 disabled:text-gray-700 text-white rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed uppercase"
+                    className={`px-2 py-1 ${buttonBgClass} disabled:opacity-30 disabled:bg-gray-950 disabled:text-gray-700 rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed uppercase`}
                   >
                     &lt; Prev
                   </button>
@@ -378,14 +415,14 @@ export default function Home() {
                       }
                     }}
                     disabled={!emailsHasMore && emailsPage >= Math.ceil(emailsTotal / emailsPerPage)}
-                    className="px-2 py-1 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 disabled:bg-gray-950 disabled:text-gray-700 text-white rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed uppercase"
+                    className={`px-2 py-1 ${buttonBgClass} disabled:opacity-30 disabled:bg-gray-950 disabled:text-gray-700 rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed uppercase`}
                   >
                     Next &gt;
                   </button>
                 </div>
               </div>
               {emails.length === 0 ? (
-                <p className="text-xs text-gray-500">No emails cached in database. Click Connect Gmail or check your credentials.</p>
+                <p className={`text-xs ${textMutedClass}`}>No emails cached in database. Click Connect Gmail or check your credentials.</p>
               ) : (
                 <div className="space-y-2">
                   {emails.map((email) => {
@@ -403,43 +440,43 @@ export default function Home() {
                       <div
                         key={email.id}
                         onClick={() => setExpandedEmailId(isExpanded ? null : email.id)}
-                        className="border border-gray-900 bg-[#0a0b0d] rounded text-xs cursor-pointer hover:border-gray-800 transition-colors overflow-hidden"
+                        className={`border ${border900Class} ${innerCardBgClass} rounded text-xs cursor-pointer hover:border-gray-500 transition-colors overflow-hidden`}
                       >
                         {isExpanded ? (
                           /* Expanded Accordion View */
-                          <div className="p-4 space-y-3 bg-[#0c0d12]">
-                            <div className="flex flex-col sm:flex-row justify-between pb-2 border-b border-gray-900">
+                          <div className={`p-4 space-y-3 ${accordionHeaderBgClass}`}>
+                            <div className={`flex flex-col sm:flex-row justify-between pb-2 border-b ${border900Class}`}>
                               <div>
-                                <span className="font-bold text-white">FROM: {email.from}</span>
+                                <span className={`font-bold ${textWhiteClass}`}>FROM: {email.from}</span>
                                 <span className="text-gray-500 ml-2">&lt;{email.fromEmail}&gt;</span>
                               </div>
                               <span className="text-gray-500 text-[10px]">{displayDate}</span>
                             </div>
                             <div>
-                              <h3 className="text-sm font-bold text-white">{email.subject}</h3>
+                              <h3 className={`text-sm font-bold ${textWhiteClass}`}>{email.subject}</h3>
                             </div>
-                            <p className="text-gray-400 whitespace-pre-wrap leading-relaxed bg-[#0b0c10]/50 p-3 border border-gray-900 rounded select-text">
+                            <p className={`${isDark ? "text-gray-400" : "text-gray-600"} whitespace-pre-wrap leading-relaxed ${actionContainerBgClass}/50 p-3 border ${border900Class} rounded select-text`}>
                               {email.body}
                             </p>
                             <div className="flex gap-4 text-[10px] text-gray-500 uppercase font-semibold pt-1">
-                              <span>Category: <span className="text-gray-400">{email.category}</span></span>
-                              <span>Priority: <span className="text-gray-400">{email.priority}</span></span>
-                              <span>Read: <span className="text-gray-400">{email.read ? "yes" : "no"}</span></span>
+                              <span>Category: <span className={isDark ? "text-gray-400" : "text-gray-600"}>{email.category}</span></span>
+                              <span>Priority: <span className={isDark ? "text-gray-400" : "text-gray-600"}>{email.priority}</span></span>
+                              <span>Read: <span className={isDark ? "text-gray-400" : "text-gray-600"}>{email.read ? "yes" : "no"}</span></span>
                             </div>
                           </div>
                         ) : (
                           /* Collapsed Single Line View */
-                          <div className="px-4 py-3 flex items-center justify-between gap-4 hover:bg-[#0c0d11] whitespace-nowrap overflow-hidden">
+                          <div className="px-4 py-3 flex items-center justify-between gap-4 hover:bg-gray-500/10 whitespace-nowrap overflow-hidden">
                             <div className="flex items-center gap-4 min-w-0 flex-1 overflow-hidden">
                               <span className="text-[10px] text-gray-500 shrink-0 w-24 whitespace-nowrap">
                                 {displayDate.split(",")[0]}
                               </span>
-                              <span className="text-gray-400 font-bold shrink-0 w-44 truncate whitespace-nowrap">
+                              <span className={`font-bold shrink-0 w-44 truncate whitespace-nowrap ${isDark ? "text-gray-400" : "text-gray-600"}`}>
                                 {email.from}
                               </span>
-                              <span className="text-white truncate flex-1 block whitespace-nowrap overflow-hidden text-ellipsis">
+                              <span className={`${textWhiteClass} truncate flex-1 block whitespace-nowrap overflow-hidden text-ellipsis`}>
                                 <span className="font-bold">{email.subject}</span>
-                                <span className="text-gray-600 font-normal ml-3 whitespace-nowrap">
+                                <span className={`${isDark ? "text-gray-600" : "text-gray-400"} font-normal ml-3 whitespace-nowrap`}>
                                   — {email.body ? email.body.substring(0, 150).replace(/\r?\n/g, " ") : ""}
                                 </span>
                               </span>
@@ -460,27 +497,27 @@ export default function Home() {
           {/* CALENDAR VIEW */}
           {activeView === "calendar" && (
             <div className="space-y-4">
-              <div className="flex justify-between items-center pb-2 border-b border-gray-900">
-                <span className="text-xs uppercase tracking-wider text-gray-500">Calendar Coordinates ({calendarEvents.length} entries)</span>
+              <div className={`flex justify-between items-center pb-2 border-b ${border900Class}`}>
+                <span className={`text-xs uppercase tracking-wider ${textMutedClass}`}>Calendar Coordinates ({calendarEvents.length} entries)</span>
               </div>
               {calendarEvents.length === 0 ? (
-                <p className="text-xs text-gray-500">No calendar events cached in database. Click Connect Calendar or check your credentials.</p>
+                <p className={`text-xs ${textMutedClass}`}>No calendar events cached in database. Click Connect Calendar or check your credentials.</p>
               ) : (
                 <div className="space-y-3">
                   {calendarEvents.map((evt) => (
-                    <div key={evt.id} className="border border-gray-900 p-3 bg-[#0a0b0d] rounded text-xs">
-                      <div className="flex flex-col sm:flex-row justify-between mb-2 pb-1.5 border-b border-gray-900/50">
-                        <span className="font-bold text-white">{evt.title}</span>
+                    <div key={evt.id} className={`border ${border900Class} p-3 ${innerCardBgClass} rounded text-xs`}>
+                      <div className={`flex flex-col sm:flex-row justify-between mb-2 pb-1.5 border-b ${border900Class}/50`}>
+                        <span className={`font-bold ${textWhiteClass}`}>{evt.title}</span>
                         <span className="text-gray-500">
                           {mounted ? `${new Date(evt.start).toLocaleString()} - ${new Date(evt.end).toLocaleString()}` : ""}
                         </span>
                       </div>
-                      {evt.location && <p className="mb-1 text-gray-400">Location: {evt.location}</p>}
+                      {evt.location && <p className={`mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Location: {evt.location}</p>}
                       {evt.attendees && evt.attendees.length > 0 && (
-                        <p className="mb-1 text-gray-400">Attendees: {evt.attendees.join(", ")}</p>
+                        <p className={`mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Attendees: {evt.attendees.join(", ")}</p>
                       )}
                       {evt.description && (
-                        <p className="text-gray-400 whitespace-pre-wrap leading-relaxed bg-[#0b0c10]/50 p-2 border border-gray-900 rounded mt-2">{evt.description}</p>
+                        <p className={`${isDark ? "text-gray-400" : "text-gray-600"} whitespace-pre-wrap leading-relaxed ${actionContainerBgClass}/50 p-2 border ${border900Class} rounded mt-2`}>{evt.description}</p>
                       )}
                     </div>
                   ))}
@@ -492,13 +529,13 @@ export default function Home() {
           {/* AI CHAT CONSOLE */}
           {activeView === "chat" && (
             <div className="flex flex-col h-full space-y-4 min-h-[300px]">
-              <div className="flex-1 space-y-3 bg-[#0a0b0d] p-4 border border-gray-900 rounded overflow-y-auto max-h-[350px]">
+              <div className={`flex-1 space-y-3 ${innerCardBgClass} p-4 border ${border900Class} rounded overflow-y-auto max-h-[350px]`}>
                 {chatMessages.map((msg) => (
                   <div key={msg.id} className="text-xs leading-relaxed">
                     <span className={`font-bold ${msg.role === "user" ? "text-cyan-400" : "text-purple-400"} uppercase mr-2`}>
                       [{msg.role}]:
                     </span>
-                    <span className="text-gray-300">{msg.content}</span>
+                    <span className={isDark ? "text-gray-300" : "text-gray-700"}>{msg.content}</span>
                   </div>
                 ))}
                 {isSendingChat && (
@@ -515,7 +552,7 @@ export default function Home() {
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   disabled={isSendingChat}
-                  className="flex-1 bg-[#0a0b0d] border border-gray-800 text-xs px-3 py-2 text-white outline-none rounded disabled:opacity-50"
+                  className={`flex-1 ${inputBgClass} border ${borderClass} text-xs px-3 py-2 outline-none rounded disabled:opacity-50`}
                 />
                 <button
                   type="submit"
@@ -527,7 +564,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={clearChat}
-                  className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-2 font-bold uppercase rounded shrink-0"
+                  className={`${buttonBgClass} text-xs px-3 py-2 font-bold uppercase rounded shrink-0`}
                 >
                   Clear
                 </button>
@@ -535,13 +572,102 @@ export default function Home() {
             </div>
           )}
 
+          {/* SETTINGS VIEW */}
+          {activeView === "settings" && (
+            <div className="space-y-6">
+              <div className={`pb-2 border-b ${border900Class} flex justify-between items-center`}>
+                <span className={`text-xs uppercase tracking-wider ${textMutedClass}`}>System Preferences & Database Logs</span>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Preferences Form */}
+                <div className={`border p-4 rounded ${cardBgClass} space-y-4`}>
+                  <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-wider`}>Preferences</h3>
+                  
+                  {/* Theme Select */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-gray-500 uppercase font-bold block">UI Color Theme</label>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => updateSettings({ theme: "dark" })}
+                        className={`flex-1 py-2 text-xs font-bold rounded border uppercase ${theme === "dark" ? "bg-[#FF007F] text-white border-[#FF007F]" : buttonBgClass + " " + borderClass}`}
+                      >
+                        Dark (Void)
+                      </button>
+                      <button
+                        onClick={() => updateSettings({ theme: "light" })}
+                        className={`flex-1 py-2 text-xs font-bold rounded border uppercase ${theme === "light" ? "bg-[#00F0FF] text-black border-[#00F0FF]" : buttonBgClass + " " + borderClass}`}
+                      >
+                        Light (Alabaster)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Sync Interval Select */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-gray-500 uppercase font-bold block">Sync Interval</label>
+                    <select
+                      value={syncInterval}
+                      onChange={(e) => updateSettings({ syncInterval: parseInt(e.target.value, 10) })}
+                      className={`w-full text-xs px-2 py-2 border rounded outline-none ${inputBgClass} ${borderClass}`}
+                    >
+                      <option value={15}>Every 15 minutes</option>
+                      <option value={30}>Every 30 minutes</option>
+                      <option value={60}>Every 1 hour (Default)</option>
+                      <option value={720}>Every 12 hours</option>
+                      <option value={1440}>Every 24 hours</option>
+                    </select>
+                  </div>
+
+                  {/* AI Auto-priority Toggle */}
+                  <div className="flex items-center justify-between pt-2">
+                    <div>
+                      <label className="text-[10px] text-gray-500 uppercase font-bold block">AI Auto-Priority</label>
+                      <span className="text-[10px] text-gray-400">Classify incoming emails using gpt-4o-mini</span>
+                    </div>
+                    <button
+                      onClick={() => updateSettings({ aiAutoPriority: !aiAutoPriority })}
+                      className={`px-3 py-1.5 text-xs font-bold rounded uppercase ${aiAutoPriority ? "bg-green-800 text-white" : "bg-red-800 text-white"}`}
+                    >
+                      {aiAutoPriority ? "Enabled" : "Disabled"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Local Integrations Database Cache */}
+                <div className={`border p-4 rounded ${cardBgClass} space-y-4`}>
+                  <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-wider`}>Synced Integrations (Neon DB Cache)</h3>
+                  <p className="text-[10px] text-gray-500">Local records of connection status synced from Corsair:</p>
+                  
+                  {localIntegrations.length === 0 ? (
+                    <p className={`text-xs ${textMutedClass} italic`}>No integration sync records found in database. Check connections above.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {localIntegrations.map((integration) => (
+                        <div key={integration.id} className={`p-2 border rounded text-xs flex justify-between items-center ${innerCardBgClass} ${borderClass}`}>
+                          <div>
+                            <span className={`font-bold ${textWhiteClass} uppercase`}>{integration.provider === "googlecalendar" ? "google calendar" : integration.provider}</span>
+                            <span className="text-gray-500 ml-2">({integration.connected_email})</span>
+                          </div>
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${integration.status === "connected" ? "bg-green-950/60 text-green-300" : "bg-red-950/60 text-red-300"}`}>
+                            {integration.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* STORE DUMP */}
           {activeView === "store" && (
             <div className="space-y-4">
-              <div className="pb-2 border-b border-gray-900">
-                <span className="text-xs uppercase tracking-wider text-gray-500">Live Zustand Store State</span>
+              <div className={`pb-2 border-b ${border900Class}`}>
+                <span className={`text-xs uppercase tracking-wider ${textMutedClass}`}>Live Zustand Store State</span>
               </div>
-              <pre className="bg-[#0a0b0d] p-4 border border-gray-900 rounded text-[10px] text-green-400 overflow-x-auto whitespace-pre-wrap">
+              <pre className={`p-4 border ${border900Class} ${innerCardBgClass} rounded text-[10px] text-green-400 overflow-x-auto whitespace-pre-wrap`}>
                 {JSON.stringify({
                   user,
                   gmailConnected,
@@ -550,6 +676,8 @@ export default function Home() {
                   calendarEventsCount: calendarEvents.length,
                   chatMessagesCount: chatMessages.length,
                   searchQuery,
+                  settings: { theme, syncInterval, aiAutoPriority },
+                  localIntegrations,
                 }, null, 2)}
               </pre>
             </div>

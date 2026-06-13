@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { createClient } from "@corsair-dev/app";
+import { dbInit, query } from "@/lib/db";
 
 export async function GET() {
   try {
@@ -41,6 +42,45 @@ export async function GET() {
       calendarConnected = calFields.some(f => f.field === "access_token" && f.set);
     } catch (e) {
       console.warn("Google Calendar plugin credentials check failed:", e);
+    }
+
+    // Sync connection status with local user_integrations table
+    try {
+      await dbInit();
+      
+      // Sync Gmail
+      if (gmailConnected) {
+        await query(
+          `INSERT INTO user_integrations (user_email, provider, connected_email, status)
+           VALUES ($1, 'gmail', $1, 'connected')
+           ON CONFLICT (user_email, provider, connected_email) DO UPDATE SET status = 'connected'`,
+          [session.user.email]
+        );
+      } else {
+        await query(
+          `UPDATE user_integrations SET status = 'disconnected' 
+           WHERE user_email = $1 AND provider = 'gmail'`,
+          [session.user.email]
+        );
+      }
+
+      // Sync Google Calendar
+      if (calendarConnected) {
+        await query(
+          `INSERT INTO user_integrations (user_email, provider, connected_email, status)
+           VALUES ($1, 'googlecalendar', $1, 'connected')
+           ON CONFLICT (user_email, provider, connected_email) DO UPDATE SET status = 'connected'`,
+          [session.user.email]
+        );
+      } else {
+        await query(
+          `UPDATE user_integrations SET status = 'disconnected' 
+           WHERE user_email = $1 AND provider = 'googlecalendar'`,
+          [session.user.email]
+        );
+      }
+    } catch (dbError) {
+      console.error("[Corsair Status DB Sync Error]", dbError);
     }
 
     return NextResponse.json({ gmailConnected, calendarConnected });

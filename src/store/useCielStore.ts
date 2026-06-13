@@ -83,6 +83,17 @@ interface CielState {
   setCielStatus: (status: CielStatus) => void;
   currentVolume: number; // voice volume level (0-1)
   setCurrentVolume: (vol: number) => void;
+
+  // settings state
+  theme: "dark" | "light";
+  syncInterval: number;
+  aiAutoPriority: boolean;
+  fetchSettings: () => Promise<void>;
+  updateSettings: (settings: Partial<{ theme: "dark" | "light"; syncInterval: number; aiAutoPriority: boolean }>) => Promise<void>;
+
+  // local integrations list
+  localIntegrations: Array<{ id: number; provider: string; connected_email: string; status: string }>;
+  fetchLocalIntegrations: () => Promise<void>;
 }
 
 export const useCielStore = create<CielState>((set) => ({
@@ -289,6 +300,65 @@ export const useCielStore = create<CielState>((set) => ({
       }
     } catch (error) {
       console.error("[Store] Failed to fetch integration status:", error);
+    }
+  },
+
+  // settings default state
+  theme: "dark",
+  syncInterval: 60,
+  aiAutoPriority: true,
+  localIntegrations: [],
+
+  fetchSettings: async () => {
+    try {
+      const res = await fetch("/api/settings");
+      if (res.ok) {
+        const data = await res.json();
+        set({
+          theme: data.theme || "dark",
+          syncInterval: data.sync_interval_minutes || 60,
+          aiAutoPriority: data.ai_auto_priority !== undefined ? !!data.ai_auto_priority : true,
+        });
+      }
+    } catch (error) {
+      console.error("[Store] Failed to fetch settings:", error);
+    }
+  },
+
+  updateSettings: async (settings) => {
+    // update locally first
+    set((state) => ({
+      theme: settings.theme !== undefined ? settings.theme : state.theme,
+      syncInterval: settings.syncInterval !== undefined ? settings.syncInterval : state.syncInterval,
+      aiAutoPriority: settings.aiAutoPriority !== undefined ? settings.aiAutoPriority : state.aiAutoPriority,
+    }));
+
+    // push to API
+    try {
+      const state = useCielStore.getState();
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          theme: settings.theme !== undefined ? settings.theme : state.theme,
+          sync_interval_minutes: settings.syncInterval !== undefined ? settings.syncInterval : state.syncInterval,
+          ai_auto_priority: settings.aiAutoPriority !== undefined ? settings.aiAutoPriority : state.aiAutoPriority,
+        }),
+      });
+    } catch (error) {
+      console.error("[Store] Failed to save settings:", error);
+    }
+  },
+
+  fetchLocalIntegrations: async () => {
+    try {
+      const res = await fetch("/api/integrations");
+      if (res.ok) {
+        const data = await res.json();
+        set({ localIntegrations: data.integrations || [] });
+      }
+    } catch (error) {
+      console.error("[Store] Failed to fetch local integrations:", error);
     }
   },
 

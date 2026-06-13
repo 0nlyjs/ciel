@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { createClient } from "@corsair-dev/app";
+import { dbInit, query } from "@/lib/db";
 
 export async function POST(req: Request) {
   try {
@@ -33,6 +34,18 @@ export async function POST(req: Request) {
     // Clear access_token and refresh_token
     await t.plugins.credentials.clear(plugin, "access_token");
     await t.plugins.credentials.clear(plugin, "refresh_token");
+
+    // Sync with local user_integrations table
+    try {
+      await dbInit();
+      await query(
+        `UPDATE user_integrations SET status = 'disconnected'
+         WHERE user_email = $1 AND provider = $2`,
+        [session.user.email, plugin]
+      );
+    } catch (dbError) {
+      console.error("[Corsair Disconnect DB Sync Error]", dbError);
+    }
 
     return NextResponse.json({ success: true, message: `Disconnected ${plugin} successfully.` });
   } catch (error: any) {
