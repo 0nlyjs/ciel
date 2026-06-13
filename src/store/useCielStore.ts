@@ -212,7 +212,7 @@ export const useCielStore = create<CielState>((set) => ({
       if (forceSync) queryParams.set("sync", "true");
       queryParams.set("limit", limit.toString());
       queryParams.set("offset", offset.toString());
-      queryParams.set("sync_limit", ((targetPage * limit) + limit).toString());
+      queryParams.set("sync_limit", ((targetPage * limit) + 150).toString());
 
       const res = await fetch(`/api/emails?${queryParams.toString()}`);
       if (res.ok) {

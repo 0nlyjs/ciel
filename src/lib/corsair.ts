@@ -538,4 +538,21 @@ export class CorsairClient {
     }
     return null;
   }
+
+  static async markGmailMessageRead(messageId: string, tenantId?: string): Promise<boolean> {
+    console.log(`[Corsair] Marking message read on Gmail: ${messageId} (tenant: ${tenantId})`);
+    const tenant = await this.getTenant(tenantId);
+    if (!tenant) return false;
+    try {
+      const res = await tenant.run("gmail.api.messages.modify", {
+        userId: "me",
+        id: messageId,
+        removeLabelIds: ["UNREAD"]
+      });
+      return !!res.success;
+    } catch (error) {
+      console.error(`[Corsair API] markGmailMessageRead error for ${messageId}:`, error);
+      return false;
+    }
+  }
 }

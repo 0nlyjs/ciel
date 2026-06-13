@@ -23,6 +23,7 @@ export default function Home() {
   const fetchEmails = useCielStore((s) => s.fetchEmails);
   const calendarEvents = useCielStore((s) => s.calendarEvents);
   const fetchCalendarEvents = useCielStore((s) => s.fetchCalendarEvents);
+  const markAsRead = useCielStore((s) => s.markAsRead);
 
   const startRange = emailsTotal > 0 ? (emailsPage - 1) * emailsPerPage + 1 : 0;
   const endRange = Math.min(emailsPage * emailsPerPage, emailsTotal);
@@ -45,26 +46,27 @@ export default function Home() {
   const fetchLocalIntegrations = useCielStore((s) => s.fetchLocalIntegrations);
 
   const isDark = theme === "dark";
-  const bgClass = isDark ? "bg-[#0a0b0d] text-gray-300" : "bg-[#f3f4f6] text-gray-700";
-  const headerBgClass = isDark ? "border-b border-gray-800" : "border-b border-gray-200";
-  const borderClass = isDark ? "border-gray-800" : "border-gray-200";
-  const border900Class = isDark ? "border-gray-900" : "border-gray-200";
-  const cardBgClass = isDark ? "bg-[#0d0e12] border-gray-800" : "bg-white border-gray-200 shadow-sm";
-  const innerCardBgClass = isDark ? "bg-[#0a0b0d]" : "bg-gray-50";
-  const activeTabClass = isDark ? "bg-[#0a0b0d] text-white" : "bg-white text-gray-900";
+  const bgClass = isDark ? "bg-[#303854] text-gray-200" : "bg-[#f3f4f6] text-gray-700";
+  const headerBgClass = isDark ? "border-b border-slate-700/60" : "border-b border-gray-200";
+  const borderClass = isDark ? "border-slate-700/60" : "border-gray-200";
+  const border900Class = isDark ? "border-slate-800/80" : "border-gray-200";
+  const cardBgClass = isDark ? "bg-[#1a1e30] border-slate-700/60" : "bg-white border-gray-200 shadow-sm";
+  const innerCardBgClass = isDark ? "bg-[#141724]" : "bg-gray-55";
+  const activeTabClass = isDark ? "bg-[#141724] text-white" : "bg-white text-gray-900";
   const inactiveTabClass = isDark ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600";
-  const tabContainerBgClass = isDark ? "bg-[#0e1014]" : "bg-gray-100";
-  const actionContainerBgClass = isDark ? "bg-[#0b0c10]" : "bg-gray-50";
-  const inputBgClass = isDark ? "bg-[#0a0b0d] border-gray-800 text-white" : "bg-white border-gray-300 text-gray-900";
+  const tabContainerBgClass = isDark ? "bg-[#181c2c]" : "bg-gray-100";
+  const actionContainerBgClass = isDark ? "bg-[#1b1f30]" : "bg-gray-50";
+  const inputBgClass = isDark ? "bg-[#141724] border-slate-700/60 text-white" : "bg-white border-gray-300 text-gray-900";
   const buttonBgClass = isDark ? "bg-gray-800 hover:bg-gray-700 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-800";
   const textWhiteClass = isDark ? "text-white" : "text-gray-900";
-  const textMutedClass = isDark ? "text-gray-500" : "text-gray-400";
-  const accordionHeaderBgClass = isDark ? "bg-[#0c0d12]" : "bg-gray-50";
+  const textMutedClass = isDark ? "text-slate-400/80" : "text-gray-400";
+  const accordionHeaderBgClass = isDark ? "bg-[#171b29]" : "bg-gray-50";
 
   // Tab State
   const [activeView, setActiveView] = useState<"emails" | "calendar" | "chat" | "store" | "settings">("emails");
   const [chatInput, setChatInput] = useState("");
   const [isSendingChat, setIsSendingChat] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -99,6 +101,48 @@ export default function Home() {
       fetchCalendarEvents();
     }
   }, [status, fetchIntegrationStatus, fetchSettings, fetchLocalIntegrations, fetchEmails, fetchCalendarEvents]);
+
+  // Real-time Event Stream Listener (SSE)
+  useEffect(() => {
+    if (status !== "authenticated" || !user?.email) return;
+
+    console.log("[EventSource] Connecting to Server-Sent Events stream...");
+    const eventSource = new EventSource("/api/sync/stream");
+
+    eventSource.onmessage = async (event) => {
+      console.log("[EventSource] Event received:", event.data);
+      if (event.data === "new_email") {
+        console.log("[EventSource] Syncing new email...");
+        setIsRefreshing(true);
+        try {
+          await fetchEmails(true);
+        } catch (e) {
+          console.error("SSE fetchEmails error:", e);
+        } finally {
+          setIsRefreshing(false);
+        }
+      } else if (event.data === "new_calendar") {
+        console.log("[EventSource] Syncing calendar events...");
+        setIsRefreshing(true);
+        try {
+          await fetchCalendarEvents();
+        } catch (e) {
+          console.error("SSE fetchCalendarEvents error:", e);
+        } finally {
+          setIsRefreshing(false);
+        }
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error("[EventSource] Error in event stream, reconnecting:", error);
+    };
+
+    return () => {
+      console.log("[EventSource] Closing Server-Sent Events stream...");
+      eventSource.close();
+    };
+  }, [status, user?.email, fetchEmails, fetchCalendarEvents]);
 
   // Handle Search Submission
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -364,15 +408,32 @@ export default function Home() {
           
           <div className="flex gap-2 shrink-0">
             <button
-              onClick={() => {
-                fetchIntegrationStatus();
-                fetchLocalIntegrations();
-                fetchEmails(true);
-                fetchCalendarEvents();
+              onClick={async () => {
+                setIsRefreshing(true);
+                try {
+                  await Promise.all([
+                    fetchIntegrationStatus(),
+                    fetchLocalIntegrations(),
+                    fetchEmails(true),
+                    fetchCalendarEvents()
+                  ]);
+                } catch (e) {
+                  console.error("Refresh failed:", e);
+                } finally {
+                  setIsRefreshing(false);
+                }
               }}
-              className={`${buttonBgClass} text-xs px-4 py-2 font-bold uppercase rounded cursor-pointer`}
+              disabled={isRefreshing}
+              className={`${buttonBgClass} text-xs px-4 py-2 font-bold uppercase rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
             >
-              Refresh All Data
+              {isRefreshing ? (
+                <>
+                  <span className="w-3 h-3 border-2 border-t-transparent border-current rounded-full animate-spin shrink-0" />
+                  Refreshing...
+                </>
+              ) : (
+                "Refresh All Data"
+              )}
             </button>
           </div>
         </div>
@@ -421,6 +482,7 @@ export default function Home() {
                   </button>
                 </div>
               </div>
+
               {emails.length === 0 ? (
                 <p className={`text-xs ${textMutedClass}`}>No emails cached in database. Click Connect Gmail or check your credentials.</p>
               ) : (
@@ -436,11 +498,33 @@ export default function Home() {
                       }
                     })();
 
+                    // Gmail-like unread vs read highlighting
+                    const emailBgClass = email.read
+                      ? (isDark ? "bg-[#121520] opacity-90" : "bg-gray-100/50 text-gray-500")
+                      : (isDark ? "bg-[#252a3f] border-l-2 border-l-[#FF007F]" : "bg-white border-l-2 border-l-[#00F0FF] shadow-sm");
+                    
+                    const senderTextClass = email.read
+                      ? "text-gray-500 font-normal"
+                      : (isDark ? "text-white font-bold" : "text-gray-900 font-bold");
+                      
+                    const subjectTextClass = email.read
+                      ? (isDark ? "text-gray-400 font-normal" : "text-gray-500 font-normal")
+                      : (isDark ? "text-white font-bold" : "text-gray-900 font-bold");
+
+                    const dateTextClass = email.read
+                      ? "text-gray-500 font-normal"
+                      : (isDark ? "text-[#00F0FF] font-bold" : "text-cyan-600 font-bold");
+
                     return (
                       <div
                         key={email.id}
-                        onClick={() => setExpandedEmailId(isExpanded ? null : email.id)}
-                        className={`border ${border900Class} ${innerCardBgClass} rounded text-xs cursor-pointer hover:border-gray-500 transition-colors overflow-hidden`}
+                        onClick={() => {
+                          setExpandedEmailId(isExpanded ? null : email.id);
+                          if (!email.read) {
+                            markAsRead(email.id);
+                          }
+                        }}
+                        className={`border ${border900Class} ${emailBgClass} rounded text-xs cursor-pointer hover:border-gray-500 transition-all duration-200 overflow-hidden`}
                       >
                         {isExpanded ? (
                           /* Expanded Accordion View */
@@ -468,14 +552,14 @@ export default function Home() {
                           /* Collapsed Single Line View */
                           <div className="px-4 py-3 flex items-center justify-between gap-4 hover:bg-gray-500/10 whitespace-nowrap overflow-hidden">
                             <div className="flex items-center gap-4 min-w-0 flex-1 overflow-hidden">
-                              <span className="text-[10px] text-gray-500 shrink-0 w-24 whitespace-nowrap">
+                              <span className={`text-[10px] shrink-0 w-24 whitespace-nowrap ${dateTextClass}`}>
                                 {displayDate.split(",")[0]}
                               </span>
-                              <span className={`font-bold shrink-0 w-44 truncate whitespace-nowrap ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                              <span className={`shrink-0 w-44 truncate whitespace-nowrap ${senderTextClass}`}>
                                 {email.from}
                               </span>
-                              <span className={`${textWhiteClass} truncate flex-1 block whitespace-nowrap overflow-hidden text-ellipsis`}>
-                                <span className="font-bold">{email.subject}</span>
+                              <span className="truncate flex-1 block whitespace-nowrap overflow-hidden text-ellipsis">
+                                <span className={subjectTextClass}>{email.subject}</span>
                                 <span className={`${isDark ? "text-gray-600" : "text-gray-400"} font-normal ml-3 whitespace-nowrap`}>
                                   — {email.body ? email.body.substring(0, 150).replace(/\r?\n/g, " ") : ""}
                                 </span>

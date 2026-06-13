@@ -89,6 +89,71 @@ Respond with a raw JSON object containing exactly two keys: "priority" and "cate
   }
 }
 
+async function generateAndSaveEmbeddings(parsedEmails: any[], userEmail: string) {
+  const textsToEmbed = parsedEmails.map(e => e.textToEmbed);
+  if (textsToEmbed.length === 0) return;
+
+  try {
+    const embeddings = await getEmbeddingsBatch(textsToEmbed);
+    if (embeddings && embeddings.length > 0) {
+      await Promise.all(
+        parsedEmails.map(async (email, i) => {
+          const embedding = embeddings[i];
+          if (embedding) {
+            const formatted = formatVector(embedding);
+            await query(
+              "UPDATE emails SET embedding = $1::vector WHERE id = $2 AND user_email = $3",
+              [formatted, email.id, userEmail]
+            );
+          }
+        })
+      );
+      console.log(`[Sync] Successfully generated and updated background embeddings for ${parsedEmails.length} emails.`);
+    }
+  } catch (err) {
+    console.error("[Sync] Background embeddings generation error:", err);
+  }
+}
+
+async function verifyReadStatusInBackground(checkIds: string[], userEmail: string) {
+  console.log(`[Background Sync] Starting background verification of ${checkIds.length} candidate emails...`);
+  await Promise.all(
+    checkIds.map(async (id) => {
+      try {
+        const liveMsg = await CorsairClient.getGmailMessageDirectly(id, userEmail);
+        if (liveMsg) {
+          const isReadOnGmail = !(liveMsg.labelIds || []).includes("UNREAD");
+
+          // Fetch local read status from database to determine sync direction
+          const localEmailRes = await query(
+            "SELECT read FROM emails WHERE id = $1 AND user_email = $2",
+            [id, userEmail]
+          );
+
+          if (localEmailRes.rows.length > 0) {
+            const isReadLocally = localEmailRes.rows[0].read;
+            if (isReadLocally && !isReadOnGmail) {
+              // 1. Locally read but unread on Gmail -> sync status to Gmail
+              console.log(`[Background Sync] Email ${id} is locally read but unread on Gmail. Syncing to Gmail...`);
+              await CorsairClient.markGmailMessageRead(id, userEmail);
+            } else if (!isReadLocally && isReadOnGmail) {
+              // 2. Locally unread but read on Gmail -> sync status to Ciel DB
+              console.log(`[Background Sync] Email ${id} is locally unread but read on Gmail. Syncing to local DB...`);
+              await query(
+                "UPDATE emails SET read = TRUE WHERE id = $1 AND user_email = $2",
+                [id, userEmail]
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`[Background Sync] Failed to check/update sync status for message ${id}:`, err);
+      }
+    })
+  );
+  console.log(`[Background Sync] Finished background verification of ${checkIds.length} candidate emails.`);
+}
+
 async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
   if (skeletons.length === 0) return;
 
@@ -105,10 +170,8 @@ async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
   );
   const filteredMessages = rawMessages.filter(m => m !== null);
 
-  // 2. Parse messages and prepare texts for batch embedding
+  // 2. Parse messages
   const parsedEmails: any[] = [];
-  const textsToEmbed: string[] = [];
-
   for (const rawMsg of filteredMessages) {
     const email = CorsairClient.parseGmailMessage(rawMsg);
     if (email) {
@@ -128,44 +191,35 @@ async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
         read: email.read ?? false,
         textToEmbed,
       });
-      textsToEmbed.push(textToEmbed);
     }
   }
 
-  // 3. Generate batch embeddings in a single OpenAI request
-  let embeddings: number[][] | null = [];
-  if (textsToEmbed.length > 0) {
-    try {
-      embeddings = await getEmbeddingsBatch(textsToEmbed);
-    } catch (embErr) {
-      console.error("[Sync] Error in batch embeddings, proceeding without embeddings:", embErr);
-    }
-  }
-
-  // 4. Save to DB concurrently with fast keyword-based fallback classification
+  // 3. Save to DB concurrently with fast keyword-based fallback classification
   await Promise.all(
-    parsedEmails.map(async (email, i) => {
-      const embedding = embeddings && embeddings[i] ? embeddings[i] : null;
-      const formattedEmbedding = formatVector(embedding);
-      
+    parsedEmails.map(async (email) => {
       // Fast classification using keyword fallback
       const { priority, category } = runKeywordFallback(email.subject, email.body);
 
       try {
         await query(
           `INSERT INTO emails (id, user_email, from_name, from_email, subject, body, date, read, priority, category, embedding)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL)
            ON CONFLICT (id) DO UPDATE SET 
              read = EXCLUDED.read,
              priority = EXCLUDED.priority,
              category = EXCLUDED.category`,
-          [email.id, userEmail, email.fromName, email.fromEmail, email.subject, email.body, email.date, email.read, priority, category, formattedEmbedding]
+          [email.id, userEmail, email.fromName, email.fromEmail, email.subject, email.body, email.date, email.read, priority, category]
         );
       } catch (err: any) {
         console.error(`[Sync] Failed to insert email ${email.id} into database:`, err.message);
       }
     })
   );
+
+  // 4. Generate and update vector embeddings asynchronously in the background
+  generateAndSaveEmbeddings(parsedEmails, userEmail).catch((err) => {
+    console.error("[Sync] Background embeddings launcher error:", err);
+  });
 }
 
 async function runBackgroundSyncForRemaining(
@@ -229,6 +283,29 @@ export async function GET(req: Request) {
         }
 
         if (messageSkeletonsLength > 0) {
+          // 1. Fetch locally unread email IDs for the current user to verify their status (limit to latest 8)
+          const localUnreadRes = await query(
+            "SELECT id FROM emails WHERE user_email = $1 AND read = FALSE ORDER BY date DESC LIMIT 8",
+            [session.user.email],
+          );
+          const localUnreadIds = localUnreadRes.rows.map((r: any) => r.id);
+
+          // 2. Extract latest 8 message skeletons fetched from Gmail
+          const latestSkeletons = messageSkeletons.slice(0, 8).map((m: any) => m.id);
+
+          // 3. Combine these IDs into a unique list, limit to 12, and update read status
+          const checkIdsSet = new Set<string>();
+          localUnreadIds.forEach((id: string) => checkIdsSet.add(id));
+          latestSkeletons.forEach((id: string) => checkIdsSet.add(id));
+          const checkIds = Array.from(checkIdsSet).slice(0, 12);
+
+          if (checkIds.length > 0) {
+            console.log(`[Emails API] Launching background check for ${checkIds.length} candidate emails...`);
+            verifyReadStatusInBackground(checkIds, session.user.email).catch((err) => {
+              console.error("[Emails API] Background candidate check error:", err);
+            });
+          }
+
           // Fetch existing email IDs to avoid duplicates
           const existingRes = await query(
             "SELECT id FROM emails WHERE user_email = $1",
@@ -329,9 +406,17 @@ export async function POST(req: Request) {
         "UPDATE emails SET read = TRUE WHERE id = $1 AND user_email = $2",
         [id, session.user.email],
       );
+
+      // Await write-back to Gmail servers to prevent serverless process termination
+      try {
+        await CorsairClient.markGmailMessageRead(id, session.user.email);
+      } catch (err) {
+        console.error("[Emails API] Failed to mark read on Gmail:", err);
+      }
+
       return NextResponse.json({
         success: true,
-        message: "Email marked as read",
+        message: "Email marked as read locally and synced to Gmail",
       });
     }
 
