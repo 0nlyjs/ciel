@@ -107,7 +107,7 @@ export async function POST(req: Request) {
     }
 
     const tenantId = session.user.email;
-    const { messages } = await req.json();
+    const { messages, conversationId } = await req.json();
     const lastUserMessage = messages[messages.length - 1];
 
     const openaiClient = getOpenAIClient();
@@ -121,6 +121,45 @@ export async function POST(req: Request) {
 
     await dbInit();
 
+    // 1. Daily limit check (1M tokens per user per day)
+    const dailyTokenCheck = await queryDb(
+      "SELECT COALESCE(SUM(tokens_used), 0) as total FROM conversations WHERE user_email = $1 AND updated_at >= NOW() - INTERVAL '1 day'",
+      [tenantId]
+    );
+    const dailyTokensUsed = parseInt(dailyTokenCheck.rows[0]?.total || "0", 10);
+    const DAILY_BUDGET_LIMIT = 1000000; // 1,000,000 tokens limit per user per day
+
+    if (dailyTokensUsed >= DAILY_BUDGET_LIMIT) {
+      console.warn(`[Ciel Chat API] User ${tenantId} reached daily budget limit of ${dailyTokensUsed} tokens.`);
+      return NextResponse.json({
+        text: "🚨 Daily Limit Reached: You have reached your daily limit of 1,000,000 tokens for this account. Please upgrade to the Pro Plan to continue using Ciel without restrictions.",
+        tokens: 0
+      });
+    }
+
+    // 2. Per-conversation limit check (100k tokens per conversation)
+    if (conversationId) {
+      const convCheck = await queryDb(
+        "SELECT tokens_used FROM conversations WHERE id = $1 AND user_email = $2",
+        [conversationId, tenantId]
+      );
+      if (convCheck.rows.length > 0) {
+        const convTokensUsed = convCheck.rows[0].tokens_used || 0;
+        const CONV_BUDGET_LIMIT = 100000; // 100k tokens per conversation
+
+        if (convTokensUsed >= CONV_BUDGET_LIMIT) {
+          console.warn(`[Ciel Chat API] Conversation ${conversationId} reached limit of ${convTokensUsed} tokens.`);
+          return NextResponse.json({
+            text: "🚨 Conversation Limit Reached: You have reached the limit of 100,000 tokens for this conversation. Please start a new conversation or upgrade to the Pro Plan to unlock unlimited tokens.",
+            tokens: 0
+          });
+        }
+      }
+    }
+
+    // Sliding window: only send the last 6 messages to the LLM to keep tokens low
+    const truncatedMessages = messages.slice(-6);
+
     // run vercel ai sdk with tools using tool() and jsonSchema() wrappers
     const currentDateTime = new Date().toISOString();
     const response = await generateText({
@@ -129,10 +168,16 @@ export async function POST(req: Request) {
 Your task is to help the user manage their email and calendar workflows.
 You have access to tools that connect to Gmail and Google Calendar.
 When the user asks you to perform actions like sending emails or creating calendar invites, you must execute the corresponding tools.
-Always answer in a precise, helpful, and slightly robotic/analytical tone.
+Write in a professional, natural, and workspace-focused tone.
+
+When summarizing emails or the user's day:
+- Generate a narrative, cohesive paragraph-style summary rather than simple bulleted lists or nested numbering formats.
+- Avoid using weird nested numbering formats (e.g. 1.1.1, etc.).
+- Integrate schedule coordinates and key updates together so it reads like a smooth, descriptive overview.
+- You can explain key context points where helpful.
 
 The current system date and time is ${new Date().toString()} (ISO: ${currentDateTime}). Use this date/time as the reference point for relative dates like "today", "tomorrow", "next week", "Friday", etc.`,
-      messages: messages,
+      messages: truncatedMessages,
       tools: {
         list_emails: tool({
           description: "List the most recent emails in the user's inbox, optionally filtered by read/unread status, category, or pagination limit.",
@@ -141,7 +186,7 @@ The current system date and time is ${new Date().toString()} (ISO: ${currentDate
             properties: {
               limit: {
                 type: "number",
-                description: "Number of emails to retrieve (default: 10, max: 50)"
+                description: "Number of emails to retrieve (default: 10, max: 10)"
               },
               category: {
                 type: "string",
@@ -156,7 +201,9 @@ The current system date and time is ${new Date().toString()} (ISO: ${currentDate
           execute: async ({ limit = 10, category, unreadOnly }: any) => {
             console.log("[Tool] Listing emails with options:", { limit, category, unreadOnly }, "(user:", tenantId, ")");
             try {
-              const maxLimit = Math.min(limit, 50);
+              // Hackathon budget protection: cap limit to 10
+              const maxLimit = Math.min(limit, 10);
+              // Hackathon budget protection: retrieve first 300 chars of body for better summaries
               let sql = `SELECT id, from_name as "from", from_email as "fromEmail", subject, LEFT(body, 300) as body, date, read, priority, category 
                          FROM emails 
                          WHERE user_email = $1`;
@@ -204,20 +251,20 @@ The current system date and time is ${new Date().toString()} (ISO: ${currentDate
               if (embedding) {
                 const formattedEmbedding = formatVector(embedding);
                 const res = await queryDb(
-                  `SELECT id, from_name as "from", from_email as "fromEmail", subject, LEFT(body, 1000) as body, date, read, priority, category 
+                  `SELECT id, from_name as "from", from_email as "fromEmail", subject, LEFT(body, 300) as body, date, read, priority, category 
                    FROM emails 
                    WHERE user_email = $2
                    ORDER BY embedding <=> $1::vector 
-                   LIMIT 5`,
+                   LIMIT 5`, // Capped to top 5 for better email context
                   [formattedEmbedding, tenantId]
                 );
                 rows = res.rows;
               } else {
                 const res = await queryDb(
-                  `SELECT id, from_name as "from", from_email as "fromEmail", subject, LEFT(body, 1000) as body, date, read, priority, category 
+                  `SELECT id, from_name as "from", from_email as "fromEmail", subject, LEFT(body, 300) as body, date, read, priority, category 
                    FROM emails 
                    WHERE (subject ILIKE $1::text OR body ILIKE $1::text OR from_name ILIKE $1::text OR from_email ILIKE $1::text) AND user_email = $2
-                   ORDER BY created_at DESC LIMIT 5`,
+                   ORDER BY created_at DESC LIMIT 5`, // Capped to top 5 for better email context
                   [`%${query}%`, tenantId]
                 );
                 rows = res.rows;
@@ -350,6 +397,59 @@ The current system date and time is ${new Date().toString()} (ISO: ${currentDate
               return { success: false, error: err.message };
             }
           },
+        }),
+        get_day_summary_data: tool({
+          description: "Get brief metadata of all emails received and calendar events scheduled for a specific date to summarize the user's day.",
+          inputSchema: jsonSchema({
+            type: "object",
+            properties: {
+              date: {
+                type: "string",
+                description: "ISO date string (YYYY-MM-DD format, e.g., '2026-06-14'). Defaults to current system date."
+              }
+            }
+          }),
+          execute: async ({ date }: any) => {
+            const targetDate = date || new Date().toISOString().split("T")[0];
+            console.log("[Tool] Fetching day summary data for date:", targetDate, "(user:", tenantId, ")");
+            try {
+              // Retrieve metadata and short body snippet of emails for the date (to save tokens!)
+              const emailRes = await queryDb(
+                `SELECT from_name as "from", subject, LEFT(body, 150) as snippet, date, read, priority, category 
+                 FROM emails 
+                 WHERE user_email = $1 AND date LIKE $2 
+                 ORDER BY date DESC LIMIT 15`,
+                [tenantId, `${targetDate}%`]
+              );
+
+              // Retrieve calendar events for the date
+              const eventRes = await queryDb(
+                `SELECT title, start_time as "start", end_time as "end", location, description 
+                 FROM calendar_events 
+                 WHERE user_email = $1 AND (start_time::date = $2::date OR end_time::date = $2::date)
+                 ORDER BY start_time ASC`,
+                [tenantId, targetDate]
+              );
+
+              return {
+                success: true,
+                date: targetDate,
+                emailsCount: emailRes.rows.length,
+                emails: emailRes.rows,
+                eventsCount: eventRes.rows.length,
+                events: eventRes.rows.map(evt => ({
+                  title: evt.title,
+                  start: evt.start,
+                  end: evt.end,
+                  location: evt.location,
+                  description: evt.description ? evt.description.substring(0, 100) : ""
+                }))
+              };
+            } catch (err: any) {
+              console.error("[Tool get_day_summary_data error]", err);
+              return { success: false, error: err.message };
+            }
+          }
         }),
       },
       stopWhen: stepCountIs(5),

@@ -71,6 +71,20 @@ export default function Home() {
   const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
+  // Compose Mail & AI Smart Reply States
+  const [showComposeModal, setShowComposeModal] = useState(false);
+  const [composeTo, setComposeTo] = useState("");
+  const [composeSubject, setComposeSubject] = useState("");
+  const [composeBody, setComposeBody] = useState("");
+  const [isSendingCompose, setIsSendingCompose] = useState(false);
+
+  const [isGeneratingReplies, setIsGeneratingReplies] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<{ label: string; body: string }[]>([]);
+  const [selectedReplyIndex, setSelectedReplyIndex] = useState<number | null>(null);
+  const [replyBody, setReplyBody] = useState("");
+  const [isSendingReply, setIsSendingReply] = useState(false);
+  const [activeReplyEmailId, setActiveReplyEmailId] = useState<string | null>(null);
+
   // Better Auth Form States
   const [isSignUp, setIsSignUp] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
@@ -249,7 +263,8 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: updatedMessagesWithUser.map(m => ({ role: m.role, content: m.content }))
+          messages: updatedMessagesWithUser.map(m => ({ role: m.role, content: m.content })),
+          conversationId: currentConvId
         }),
       });
 
@@ -311,6 +326,121 @@ export default function Home() {
     setTokensConsumed(0);
     useCielStore.setState({ chatMessages: [] });
   };
+
+  const handleInitiateCompose = (to = "", subject = "") => {
+    setComposeTo(to);
+    setComposeSubject(subject);
+    setComposeBody("");
+    setShowComposeModal(true);
+  };
+
+  const handleSendComposeMail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!composeTo.trim() || !composeSubject.trim() || !composeBody.trim() || isSendingCompose) return;
+
+    setIsSendingCompose(true);
+    try {
+      const res = await fetch("/api/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send",
+          to: composeTo,
+          subject: composeSubject,
+          body: composeBody
+        })
+      });
+
+      if (res.ok) {
+        setShowComposeModal(false);
+        // Refresh emails list to show the sent mail
+        fetchEmails(true, 1);
+      } else {
+        const data = await res.json();
+        alert("Failed to send email: " + (data.error || "Unknown error"));
+      }
+    } catch (err) {
+      console.error("Failed to send email", err);
+      alert("Error sending email.");
+    } finally {
+      setIsSendingCompose(false);
+    }
+  };
+
+  const handleInitiateSmartReply = async (email: any) => {
+    setActiveReplyEmailId(email.id);
+    setIsGeneratingReplies(true);
+    setAiSuggestions([]);
+    setSelectedReplyIndex(null);
+    setReplyBody("");
+
+    try {
+      const res = await fetch("/api/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "suggest_replies",
+          subject: email.subject,
+          body: email.body,
+          fromName: email.from
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setAiSuggestions(data.suggestions || []);
+      } else {
+        alert("Failed to load smart replies.");
+      }
+    } catch (err) {
+      console.error("Smart replies error", err);
+    } finally {
+      setIsGeneratingReplies(false);
+    }
+  };
+
+  const handleSendSmartReply = async (toEmail: string, originalSubject: string) => {
+    if (!replyBody.trim() || isSendingReply) return;
+
+    setIsSendingReply(true);
+    try {
+      const replySubject = originalSubject.toLowerCase().startsWith("re:") 
+        ? originalSubject 
+        : `Re: ${originalSubject}`;
+
+      const res = await fetch("/api/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send",
+          to: toEmail,
+          subject: replySubject,
+          body: replyBody
+        })
+      });
+
+      if (res.ok) {
+        setActiveReplyEmailId(null);
+        setReplyBody("");
+        setAiSuggestions([]);
+        setSelectedReplyIndex(null);
+        fetchEmails(true, 1);
+      } else {
+        const data = await res.json();
+        alert("Failed to send reply: " + (data.error || "Unknown error"));
+      }
+    } catch (err) {
+      console.error("Failed to send smart reply", err);
+      alert("Error sending reply.");
+    } finally {
+      setIsSendingReply(false);
+    }
+  };
+
+  const lastAssistantMsg = [...chatMessages].reverse().find(m => m.role === "assistant");
+  const isDailyLimitReached = lastAssistantMsg?.content?.includes("Daily Limit Reached") || false;
+  const isConvLimitReached = tokensConsumed >= 100000 || (lastAssistantMsg?.content?.includes("Conversation Limit Reached") || false);
+  const isInputDisabled = isSendingChat || isDailyLimitReached || isConvLimitReached;
 
   if (status === "loading") {
     return (
@@ -782,6 +912,12 @@ export default function Home() {
                   >
                     Next &gt;
                   </button>
+                  <button
+                    onClick={() => handleInitiateCompose()}
+                    className="px-3 py-1 bg-purple-900/40 hover:bg-purple-800/60 text-purple-200 border border-purple-800/80 rounded text-[10px] font-bold cursor-pointer uppercase shrink-0"
+                  >
+                    + Compose Mail
+                  </button>
                 </div>
               </div>
 
@@ -848,6 +984,95 @@ export default function Home() {
                               <span>Category: <span className={isDark ? "text-gray-400" : "text-gray-600"}>{email.category}</span></span>
                               <span>Priority: <span className={isDark ? "text-gray-400" : "text-gray-600"}>{email.priority}</span></span>
                               <span>Read: <span className={isDark ? "text-gray-400" : "text-gray-600"}>{email.read ? "yes" : "no"}</span></span>
+                            </div>
+
+                            {/* AI Reply & Compose Controls */}
+                            <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-3" onClick={(e) => e.stopPropagation()}>
+                              {activeReplyEmailId !== email.id ? (
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => handleInitiateSmartReply(email)}
+                                    className="px-3 py-1.5 bg-purple-900/40 text-purple-200 hover:bg-purple-800/60 border border-purple-800/80 rounded font-bold uppercase text-[10px] cursor-pointer flex items-center gap-1.5 transition-colors"
+                                  >
+                                    <span>✨</span> Reply with AI
+                                  </button>
+                                  <button
+                                    onClick={() => handleInitiateCompose(email.fromEmail, `Re: ${email.subject}`)}
+                                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded font-bold uppercase text-[10px] cursor-pointer transition-colors"
+                                  >
+                                    Manual Reply
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="space-y-3 p-3 bg-slate-900/40 border border-slate-800/80 rounded-lg">
+                                  {isGeneratingReplies && (
+                                    <div className="py-4 text-center text-xs text-zinc-500 font-mono animate-pulse flex items-center justify-center gap-2">
+                                      <span className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" />
+                                      <span>Ciel AI is analyzing context and drafting smart replies...</span>
+                                    </div>
+                                  )}
+
+                                  {!isGeneratingReplies && aiSuggestions.length > 0 && (
+                                    <div className="space-y-2">
+                                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Select a reply template:</span>
+                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                        {aiSuggestions.map((sug, idx) => (
+                                          <button
+                                            key={idx}
+                                            onClick={() => {
+                                              setSelectedReplyIndex(idx);
+                                              setReplyBody(sug.body);
+                                            }}
+                                            className={`p-2.5 text-left border rounded transition-all select-none cursor-pointer ${
+                                              selectedReplyIndex === idx
+                                                ? "bg-purple-950/40 border-purple-500 text-purple-200"
+                                                : "bg-[#141724] border-slate-800 hover:border-slate-600 text-zinc-400"
+                                            }`}
+                                          >
+                                            <div className="font-bold text-[10px] mb-1 uppercase tracking-wider">{sug.label}</div>
+                                            <div className="text-[9px] line-clamp-2 leading-relaxed opacity-80">{sug.body}</div>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {(!isGeneratingReplies || replyBody) && (
+                                    <div className="space-y-2">
+                                      <textarea
+                                        value={replyBody}
+                                        onChange={(e) => setReplyBody(e.target.value)}
+                                        placeholder="Select a suggestion above or type your reply manually here..."
+                                        rows={4}
+                                        className="w-full text-xs p-3 bg-[#141724] border border-slate-800 rounded outline-none focus:ring-1 focus:ring-purple-600 text-white resize-none"
+                                      />
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[9px] text-zinc-500">Subject: Re: {email.subject}</span>
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            onClick={() => {
+                                              setActiveReplyEmailId(null);
+                                              setReplyBody("");
+                                              setAiSuggestions([]);
+                                              setSelectedReplyIndex(null);
+                                            }}
+                                            className="px-2.5 py-1.5 text-zinc-500 hover:text-zinc-300 rounded font-bold uppercase text-[9px] cursor-pointer"
+                                          >
+                                            Cancel
+                                          </button>
+                                          <button
+                                            onClick={() => handleSendSmartReply(email.fromEmail, email.subject)}
+                                            disabled={isSendingReply || !replyBody.trim()}
+                                            className="px-3 py-1.5 bg-purple-800 hover:bg-purple-700 disabled:bg-slate-800 disabled:text-zinc-600 text-white rounded font-bold uppercase text-[9px] cursor-pointer transition-colors"
+                                          >
+                                            {isSendingReply ? "Sending..." : "Send Reply"}
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         ) : (
@@ -926,7 +1151,10 @@ export default function Home() {
                       <span className="text-[10px] text-zinc-500 font-mono">({activeConversationId})</span>
                     )}
                     <span className="text-[9px] bg-purple-900/30 text-purple-300 border border-purple-800/80 px-2 py-0.5 rounded font-mono font-bold shrink-0">
-                      Tokens: {tokensConsumed}
+                      Tokens: {tokensConsumed.toLocaleString()} / 100,000
+                    </span>
+                    <span className="text-[9px] bg-zinc-800/40 text-zinc-400 border border-zinc-700 px-2 py-0.5 rounded font-mono shrink-0">
+                      Daily Quota: 1M max
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -972,14 +1200,52 @@ export default function Home() {
                   )}
                 </div>
 
+                {/* Limit Banner */}
+                {(isDailyLimitReached || isConvLimitReached) && (
+                  <div className="p-3 bg-red-950/20 border border-red-950/80 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <span className="text-red-200 font-medium flex items-center gap-1.5">
+                      <span>🚨</span>
+                      {isDailyLimitReached ? (
+                        <span><strong>Daily Limit Reached:</strong> You have consumed 1M tokens today. Please upgrade to the Pro Plan to continue.</span>
+                      ) : (
+                        <span><strong>Conversation Limit Reached:</strong> Conversation used 100k tokens. Upgrade to Pro or start a new chat.</span>
+                      )}
+                    </span>
+                    <div className="flex gap-2 shrink-0">
+                      {isConvLimitReached && !isDailyLimitReached && (
+                        <button
+                          type="button"
+                          onClick={handleStartFreshChat}
+                          className="px-3 py-1.5 bg-red-900/40 text-red-200 border border-red-800 rounded font-bold uppercase hover:bg-red-800/60 transition-colors cursor-pointer text-[10px]"
+                        >
+                          New Chat
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => alert("Pro Plan upgrade portal is not available in hackathon demo mode.")}
+                        className="px-3 py-1.5 bg-purple-900/40 text-purple-200 border border-purple-800 rounded font-bold uppercase hover:bg-purple-800/60 transition-colors cursor-pointer text-[10px]"
+                      >
+                        Upgrade to Pro
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Textarea Input Form */}
                 <form onSubmit={handleChatSubmit} className={`relative border ${borderClass} ${inputBgClass} rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-purple-600 transition-all`}>
                   <textarea
-                    placeholder="Ask Ciel to send emails, list messages, or schedule meetings..."
+                    placeholder={
+                      isDailyLimitReached 
+                        ? "Daily token quota reached. Please upgrade to the Pro Plan." 
+                        : isConvLimitReached 
+                        ? "Conversation limit reached. Start a new chat or upgrade to Pro."
+                        : "Ask Ciel to send emails, list messages, or schedule meetings..."
+                    }
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    disabled={isSendingChat}
+                    disabled={isInputDisabled}
                     rows={3}
                     className="w-full bg-transparent text-sm p-4 pb-12 outline-none resize-none disabled:opacity-50"
                   />
@@ -987,7 +1253,8 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={clearChat}
-                      className={`text-xs px-3 py-1.5 font-bold uppercase rounded transition-colors ${
+                      disabled={isInputDisabled}
+                      className={`text-xs px-3 py-1.5 font-bold uppercase rounded transition-colors disabled:opacity-50 ${
                         isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-black"
                       }`}
                     >
@@ -995,7 +1262,7 @@ export default function Home() {
                     </button>
                     <button
                       type="submit"
-                      disabled={isSendingChat || !chatInput.trim()}
+                      disabled={isInputDisabled || !chatInput.trim()}
                       className="bg-purple-800 hover:bg-purple-700 disabled:bg-gray-100 dark:disabled:bg-zinc-800 disabled:text-gray-400 dark:disabled:text-zinc-600 text-white text-xs px-4 py-1.5 font-bold uppercase rounded transition-colors"
                     >
                       Send
@@ -1171,6 +1438,77 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      {/* Compose Email Modal */}
+      {showComposeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setShowComposeModal(false)}>
+          <div 
+            className={`w-full max-w-xl border rounded-lg shadow-2xl overflow-hidden flex flex-col min-h-[400px] ${cardBgClass} transition-transform duration-300 transform scale-100`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`p-4 border-b ${borderClass} flex items-center justify-between`}>
+              <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-wider`}>Compose New Message</h3>
+              <button 
+                onClick={() => setShowComposeModal(false)}
+                className="text-zinc-500 hover:text-zinc-300 font-bold text-lg"
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleSendComposeMail} className="flex-1 flex flex-col p-4 space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] text-zinc-500 uppercase font-bold">To:</label>
+                <input 
+                  type="email" 
+                  value={composeTo}
+                  onChange={(e) => setComposeTo(e.target.value)}
+                  placeholder="recipient@example.com"
+                  required
+                  className="w-full text-xs p-2.5 bg-[#141724] border border-slate-800 rounded outline-none focus:ring-1 focus:ring-purple-600 text-white"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-zinc-500 uppercase font-bold">Subject:</label>
+                <input 
+                  type="text" 
+                  value={composeSubject}
+                  onChange={(e) => setComposeSubject(e.target.value)}
+                  placeholder="Enter email subject"
+                  required
+                  className="w-full text-xs p-2.5 bg-[#141724] border border-slate-800 rounded outline-none focus:ring-1 focus:ring-purple-600 text-white"
+                />
+              </div>
+              <div className="flex-1 flex flex-col space-y-1">
+                <label className="text-[10px] text-zinc-500 uppercase font-bold">Message:</label>
+                <textarea 
+                  value={composeBody}
+                  onChange={(e) => setComposeBody(e.target.value)}
+                  placeholder="Type your message here..."
+                  rows={8}
+                  required
+                  className="flex-1 text-xs p-3 bg-[#141724] border border-slate-800 rounded outline-none focus:ring-1 focus:ring-purple-600 text-white resize-none"
+                />
+              </div>
+              <div className="pt-2 border-t border-slate-800/80 flex justify-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowComposeModal(false)}
+                  className="px-3.5 py-2 text-zinc-500 hover:text-zinc-300 rounded font-bold uppercase text-[10px] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSendingCompose || !composeTo.trim() || !composeSubject.trim() || !composeBody.trim()}
+                  className="px-4 py-2 bg-purple-800 hover:bg-purple-700 disabled:bg-slate-800 disabled:text-zinc-600 text-white rounded font-bold uppercase text-[10px] cursor-pointer transition-colors"
+                >
+                  {isSendingCompose ? "Sending..." : "Send Email"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
