@@ -119,7 +119,7 @@ export async function POST(req: Request) {
     if (!openaiClient) {
       console.warn("[Ciel Chat API] OPENAI_API_KEY is not configured. Falling back to local AI simulation.");
       const fallbackResult = await handleFallbackAI(lastUserMessage.content, tenantId);
-      return NextResponse.json({ text: fallbackResult.text, fallback: true });
+      return NextResponse.json({ text: fallbackResult.text, fallback: true, tokens: 0 });
     }
 
     await dbInit();
@@ -355,7 +355,10 @@ Always answer in a precise, helpful, and slightly robotic/analytical tone.`,
       stopWhen: stepCountIs(5),
     });
 
-    return NextResponse.json({ text: response.text || "I have processed your request." });
+    return NextResponse.json({
+      text: response.text || "I have processed your request.",
+      tokens: response.usage?.totalTokens || 0
+    });
   } catch (error: any) {
     console.error("[Ciel Chat API Error]", error);
     return NextResponse.json(

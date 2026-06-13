@@ -43,10 +43,12 @@ export async function dbInit() {
           user_email VARCHAR(255) REFERENCES users(email) ON DELETE CASCADE,
           title VARCHAR(255) DEFAULT 'New Conversation',
           messages JSONB DEFAULT '[]',
+          tokens_used INTEGER DEFAULT 0,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
+      await pool.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS tokens_used INTEGER DEFAULT 0;");
       await pool.query("CREATE INDEX IF NOT EXISTS idx_conversations_user_email ON conversations(user_email);");
       initialized = true;
       return;
@@ -179,10 +181,12 @@ export async function dbInit() {
         user_email VARCHAR(255) REFERENCES users(email) ON DELETE CASCADE,
         title VARCHAR(255) DEFAULT 'New Conversation',
         messages JSONB DEFAULT '[]',
+        tokens_used INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    await pool.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS tokens_used INTEGER DEFAULT 0;");
     await pool.query("CREATE INDEX IF NOT EXISTS idx_conversations_user_email ON conversations(user_email);");
 
     console.log("[Database] Neon DB tables verified/created successfully with security optimizations.");

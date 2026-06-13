@@ -74,6 +74,7 @@ export default function Home() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [conversationsList, setConversationsList] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [tokensConsumed, setTokensConsumed] = useState(0);
 
   const fetchConversations = async () => {
     try {
@@ -87,12 +88,16 @@ export default function Home() {
     }
   };
 
-  const saveConversation = async (convId: string, messages: any[]) => {
+  const saveConversation = async (convId: string, messages: any[], tokens?: number) => {
     try {
       await fetch("/api/chat/conversations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: convId, messages }),
+        body: JSON.stringify({ 
+          id: convId, 
+          messages, 
+          tokens_used: tokens !== undefined ? tokens : tokensConsumed 
+        }),
       });
       fetchConversations();
     } catch (e) {
@@ -105,6 +110,7 @@ export default function Home() {
       fetchConversations();
       if (!activeConversationId) {
         setActiveConversationId(Math.random().toString(36).substring(2, 15));
+        setTokensConsumed(0);
       }
     }
   }, [activeView, activeConversationId]);
@@ -222,8 +228,9 @@ export default function Home() {
     const currentConvId = activeConversationId || Math.random().toString(36).substring(2, 15);
     if (!activeConversationId) {
       setActiveConversationId(currentConvId);
+      setTokensConsumed(0);
     }
-    await saveConversation(currentConvId, updatedMessagesWithUser);
+    await saveConversation(currentConvId, updatedMessagesWithUser, tokensConsumed);
 
     try {
       const res = await fetch("/api/chat", {
@@ -235,8 +242,10 @@ export default function Home() {
       });
 
       let finalMessages = updatedMessagesWithUser;
+      let addedTokens = 0;
       if (res.ok) {
         const data = await res.json();
+        addedTokens = data.tokens || 0;
         const assistantMsg = {
           id: Math.random().toString(),
           role: "assistant" as const,
@@ -253,8 +262,11 @@ export default function Home() {
         };
         finalMessages = [...updatedMessagesWithUser, errorMsg];
       }
+      
+      const newTotalTokens = tokensConsumed + addedTokens;
+      setTokensConsumed(newTotalTokens);
       useCielStore.setState({ chatMessages: finalMessages });
-      await saveConversation(currentConvId, finalMessages);
+      await saveConversation(currentConvId, finalMessages, newTotalTokens);
     } catch (err) {
       console.error("Chat error:", err);
       const errorMsg = {
@@ -265,7 +277,7 @@ export default function Home() {
       };
       const finalMessages = [...updatedMessagesWithUser, errorMsg];
       useCielStore.setState({ chatMessages: finalMessages });
-      await saveConversation(currentConvId, finalMessages);
+      await saveConversation(currentConvId, finalMessages, tokensConsumed);
     } finally {
       setIsSendingChat(false);
       // Automatically refresh data in case tool execution made changes
@@ -284,6 +296,7 @@ export default function Home() {
   const handleStartFreshChat = () => {
     const newId = Math.random().toString(36).substring(2, 15);
     setActiveConversationId(newId);
+    setTokensConsumed(0);
     useCielStore.setState({ chatMessages: [] });
   };
 
@@ -715,12 +728,15 @@ export default function Home() {
               <div className="flex-1 flex flex-col min-h-0 space-y-4">
                 {/* Chat Header Controls */}
                 <div className={`flex items-center justify-between border-b ${borderClass} pb-3`}>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse" />
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse shrink-0" />
                     <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-wider`}>Active Session</h3>
                     {activeConversationId && (
                       <span className="text-[10px] text-zinc-500 font-mono">({activeConversationId})</span>
                     )}
+                    <span className="text-[9px] bg-purple-900/30 text-purple-300 border border-purple-800/80 px-2 py-0.5 rounded font-mono font-bold shrink-0">
+                      Tokens: {tokensConsumed}
+                    </span>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
@@ -825,6 +841,7 @@ export default function Home() {
                             key={conv.id}
                             onClick={() => {
                               setActiveConversationId(conv.id);
+                              setTokensConsumed(conv.tokens_used || 0);
                               useCielStore.setState({ chatMessages: conv.messages || [] });
                             }}
                             className={`w-full text-left p-3 border rounded transition-all flex flex-col gap-1 cursor-pointer text-xs ${
@@ -835,6 +852,9 @@ export default function Home() {
                           >
                             <span className="font-bold truncate text-[11px] block">{conv.title || "Untitled Chat"}</span>
                             <span className="text-[9px] text-zinc-500 font-mono truncate">ID: {conv.id}</span>
+                            {conv.tokens_used > 0 && (
+                              <span className="text-[9px] text-zinc-400 font-mono">Tokens: {conv.tokens_used}</span>
+                            )}
                             <span className="text-[8px] text-zinc-600 self-end mt-1">
                               {new Date(conv.updated_at).toLocaleString()}
                             </span>

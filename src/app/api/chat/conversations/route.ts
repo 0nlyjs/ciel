@@ -12,7 +12,7 @@ export async function GET() {
 
     await dbInit();
     const res = await query(
-      "SELECT id, title, messages, created_at, updated_at FROM conversations WHERE user_email = $1 ORDER BY updated_at DESC",
+      "SELECT id, title, messages, tokens_used, created_at, updated_at FROM conversations WHERE user_email = $1 ORDER BY updated_at DESC",
       [session.user.email]
     );
     return NextResponse.json({ conversations: res.rows });
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id, messages } = await req.json();
+    const { id, messages, tokens_used } = await req.json();
     if (!id) {
       return NextResponse.json({ error: "Conversation ID is required" }, { status: 400 });
     }
@@ -47,13 +47,14 @@ export async function POST(req: Request) {
     }
 
     await query(
-      `INSERT INTO conversations (id, user_email, title, messages, updated_at)
-       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+      `INSERT INTO conversations (id, user_email, title, messages, tokens_used, updated_at)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
        ON CONFLICT (id) DO UPDATE SET
          messages = EXCLUDED.messages,
          title = EXCLUDED.title,
+         tokens_used = EXCLUDED.tokens_used,
          updated_at = CURRENT_TIMESTAMP`,
-      [id, session.user.email, title, JSON.stringify(messages)]
+      [id, session.user.email, title, JSON.stringify(messages), tokens_used || 0]
     );
 
     return NextResponse.json({ success: true, title });
