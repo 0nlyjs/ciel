@@ -48,21 +48,46 @@ export default function DashboardPage() {
   const fetchLocalIntegrations = useCielStore((s) => s.fetchLocalIntegrations);
 
   const isDark = theme === "dark";
-  const bgClass = isDark ? "bg-[#303854] text-gray-200" : "bg-[#f3f4f6] text-gray-700";
-  const headerBgClass = isDark ? "border-b border-slate-700/60" : "border-b border-gray-200";
-  const borderClass = isDark ? "border-slate-700/60" : "border-gray-200";
-  const border900Class = isDark ? "border-slate-800/80" : "border-gray-200";
-  const cardBgClass = isDark ? "bg-[#1a1e30] border-slate-700/60" : "bg-white border-gray-200 shadow-sm";
-  const innerCardBgClass = isDark ? "bg-[#141724]" : "bg-gray-50";
-  const activeTabClass = isDark ? "bg-[#141724] text-white" : "bg-white text-gray-900";
-  const inactiveTabClass = isDark ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600";
-  const tabContainerBgClass = isDark ? "bg-[#181c2c]" : "bg-gray-100";
-  const actionContainerBgClass = isDark ? "bg-[#1b1f30]" : "bg-gray-50";
-  const inputBgClass = isDark ? "bg-[#141724] border-slate-700/60 text-white" : "bg-white border-gray-300 text-gray-900";
-  const buttonBgClass = isDark ? "bg-gray-800 hover:bg-gray-700 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-800";
-  const textWhiteClass = isDark ? "text-white" : "text-gray-900";
-  const textMutedClass = isDark ? "text-slate-400/80" : "text-gray-400";
-  const accordionHeaderBgClass = isDark ? "bg-[#171b29]" : "bg-gray-50";
+  const bgClass = isDark ? "text-gray-300 selection:bg-purple-500 selection:text-white" : "text-slate-700 selection:bg-cyan-500 selection:text-black";
+  const headerBgClass = isDark ? "border-b border-white/5" : "border-b border-slate-900/5";
+  const borderClass = isDark ? "border-white/5" : "border-slate-900/5";
+  const border900Class = isDark ? "border-white/10" : "border-slate-900/10";
+  
+  // Frosted glass cards:
+  const cardBgClass = isDark 
+    ? "bg-slate-950/45 backdrop-blur-xl border border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.2)]"
+    : "bg-white/45 backdrop-blur-xl border border-slate-900/10 shadow-[0_4px_30px_rgba(0,0,0,0.02)]";
+  
+  const innerCardBgClass = isDark ? "bg-black/20" : "bg-slate-900/5";
+  
+  // Pill tabs:
+  const activeTabClass = isDark 
+    ? "bg-purple-500/20 text-purple-350 border-purple-500/40" 
+    : "bg-cyan-500/10 text-cyan-700 border-cyan-500/20";
+  
+  const inactiveTabClass = isDark 
+    ? "text-gray-400 hover:text-white border-transparent" 
+    : "text-slate-500 hover:text-slate-900 border-transparent";
+    
+  const tabContainerBgClass = isDark ? "bg-black/10" : "bg-slate-900/5";
+  const actionContainerBgClass = isDark ? "bg-black/10" : "bg-slate-900/5";
+  
+  // Inputs:
+  const inputBgClass = isDark 
+    ? "bg-black/25 focus:bg-black/40 border-white/10 focus:border-purple-500/50 text-white" 
+    : "bg-slate-900/5 focus:bg-slate-900/10 border-slate-900/10 focus:border-cyan-500/50 text-slate-900";
+    
+  const buttonBgClass = isDark 
+    ? "bg-white/5 hover:bg-white/10 text-white border border-white/5" 
+    : "bg-slate-900/5 hover:bg-slate-900/10 text-slate-800 border border-slate-900/5";
+    
+  const textWhiteClass = isDark ? "text-white" : "text-slate-900";
+  const textMutedClass = isDark ? "text-slate-400" : "text-slate-500";
+  const accordionHeaderBgClass = isDark ? "bg-black/15" : "bg-slate-900/5";
+
+  const ambientBg = isDark
+    ? `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E"), linear-gradient(135deg, #0b0c10 0%, #12131a 30%, #1a1528 70%, #0b0c10 100%)`
+    : `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.035'/%3E%3C/svg%3E"), linear-gradient(135deg, #bfdbfe 0%, #c7d2fe 16%, #ddd6fe 32%, #fbcfe8 48%, #fecdd3 64%, #fed7aa 80%, #bbf7d0 100%)`;
 
   // Tab State
   const [activeView, setActiveView] = useState<"emails" | "calendar" | "chat" | "store" | "settings">("emails");
@@ -445,28 +470,56 @@ export default function DashboardPage() {
 
   if (isPending || !session) {
     return (
-      <div className="min-h-screen bg-[#0a0b0d] text-gray-400 flex items-center justify-center font-sans">
-        <p>Loading developer dashboard session...</p>
+      <div className="min-h-screen bg-[#0b0c10] text-gray-400 flex flex-col items-center justify-center font-sans gap-4">
+        <div className="w-12 h-12 rounded-full bg-gradient-to-b from-cyan-400 to-blue-600 flex items-center justify-center font-bold text-white tracking-tighter shadow-md animate-pulse">
+          C
+        </div>
+        <p className="text-xs uppercase tracking-widest text-slate-500 font-mono animate-pulse">Initializing Console...</p>
       </div>
     );
   }
 
   return (
-    <div className={`${activeView === "chat" ? "h-screen overflow-hidden" : "min-h-screen"} ${bgClass} p-6 font-sans flex flex-col transition-colors duration-300`}>
-      {/* Header */}
-      <header className={`${headerBgClass} pb-4 mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4`}>
-        <div>
-          <h1 className={`text-lg font-extrabold ${textWhiteClass} uppercase tracking-normal leading-tight`}>CIEL // DEV CONSOLE</h1>
-          <p className={`text-xs ${textMutedClass} uppercase`}>Backend Integration Testing Dashboard</p>
+    <div className={`${activeView === "chat" ? "h-screen overflow-hidden" : "min-h-screen"} relative bg-transparent ${bgClass} p-6 font-sans flex flex-col transition-all duration-300`}>
+      {/* Ambient Background Layer */}
+      <div
+        className="fixed inset-0 pointer-events-none -z-10 select-none overflow-hidden"
+        style={{
+          background: ambientBg,
+        }}
+      >
+        <div className={`absolute top-[10%] left-[5%] w-[45vw] h-[45vw] max-w-[600px] rounded-full blur-[120px] transition-all duration-500 ${
+          isDark ? "bg-indigo-500/5 animate-float-slow-1" : "bg-sky-300/25 animate-float-slow-1"
+        }`} />
+        <div className={`absolute bottom-[10%] right-[5%] w-[50vw] h-[50vw] max-w-[700px] rounded-full blur-[140px] transition-all duration-500 ${
+          isDark ? "bg-fuchsia-500/5 animate-float-slow-2" : "bg-pink-300/25 animate-float-slow-2"
+        }`} />
+        <div className={`absolute top-[40%] left-[35%] w-[40vw] h-[40vw] max-w-[500px] rounded-full blur-[120px] transition-all duration-500 ${
+          isDark ? "bg-violet-500/5 animate-float-slow-3" : "bg-violet-300/15 animate-float-slow-3"
+        }`} />
+      </div>
+
+      {/* Floating Header */}
+      <header className={`w-full backdrop-blur-xl border border-slate-200/20 dark:border-white/5 rounded-2xl px-6 py-3 mb-6 flex items-center justify-between shadow-sm transition-all duration-300 ${
+        isDark ? "bg-slate-950/45" : "bg-white/45"
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-b from-cyan-400 to-blue-600 flex items-center justify-center font-bold text-white tracking-tighter shadow-sm">
+            C
+          </div>
+          <div>
+            <span className={`font-bold tracking-widest text-xs uppercase ${textWhiteClass}`}>Ceil.</span>
+            <span className="text-[9px] text-cyan-600 dark:text-cyan-400 font-mono ml-2 uppercase tracking-wider font-bold">Workspace Console</span>
+          </div>
         </div>
-        
-        <div className="flex flex-wrap items-center gap-4 text-xs">
-          <span className={textMutedClass}>
-            USER: <span className={textWhiteClass}>{session.user.email}</span>
+
+        <div className="flex items-center gap-4 text-xs">
+          <span className={`text-[10px] uppercase font-bold tracking-wider ${textMutedClass} hidden sm:inline`}>
+            Node: <span className={`font-mono ${textWhiteClass}`}>{session.user.email}</span>
           </span>
           <button
             onClick={handleSignOutClick}
-            className={`border ${borderClass} px-3 py-1.5 hover:bg-gray-500/10 rounded cursor-pointer ${isDark ? "text-gray-400 hover:text-white" : "text-gray-600 hover:text-black"}`}
+            className={`px-3 py-1.5 liquid-glass-button border border-slate-200/20 dark:border-white/5 text-[9px] uppercase text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer`}
           >
             Sign Out
           </button>
@@ -477,13 +530,13 @@ export default function DashboardPage() {
       {activeView !== "chat" && (
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {/* Gmail status */}
-          <div className={`border ${borderClass} ${cardBgClass} p-4 rounded flex flex-col justify-between`}>
+          <div className={`p-5 rounded-2xl flex flex-col justify-between ${cardBgClass}`}>
             <div>
               <h2 className={`text-xs font-bold ${textWhiteClass} mb-1 uppercase tracking-normal leading-tight`}>Gmail Integration</h2>
-              <p className={`text-xs ${textMutedClass} mb-3`}>Corsair synchronization status for user emails.</p>
+              <p className={`text-[11px] ${textMutedClass} mb-3`}>Corsair synchronization status for user emails.</p>
               <div className="flex items-center gap-2 mb-4">
-                <span className={`inline-block w-2.5 h-2.5 rounded-full ${gmailConnected ? "bg-green-500" : "bg-red-500"}`} />
-                <span className="text-xs">{gmailConnected ? "CONNECTED" : "DISCONNECTED"}</span>
+                <span className={`inline-block w-2 h-2 rounded-full ${gmailConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
+                <span className="text-[11px] font-semibold uppercase">{gmailConnected ? "CONNECTED" : "DISCONNECTED"}</span>
               </div>
             </div>
             {gmailConnected ? (
@@ -503,7 +556,11 @@ export default function DashboardPage() {
                     console.error("Disconnect gmail failed:", e);
                   }
                 }}
-                className="text-center w-full py-2 bg-red-950/60 hover:bg-red-900/60 text-red-200 border border-red-900 rounded text-xs uppercase font-bold cursor-pointer"
+                className={`text-center w-full py-2.5 rounded-xl text-xs uppercase font-bold cursor-pointer transition-colors ${
+                  isDark 
+                    ? "bg-red-950/40 hover:bg-red-900/50 text-red-350 border border-red-900/40" 
+                    : "bg-red-50 hover:bg-red-100 text-red-700 border border-red-200"
+                }`}
               >
                 Disconnect Gmail
               </button>
@@ -520,7 +577,7 @@ export default function DashboardPage() {
                     console.error("Failed to connect gmail:", e);
                   }
                 }}
-                className={`text-center w-full py-2 ${buttonBgClass} rounded text-xs uppercase font-bold cursor-pointer`}
+                className={`text-center w-full py-2.5 ${buttonBgClass} border border-slate-900/10 dark:border-white/5 rounded-xl text-xs uppercase font-bold cursor-pointer`}
               >
                 Connect Gmail
               </button>
@@ -528,13 +585,13 @@ export default function DashboardPage() {
           </div>
 
           {/* Calendar status */}
-          <div className={`border ${borderClass} ${cardBgClass} p-4 rounded flex flex-col justify-between`}>
+          <div className={`p-5 rounded-2xl flex flex-col justify-between ${cardBgClass}`}>
             <div>
               <h2 className={`text-xs font-bold ${textWhiteClass} mb-1 uppercase tracking-normal leading-tight`}>Google Calendar</h2>
-              <p className={`text-xs ${textMutedClass} mb-3`}>Corsair synchronization status for user schedules.</p>
+              <p className={`text-[11px] ${textMutedClass} mb-3`}>Corsair synchronization status for user schedules.</p>
               <div className="flex items-center gap-2 mb-4">
-                <span className={`inline-block w-2.5 h-2.5 rounded-full ${calendarConnected ? "bg-green-500" : "bg-red-500"}`} />
-                <span className="text-xs">{calendarConnected ? "CONNECTED" : "DISCONNECTED"}</span>
+                <span className={`inline-block w-2 h-2 rounded-full ${calendarConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
+                <span className="text-[11px] font-semibold uppercase">{calendarConnected ? "CONNECTED" : "DISCONNECTED"}</span>
               </div>
             </div>
             {calendarConnected ? (
@@ -554,7 +611,11 @@ export default function DashboardPage() {
                     console.error("Disconnect calendar failed:", e);
                   }
                 }}
-                className="text-center w-full py-2 bg-red-950/60 hover:bg-red-900/60 text-red-200 border border-red-900 rounded text-xs uppercase font-bold cursor-pointer"
+                className={`text-center w-full py-2.5 rounded-xl text-xs uppercase font-bold cursor-pointer transition-colors ${
+                  isDark 
+                    ? "bg-red-950/40 hover:bg-red-900/50 text-red-350 border border-red-900/40" 
+                    : "bg-red-50 hover:bg-red-100 text-red-700 border border-red-200"
+                }`}
               >
                 Disconnect Calendar
               </button>
@@ -571,7 +632,7 @@ export default function DashboardPage() {
                     console.error("Failed to connect calendar:", e);
                   }
                 }}
-                className={`text-center w-full py-2 ${buttonBgClass} rounded text-xs uppercase font-bold cursor-pointer`}
+                className={`text-center w-full py-2.5 ${buttonBgClass} border border-slate-900/10 dark:border-white/5 rounded-xl text-xs uppercase font-bold cursor-pointer`}
               >
                 Connect Calendar
               </button>
@@ -581,36 +642,46 @@ export default function DashboardPage() {
       )}
 
       {/* Main Workspace Console */}
-      <div className={`flex-1 flex flex-col border ${borderClass} ${cardBgClass} rounded overflow-hidden`}>
+      <div className={`flex-1 flex flex-col rounded-2xl overflow-hidden ${cardBgClass}`}>
         {/* Navigation Tabs */}
-        <div className={`border-b ${borderClass} flex ${tabContainerBgClass} text-xs`}>
+        <div className={`border-b ${borderClass} flex flex-wrap p-2 gap-1.5 ${tabContainerBgClass} text-xs`}>
           <button
             onClick={() => setActiveView("emails")}
-            className={`px-4 py-3 border-r ${borderClass} font-bold uppercase tracking-wider cursor-pointer ${activeView === "emails" ? activeTabClass : inactiveTabClass}`}
+            className={`px-4 py-2 rounded-xl font-bold uppercase tracking-wider transition-all duration-200 border cursor-pointer ${
+              activeView === "emails" ? activeTabClass : inactiveTabClass
+            }`}
           >
             Emails ({emailsTotal})
           </button>
           <button
             onClick={() => setActiveView("calendar")}
-            className={`px-4 py-3 border-r ${borderClass} font-bold uppercase tracking-wider cursor-pointer ${activeView === "calendar" ? activeTabClass : inactiveTabClass}`}
+            className={`px-4 py-2 rounded-xl font-bold uppercase tracking-wider transition-all duration-200 border cursor-pointer ${
+              activeView === "calendar" ? activeTabClass : inactiveTabClass
+            }`}
           >
             Calendar ({calendarEvents.length})
           </button>
           <button
             onClick={() => setActiveView("chat")}
-            className={`px-4 py-3 border-r ${borderClass} font-bold uppercase tracking-wider cursor-pointer ${activeView === "chat" ? activeTabClass : inactiveTabClass}`}
+            className={`px-4 py-2 rounded-xl font-bold uppercase tracking-wider transition-all duration-200 border cursor-pointer ${
+              activeView === "chat" ? activeTabClass : inactiveTabClass
+            }`}
           >
             AI Chat Console ({chatMessages.length})
           </button>
           <button
             onClick={() => setActiveView("settings")}
-            className={`px-4 py-3 border-r ${borderClass} font-bold uppercase tracking-wider cursor-pointer ${activeView === "settings" ? activeTabClass : inactiveTabClass}`}
+            className={`px-4 py-2 rounded-xl font-bold uppercase tracking-wider transition-all duration-200 border cursor-pointer ${
+              activeView === "settings" ? activeTabClass : inactiveTabClass
+            }`}
           >
             Settings & Integrations
           </button>
           <button
             onClick={() => setActiveView("store")}
-            className={`px-4 py-3 font-bold uppercase tracking-wider cursor-pointer ${activeView === "store" ? activeTabClass : inactiveTabClass}`}
+            className={`px-4 py-2 rounded-xl font-bold uppercase tracking-wider transition-all duration-200 border cursor-pointer ${
+              activeView === "store" ? activeTabClass : inactiveTabClass
+            }`}
           >
             Zustand Store Dump
           </button>
@@ -625,11 +696,11 @@ export default function DashboardPage() {
                 placeholder="Search Emails & Calendar events (triggers vector search DB lookup)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className={`flex-1 ${inputBgClass} border ${borderClass} text-xs px-3 py-2 outline-none rounded font-mono`}
+                className={`flex-1 ${inputBgClass} border ${borderClass} text-xs px-3 py-2.5 outline-none rounded-xl font-mono`}
               />
               <button
                 type="submit"
-                className={`${buttonBgClass} text-xs px-4 py-2 font-bold uppercase rounded cursor-pointer`}
+                className={`text-xs px-4 py-2.5 font-bold uppercase border border-slate-900/10 dark:border-white/5 rounded-xl cursor-pointer ${buttonBgClass}`}
               >
                 Search
               </button>
@@ -653,7 +724,7 @@ export default function DashboardPage() {
                   }
                 }}
                 disabled={isRefreshing}
-                className={`${buttonBgClass} text-xs px-4 py-2 font-bold uppercase rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
+                className={`text-xs px-4 py-2.5 font-bold uppercase border border-slate-900/10 dark:border-white/5 rounded-xl cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${buttonBgClass}`}
               >
                 {isRefreshing ? (
                   <>
@@ -679,7 +750,7 @@ export default function DashboardPage() {
                 </span>
                 
                 {/* Pagination Controls */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -688,11 +759,11 @@ export default function DashboardPage() {
                       }
                     }}
                     disabled={emailsPage <= 1}
-                    className={`px-2 py-1 ${buttonBgClass} disabled:opacity-30 disabled:bg-gray-950 disabled:text-gray-700 rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed uppercase`}
+                    className={`px-3 py-1.5 border border-slate-900/10 dark:border-white/5 rounded-xl text-[10px] font-bold cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed uppercase ${buttonBgClass}`}
                   >
                     &lt; Prev
                   </button>
-                  <span className="text-xs text-gray-400 font-bold">
+                  <span className="text-xs text-slate-500 font-bold px-1">
                     {startRange}-{endRange}
                   </span>
                   <button
@@ -706,13 +777,13 @@ export default function DashboardPage() {
                       }
                     }}
                     disabled={!emailsHasMore && emailsPage >= Math.ceil(emailsTotal / emailsPerPage)}
-                    className={`px-2 py-1 ${buttonBgClass} disabled:opacity-30 disabled:bg-gray-950 disabled:text-gray-700 rounded text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed uppercase`}
+                    className={`px-3 py-1.5 border border-slate-900/10 dark:border-white/5 rounded-xl text-[10px] font-bold cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed uppercase ${buttonBgClass}`}
                   >
                     Next &gt;
                   </button>
                   <button
                     onClick={() => handleInitiateCompose()}
-                    className="px-3 py-1 bg-purple-900/40 hover:bg-purple-800/60 text-purple-200 border border-purple-800/80 rounded text-[10px] font-bold cursor-pointer uppercase shrink-0"
+                    className="px-3.5 py-1.5 bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20 rounded-xl text-[10px] font-bold cursor-pointer hover:bg-purple-500/25 transition-colors uppercase shrink-0"
                   >
                     + Compose Mail
                   </button>
@@ -735,20 +806,20 @@ export default function DashboardPage() {
                     })();
 
                     const emailBgClass = email.read
-                      ? (isDark ? "bg-[#121520] opacity-90" : "bg-gray-100/50 text-gray-500")
-                      : (isDark ? "bg-[#252a3f] border-l-2 border-l-[#FF007F]" : "bg-white border-l-2 border-l-[#00F0FF] shadow-sm");
+                      ? (isDark ? "bg-black/15 text-slate-400 opacity-80" : "bg-slate-900/5 text-slate-500 opacity-80")
+                      : (isDark ? "bg-white/5 border-l-2 border-l-purple-500" : "bg-white/70 border-l-2 border-l-cyan-500 shadow-sm");
                     
                     const senderTextClass = email.read
-                      ? "text-gray-500 font-normal"
-                      : (isDark ? "text-white font-bold" : "text-gray-900 font-bold");
+                      ? "text-slate-500 font-normal"
+                      : (isDark ? "text-white font-bold" : "text-slate-950 font-bold");
                       
                     const subjectTextClass = email.read
-                      ? (isDark ? "text-gray-400 font-normal" : "text-gray-500 font-normal")
-                      : (isDark ? "text-white font-bold" : "text-gray-900 font-bold");
+                      ? (isDark ? "text-slate-400 font-normal" : "text-slate-500 font-normal")
+                      : (isDark ? "text-white font-bold" : "text-slate-950 font-bold");
 
                     const dateTextClass = email.read
-                      ? "text-gray-500 font-normal"
-                      : (isDark ? "text-[#00F0FF] font-bold" : "text-cyan-600 font-bold");
+                      ? "text-slate-500 font-normal"
+                      : (isDark ? "text-purple-400 font-bold" : "text-cyan-600 font-bold");
 
                     return (
                       <div
@@ -759,50 +830,50 @@ export default function DashboardPage() {
                             markAsRead(email.id);
                           }
                         }}
-                        className={`border ${border900Class} ${emailBgClass} rounded text-xs cursor-pointer hover:border-gray-500 transition-all duration-200 overflow-hidden`}
+                        className={`border ${border900Class} ${emailBgClass} rounded-xl text-xs cursor-pointer hover:border-slate-400 dark:hover:border-white/20 transition-all duration-200 overflow-hidden`}
                       >
                         {isExpanded ? (
                           <div className={`p-4 space-y-3 ${accordionHeaderBgClass}`}>
                             <div className={`flex flex-col sm:flex-row justify-between pb-2 border-b ${border900Class}`}>
                               <div>
                                 <span className={`font-bold ${textWhiteClass}`}>FROM: {email.from}</span>
-                                <span className="text-gray-500 ml-2">&lt;{email.fromEmail}&gt;</span>
+                                <span className="text-slate-500 ml-2">&lt;{email.fromEmail}&gt;</span>
                               </div>
-                              <span className="text-gray-500 text-[10px] font-mono">{displayDate}</span>
+                              <span className="text-slate-500 text-[10px] font-mono">{displayDate}</span>
                             </div>
                             <div>
                               <h3 className={`text-sm font-bold ${textWhiteClass} tracking-normal leading-tight`}>{email.subject}</h3>
                             </div>
-                            <p className={`${isDark ? "text-gray-400" : "text-gray-600"} font-sans font-normal leading-relaxed whitespace-pre-wrap ${actionContainerBgClass}/50 p-3 border ${border900Class} rounded select-text`}>
+                            <p className={`${isDark ? "text-slate-300" : "text-slate-700"} font-sans font-normal leading-relaxed whitespace-pre-wrap ${innerCardBgClass} p-4 border border-slate-900/5 dark:border-white/5 rounded-xl select-text`}>
                               {email.body}
                             </p>
-                            <div className="flex gap-4 text-[10px] text-gray-500 uppercase font-semibold pt-1">
-                              <span>Category: <span className={isDark ? "text-gray-400" : "text-gray-600"}>{email.category}</span></span>
-                              <span>Priority: <span className={isDark ? "text-gray-400" : "text-gray-600"}>{email.priority}</span></span>
-                              <span>Read: <span className={isDark ? "text-gray-400" : "text-gray-600"}>{email.read ? "yes" : "no"}</span></span>
+                            <div className="flex gap-4 text-[10px] text-slate-500 uppercase font-semibold pt-1">
+                              <span>Category: <span className={isDark ? "text-slate-400" : "text-slate-650"}>{email.category}</span></span>
+                              <span>Priority: <span className={isDark ? "text-slate-400" : "text-slate-650"}>{email.priority}</span></span>
+                              <span>Read: <span className={isDark ? "text-slate-400" : "text-slate-650"}>{email.read ? "yes" : "no"}</span></span>
                             </div>
 
                             {/* AI Reply & Compose Controls */}
-                            <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-3" onClick={(e) => e.stopPropagation()}>
+                            <div className="mt-4 pt-3 border-t border-slate-900/10 dark:border-white/10 space-y-3" onClick={(e) => e.stopPropagation()}>
                               {activeReplyEmailId !== email.id ? (
                                 <div className="flex items-center gap-2">
                                   <button
                                     onClick={() => handleInitiateSmartReply(email)}
-                                    className="px-3 py-1.5 bg-purple-900/40 text-purple-200 hover:bg-purple-800/60 border border-purple-800/80 rounded font-bold uppercase text-[10px] cursor-pointer flex items-center gap-1.5 transition-colors"
+                                    className="px-3.5 py-1.5 bg-purple-500/10 text-purple-600 dark:text-purple-300 hover:bg-purple-500/20 border border-purple-500/20 rounded-xl font-bold uppercase text-[10px] cursor-pointer flex items-center gap-1.5 transition-colors"
                                   >
                                     <span>✨</span> Reply with AI
                                   </button>
                                   <button
                                     onClick={() => handleInitiateCompose(email.fromEmail, `Re: ${email.subject}`)}
-                                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded font-bold uppercase text-[10px] cursor-pointer transition-colors"
+                                    className="px-3.5 py-1.5 border border-slate-900/10 dark:border-white/5 bg-slate-900/5 dark:bg-white/5 text-slate-800 dark:text-slate-200 hover:bg-slate-900/10 dark:hover:bg-white/10 rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors"
                                   >
                                     Manual Reply
                                   </button>
                                 </div>
                               ) : (
-                                <div className="space-y-3 p-3 bg-slate-900/40 border border-slate-800/80 rounded-lg">
+                                <div className={`space-y-3 p-4 border border-slate-900/5 dark:border-white/5 rounded-xl ${innerCardBgClass}`}>
                                   {isGeneratingReplies && (
-                                    <div className="py-4 text-center text-xs text-zinc-500 font-mono animate-pulse flex items-center justify-center gap-2">
+                                    <div className="py-4 text-center text-xs text-slate-500 font-mono animate-pulse flex items-center justify-center gap-2">
                                       <span className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" />
                                       <span>Ciel AI is analyzing context and drafting smart replies...</span>
                                     </div>
@@ -810,7 +881,7 @@ export default function DashboardPage() {
 
                                   {!isGeneratingReplies && aiSuggestions.length > 0 && (
                                     <div className="space-y-2">
-                                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Select a reply template:</span>
+                                      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Select a reply template:</span>
                                       <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                         {aiSuggestions.map((sug, idx) => (
                                           <button
@@ -819,10 +890,10 @@ export default function DashboardPage() {
                                               setSelectedReplyIndex(idx);
                                               setReplyBody(sug.body);
                                             }}
-                                            className={`p-2.5 text-left border rounded transition-all select-none cursor-pointer ${
+                                            className={`p-3 text-left border rounded-xl transition-all duration-200 select-none cursor-pointer ${
                                               selectedReplyIndex === idx
-                                                ? "bg-purple-950/40 border-purple-500 text-purple-200"
-                                                : "bg-[#141724] border-slate-800 hover:border-slate-600 text-zinc-400"
+                                                ? (isDark ? "bg-purple-950/40 border-purple-500 text-purple-200" : "bg-purple-50 border-purple-300 text-purple-900")
+                                                : (isDark ? "bg-black/20 border-white/5 hover:border-white/10 text-slate-400" : "bg-white border-slate-200 hover:border-slate-300 text-slate-600")
                                             }`}
                                           >
                                             <div className="font-bold text-[10px] mb-1 uppercase tracking-wider">{sug.label}</div>
@@ -840,10 +911,10 @@ export default function DashboardPage() {
                                         onChange={(e) => setReplyBody(e.target.value)}
                                         placeholder="Select a suggestion above or type your reply manually here..."
                                         rows={4}
-                                        className="w-full text-xs p-3 bg-[#141724] border border-slate-800 rounded outline-none focus:ring-1 focus:ring-purple-600 text-white resize-none"
+                                        className={`w-full text-xs p-3 outline-none rounded-xl border transition-all duration-300 ${inputBgClass} resize-none`}
                                       />
                                       <div className="flex items-center justify-between">
-                                        <span className="text-[9px] text-zinc-500">Subject: Re: {email.subject}</span>
+                                        <span className="text-[9px] text-slate-500">Subject: Re: {email.subject}</span>
                                         <div className="flex items-center gap-2">
                                           <button
                                             onClick={() => {
@@ -852,14 +923,14 @@ export default function DashboardPage() {
                                               setAiSuggestions([]);
                                               setSelectedReplyIndex(null);
                                             }}
-                                            className="px-2.5 py-1.5 text-zinc-500 hover:text-zinc-300 rounded font-bold uppercase text-[9px] cursor-pointer"
+                                            className="px-3 py-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-xl font-bold uppercase text-[9px] cursor-pointer"
                                           >
                                             Cancel
                                           </button>
                                           <button
                                             onClick={() => handleSendSmartReply(email.fromEmail, email.subject)}
                                             disabled={isSendingReply || !replyBody.trim()}
-                                            className="px-3 py-1.5 bg-purple-800 hover:bg-purple-700 disabled:bg-slate-800 disabled:text-zinc-600 text-white rounded font-bold uppercase text-[9px] cursor-pointer transition-colors"
+                                            className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl font-bold uppercase text-[9px] cursor-pointer transition-colors"
                                           >
                                             {isSendingReply ? "Sending..." : "Send Reply"}
                                           </button>
@@ -872,7 +943,7 @@ export default function DashboardPage() {
                             </div>
                           </div>
                         ) : (
-                          <div className="px-4 py-3 flex items-center justify-between gap-4 hover:bg-gray-500/10 whitespace-nowrap overflow-hidden">
+                          <div className="px-4 py-3 flex items-center justify-between gap-4 hover:bg-slate-500/5 whitespace-nowrap overflow-hidden transition-colors">
                             <div className="flex items-center gap-4 min-w-0 flex-1 overflow-hidden">
                               <span className={`text-[10px] shrink-0 w-24 whitespace-nowrap ${dateTextClass} font-mono`}>
                                 {displayDate.split(",")[0]}
@@ -882,12 +953,12 @@ export default function DashboardPage() {
                               </span>
                               <span className="truncate flex-1 block whitespace-nowrap overflow-hidden text-ellipsis">
                                 <span className={subjectTextClass}>{email.subject}</span>
-                                <span className={`${isDark ? "text-gray-600" : "text-gray-400"} font-normal ml-3 whitespace-nowrap`}>
+                                <span className={`${isDark ? "text-slate-550" : "text-slate-400"} font-normal ml-3 whitespace-nowrap`}>
                                   — {email.body ? email.body.substring(0, 150).replace(/\r?\n/g, " ") : ""}
                                 </span>
                               </span>
                             </div>
-                            <span className="text-[10px] text-gray-600 uppercase shrink-0 font-bold whitespace-nowrap">
+                            <span className="text-[10px] text-slate-500 uppercase shrink-0 font-bold whitespace-nowrap">
                               {email.category}
                             </span>
                           </div>
@@ -911,19 +982,19 @@ export default function DashboardPage() {
               ) : (
                 <div className="space-y-3">
                   {calendarEvents.map((evt) => (
-                    <div key={evt.id} className={`border ${border900Class} p-3 ${innerCardBgClass} rounded text-xs`}>
-                      <div className={`flex flex-col sm:flex-row justify-between mb-2 pb-1.5 border-b ${border900Class}/50`}>
+                    <div key={evt.id} className={`border ${borderClass} p-4 ${innerCardBgClass} rounded-xl text-xs shadow-sm`}>
+                      <div className={`flex flex-col sm:flex-row justify-between mb-2 pb-1.5 border-b ${borderClass}/50`}>
                         <span className={`font-bold ${textWhiteClass} tracking-tight`}>{evt.title}</span>
-                        <span className="text-gray-500 font-mono">
+                        <span className="text-slate-500 font-mono">
                           {mounted ? `${new Date(evt.start).toLocaleString()} - ${new Date(evt.end).toLocaleString()}` : ""}
                         </span>
                       </div>
-                      {evt.location && <p className={`mb-1 ${isDark ? "text-gray-400" : "text-gray-600"} font-sans font-normal leading-relaxed`}>Location: {evt.location}</p>}
+                      {evt.location && <p className={`mb-1 ${isDark ? "text-slate-350" : "text-slate-650"} font-sans font-normal leading-relaxed`}>Location: {evt.location}</p>}
                       {evt.attendees && evt.attendees.length > 0 && (
-                        <p className={`mb-1 ${isDark ? "text-gray-400" : "text-gray-600"} font-sans font-normal leading-relaxed`}>Attendees: {evt.attendees.join(", ")}</p>
+                        <p className={`mb-1 ${isDark ? "text-slate-350" : "text-slate-650"} font-sans font-normal leading-relaxed`}>Attendees: {evt.attendees.join(", ")}</p>
                       )}
                       {evt.description && (
-                        <p className={`${isDark ? "text-gray-400" : "text-gray-600"} font-sans font-normal leading-relaxed whitespace-pre-wrap ${actionContainerBgClass}/50 p-2 border ${border900Class} rounded mt-2`}>{evt.description}</p>
+                        <p className={`${isDark ? "text-slate-350" : "text-slate-700"} font-sans font-normal leading-relaxed whitespace-pre-wrap bg-slate-900/5 dark:bg-black/20 p-3 border border-slate-900/5 dark:border-white/5 rounded-xl mt-2`}>{evt.description}</p>
                       )}
                     </div>
                   ))}
@@ -937,25 +1008,25 @@ export default function DashboardPage() {
             <div className="flex flex-1 min-h-0 gap-4">
               <div className="flex-1 flex flex-col min-h-0 space-y-4">
                 <div className={`flex items-center justify-between border-b ${borderClass} pb-3`}>
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
                     <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse shrink-0" />
-                    <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Active Session</h3>
+                    <h3 className={`font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Active Session</h3>
                     {activeConversationId && (
-                      <span className="text-[10px] text-zinc-500 font-mono">({activeConversationId})</span>
+                      <span className="text-[10px] text-slate-500 font-mono">({activeConversationId})</span>
                     )}
-                    <span className="text-[9px] bg-purple-900/30 text-purple-300 border border-purple-800/80 px-2 py-0.5 rounded font-mono font-bold shrink-0">
+                    <span className="text-[9px] bg-purple-500/10 text-purple-600 dark:text-purple-350 border border-purple-500/20 px-2 py-0.5 rounded-lg font-mono font-bold shrink-0">
                       Tokens: {tokensConsumed.toLocaleString()} / 100,000
                     </span>
-                    <span className="text-[9px] bg-zinc-800/40 text-zinc-400 border border-zinc-700 px-2 py-0.5 rounded font-mono shrink-0">
+                    <span className="text-[9px] bg-slate-900/5 dark:bg-white/5 text-slate-500 dark:text-slate-400 border border-slate-900/10 dark:border-white/10 px-2 py-0.5 rounded-lg font-mono shrink-0">
                       Daily Quota: 1M max
                     </span>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={handleStartFreshChat}
-                      className="text-[10px] px-3 py-1.5 bg-purple-950/40 hover:bg-purple-900/60 text-purple-200 border border-purple-800 rounded font-bold uppercase cursor-pointer transition-colors"
+                      className="text-[10px] px-3.5 py-1.5 bg-purple-500/10 text-purple-600 dark:text-purple-350 border border-purple-500/20 rounded-xl font-bold uppercase cursor-pointer hover:bg-purple-500/20 transition-all duration-200"
                     >
-                      + New Chat (Fresh Context)
+                      + New Chat
                     </button>
                     <button
                       onClick={() => {
@@ -964,43 +1035,56 @@ export default function DashboardPage() {
                           fetchConversations();
                         }
                       }}
-                      className="text-[10px] px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 rounded font-bold uppercase cursor-pointer transition-colors flex items-center gap-1.5"
+                      className={`text-[10px] px-3.5 py-1.5 border border-slate-900/10 dark:border-white/10 rounded-xl font-bold uppercase cursor-pointer transition-colors flex items-center gap-1.5 ${buttonBgClass}`}
                     >
                       <span>History</span>
-                      <span className="bg-gray-900 px-1 py-0.2 rounded text-[9px] text-zinc-400">
+                      <span className="bg-slate-900/10 dark:bg-black/20 px-1.5 py-0.2 rounded text-[9px] text-slate-500">
                         {conversationsList.length}
                       </span>
                     </button>
                   </div>
                 </div>
 
-                <div className={`flex-1 space-y-3 ${innerCardBgClass} p-4 border ${border900Class} rounded overflow-y-auto min-h-0`}>
-                  {chatMessages.map((msg) => (
-                    <div key={msg.id} className={`text-xs leading-relaxed flex items-start gap-1 ${msg.role === "assistant" ? "font-mono" : "font-sans font-normal"}`}>
-                      <span className={`font-bold ${msg.role === "user" ? "text-cyan-400" : "text-purple-400"} uppercase shrink-0 mt-[2px]`}>
-                        [{msg.role}]:
-                      </span>
-                      <div className="flex-1">
-                        <MarkdownRenderer content={msg.content} isDark={isDark} />
+                <div className={`flex-1 space-y-4 p-4 border border-slate-900/5 dark:border-white/5 bg-slate-900/5 dark:bg-black/10 rounded-2xl overflow-y-auto min-h-0`}>
+                  {chatMessages.map((msg) => {
+                    const isUser = msg.role === "user";
+                    return (
+                      <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"} mb-1`}>
+                        <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs shadow-[0_1px_2px_rgba(0,0,0,0.02)] border ${
+                          isUser
+                            ? (isDark ? "bg-cyan-950/40 border-cyan-800/50 text-cyan-200 rounded-tr-none" : "bg-cyan-50 border-cyan-200 text-cyan-950 rounded-tr-none")
+                            : (isDark ? "bg-black/35 border-white/5 text-slate-300 font-mono rounded-tl-none" : "bg-white/80 border-slate-200 text-slate-800 rounded-tl-none")
+                        }`}>
+                          <div className="flex items-center gap-1.5 mb-1 opacity-60 text-[9px] uppercase tracking-wider font-bold">
+                            <span>{msg.role}</span>
+                            <span>•</span>
+                            <span>{mounted && msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</span>
+                          </div>
+                          <div className={isUser ? "font-sans leading-relaxed" : "font-mono leading-relaxed"}>
+                            <MarkdownRenderer content={msg.content} isDark={isDark} />
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {isSendingChat && (
-                    <div className="text-xs text-gray-500 animate-pulse">
-                      <span>[assistant]: Thinking and generating tool responses...</span>
+                    <div className="flex justify-start">
+                      <div className={`rounded-2xl rounded-tl-none px-4 py-2.5 text-xs border bg-slate-100/30 dark:bg-white/5 border-slate-900/5 dark:border-white/5 text-slate-400 dark:text-slate-500 animate-pulse`}>
+                        <span>Thinking and generating tool responses...</span>
+                      </div>
                     </div>
                   )}
                 </div>
 
                 {/* Limit Banner */}
                 {(isDailyLimitReached || isConvLimitReached) && (
-                  <div className="p-3 bg-red-950/20 border border-red-950/80 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                    <span className="text-red-200 font-medium flex items-center gap-1.5">
+                  <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <span className="text-red-700 dark:text-red-300 font-semibold flex items-center gap-1.5">
                       <span>🚨</span>
                       {isDailyLimitReached ? (
-                        <span><strong>Daily Limit Reached:</strong> You have consumed 1M tokens today. Please upgrade to the Pro Plan to continue.</span>
+                        <span>Daily Limit Reached: You have consumed 1M tokens today. Please upgrade to the Pro Plan.</span>
                       ) : (
-                        <span><strong>Conversation Limit Reached:</strong> Conversation used 100k tokens. Upgrade to Pro or start a new chat.</span>
+                        <span>Conversation Limit Reached: Session used 100k tokens. Start a new chat or upgrade.</span>
                       )}
                     </span>
                     <div className="flex gap-2 shrink-0">
@@ -1008,7 +1092,7 @@ export default function DashboardPage() {
                         <button
                           type="button"
                           onClick={handleStartFreshChat}
-                          className="px-3 py-1.5 bg-red-900/40 text-red-200 border border-red-800 rounded font-bold uppercase hover:bg-red-800/60 transition-colors cursor-pointer text-[10px]"
+                          className="px-3.5 py-1.5 bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/40 rounded-xl font-bold uppercase hover:bg-red-500/20 transition-colors cursor-pointer text-[10px]"
                         >
                           New Chat
                         </button>
@@ -1016,7 +1100,7 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={() => alert("Pro Plan upgrade portal is not available in hackathon demo mode.")}
-                        className="px-3 py-1.5 bg-purple-900/40 text-purple-200 border border-purple-800 rounded font-bold uppercase hover:bg-purple-800/60 transition-colors cursor-pointer text-[10px]"
+                        className="px-3.5 py-1.5 bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-900/40 rounded-xl font-bold uppercase hover:bg-purple-500/20 transition-colors cursor-pointer text-[10px]"
                       >
                         Upgrade to Pro
                       </button>
@@ -1025,7 +1109,7 @@ export default function DashboardPage() {
                 )}
 
                 {/* Input Form */}
-                <form onSubmit={handleChatSubmit} className={`relative border ${borderClass} ${inputBgClass} rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-purple-600 transition-all`}>
+                <form onSubmit={handleChatSubmit} className={`relative border ${borderClass} ${inputBgClass} rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-purple-600/50 transition-all`}>
                   <textarea
                     placeholder={
                       isDailyLimitReached 
@@ -1039,15 +1123,15 @@ export default function DashboardPage() {
                     onKeyDown={handleKeyDown}
                     disabled={isInputDisabled}
                     rows={3}
-                    className="w-full bg-transparent text-sm p-4 pb-12 outline-none resize-none disabled:opacity-50"
+                    className="w-full bg-transparent text-sm p-4 pb-12 outline-none resize-none disabled:opacity-50 text-slate-900 dark:text-white"
                   />
                   <div className="absolute bottom-2.5 right-3 flex items-center gap-2">
                     <button
                       type="button"
                       onClick={clearChat}
                       disabled={isInputDisabled}
-                      className={`text-xs px-3 py-1.5 font-bold uppercase rounded transition-colors disabled:opacity-50 cursor-pointer ${
-                        isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-black"
+                      className={`text-xs px-3 py-1.5 font-bold uppercase rounded-xl transition-colors disabled:opacity-50 cursor-pointer ${
+                        isDark ? "text-slate-500 hover:text-white" : "text-slate-400 hover:text-slate-950"
                       }`}
                     >
                       Clear
@@ -1055,7 +1139,7 @@ export default function DashboardPage() {
                     <button
                       type="submit"
                       disabled={isInputDisabled || !chatInput.trim()}
-                      className="bg-purple-800 hover:bg-purple-700 disabled:bg-gray-100 dark:disabled:bg-zinc-800 disabled:text-gray-400 dark:disabled:text-zinc-600 text-white text-xs px-4 py-1.5 font-bold uppercase rounded transition-colors cursor-pointer"
+                      className="bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-zinc-800 disabled:text-slate-400 dark:disabled:text-zinc-650 text-white text-xs px-4 py-1.5 font-bold uppercase rounded-xl transition-colors cursor-pointer"
                     >
                       Send
                     </button>
@@ -1068,11 +1152,11 @@ export default function DashboardPage() {
                 <div className={`w-72 border-l ${borderClass} pl-4 flex flex-col min-h-0 shrink-0`}>
                   <div className={`flex items-center justify-between border-b ${borderClass} pb-3 mb-3`}>
                     <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>
-                      Conversation History
+                      History
                     </h3>
                     <button
                       onClick={() => setShowHistory(false)}
-                      className="text-xs text-zinc-500 hover:text-zinc-300 font-bold cursor-pointer"
+                      className="text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white font-bold cursor-pointer"
                     >
                       ×
                     </button>
@@ -1080,8 +1164,8 @@ export default function DashboardPage() {
                   
                   <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
                     {conversationsList.length === 0 ? (
-                      <div className="text-[10px] text-zinc-500 text-center py-8">
-                        No saved conversations found.
+                      <div className="text-[10px] text-slate-500 text-center py-8">
+                        No saved chats.
                       </div>
                     ) : (
                       conversationsList.map((conv) => {
@@ -1094,18 +1178,18 @@ export default function DashboardPage() {
                               setTokensConsumed(conv.tokens_used || 0);
                               useCielStore.setState({ chatMessages: conv.messages || [] });
                             }}
-                            className={`w-full text-left p-3 border rounded transition-all flex flex-col gap-1 cursor-pointer text-xs ${
+                            className={`w-full text-left p-3 border rounded-xl transition-all duration-200 flex flex-col gap-1 cursor-pointer text-xs ${
                               isSelected
                                 ? (isDark ? "bg-purple-950/30 border-purple-800 text-white" : "bg-purple-50 border-purple-300 text-purple-950")
-                                : (isDark ? "bg-[#141724]/40 border-slate-800/80 text-gray-400 hover:bg-[#141724]/80 hover:text-white" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-black")
+                                : (isDark ? "bg-black/20 border-white/5 text-slate-400 hover:bg-black/35 hover:text-white" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-black")
                             }`}
                           >
                             <span className="font-bold truncate text-[11px] block">{conv.title || "Untitled Chat"}</span>
-                            <span className="text-[9px] text-zinc-500 font-mono truncate">ID: {conv.id}</span>
+                            <span className="text-[9px] text-slate-500 font-mono truncate">ID: {conv.id}</span>
                             {conv.tokens_used > 0 && (
-                              <span className="text-[9px] text-zinc-400 font-mono">Tokens: {conv.tokens_used}</span>
+                              <span className="text-[9px] text-slate-400 font-mono">Tokens: {conv.tokens_used}</span>
                             )}
-                            <span className="text-[8px] text-zinc-600 self-end mt-1">
+                            <span className="text-[8px] text-slate-500 self-end mt-1">
                               <span className="font-mono">{new Date(conv.updated_at).toLocaleString()}</span>
                             </span>
                           </button>
@@ -1126,33 +1210,41 @@ export default function DashboardPage() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className={`border p-4 rounded ${cardBgClass} space-y-4`}>
+                <div className={`p-5 rounded-2xl border border-slate-900/5 dark:border-white/5 space-y-4 ${cardBgClass}`}>
                   <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Preferences</h3>
                   
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-gray-500 uppercase font-bold block">UI Color Theme</label>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-slate-500 uppercase font-bold block">UI Color Theme</label>
                     <div className="flex gap-2">
                       <button
                         onClick={() => updateSettings({ theme: "dark" })}
-                        className={`flex-1 py-2 text-xs font-bold rounded border uppercase cursor-pointer ${theme === "dark" ? "bg-[#FF007F] text-white border-[#FF007F]" : buttonBgClass + " " + borderClass}`}
+                        className={`flex-1 py-2 text-xs font-bold rounded-xl border uppercase cursor-pointer transition-all ${
+                          theme === "dark" 
+                            ? "bg-purple-500/20 text-purple-350 border-purple-500/40" 
+                            : buttonBgClass
+                        }`}
                       >
                         Dark (Void)
                       </button>
                       <button
                         onClick={() => updateSettings({ theme: "light" })}
-                        className={`flex-1 py-2 text-xs font-bold rounded border uppercase cursor-pointer ${theme === "light" ? "bg-[#00F0FF] text-black border-[#00F0FF]" : buttonBgClass + " " + borderClass}`}
+                        className={`flex-1 py-2 text-xs font-bold rounded-xl border uppercase cursor-pointer transition-all ${
+                          theme === "light" 
+                            ? "bg-cyan-500/10 text-cyan-700 border-cyan-500/20" 
+                            : buttonBgClass
+                        }`}
                       >
                         Light (Alabaster)
                       </button>
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-gray-500 uppercase font-bold block">Sync Interval</label>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-slate-500 uppercase font-bold block">Sync Interval</label>
                     <select
                       value={syncInterval}
                       onChange={(e) => updateSettings({ syncInterval: parseInt(e.target.value, 10) })}
-                      className={`w-full text-xs px-2 py-2 border rounded outline-none ${inputBgClass} ${borderClass}`}
+                      className={`w-full text-xs px-3 py-2 border border-slate-900/10 dark:border-white/10 rounded-xl outline-none transition-all duration-300 ${inputBgClass}`}
                     >
                       <option value={15}>Every 15 minutes</option>
                       <option value={30}>Every 30 minutes</option>
@@ -1162,35 +1254,43 @@ export default function DashboardPage() {
                     </select>
                   </div>
 
-                  <div className="flex items-center justify-between pt-2">
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-900/5 dark:border-white/5">
                     <div>
-                      <label className="text-[10px] text-gray-500 uppercase font-bold block">AI Auto-Priority</label>
-                      <span className="text-[10px] text-gray-400">Classify incoming emails using gpt-4o-mini</span>
+                      <label className="text-[10px] text-slate-550 uppercase font-bold block">AI Auto-Priority</label>
+                      <span className="text-[9px] text-slate-500">Classify incoming emails using gpt-4o-mini</span>
                     </div>
                     <button
                       onClick={() => updateSettings({ aiAutoPriority: !aiAutoPriority })}
-                      className={`px-3 py-1.5 text-xs font-bold rounded uppercase cursor-pointer ${aiAutoPriority ? "bg-green-800 text-white" : "bg-red-800 text-white"}`}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl uppercase cursor-pointer transition-colors ${
+                        aiAutoPriority 
+                          ? "bg-green-600/20 text-green-700 dark:text-green-300 border border-green-500/20" 
+                          : "bg-red-500/10 text-red-600 dark:text-red-300 border border-red-500/20"
+                      }`}
                     >
                       {aiAutoPriority ? "Enabled" : "Disabled"}
                     </button>
                   </div>
                 </div>
 
-                <div className={`border p-4 rounded ${cardBgClass} space-y-4`}>
+                <div className={`p-5 rounded-2xl border border-slate-900/5 dark:border-white/5 space-y-4 ${cardBgClass}`}>
                   <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Synced Integrations (Neon DB Cache)</h3>
-                  <p className="text-[10px] text-gray-500">Local records of connection status synced from Corsair:</p>
+                  <p className="text-[10px] text-slate-500">Local records of connection status synced from Corsair:</p>
                   
                   {localIntegrations.length === 0 ? (
                     <p className={`text-xs ${textMutedClass} italic`}>No integration sync records found in database. Check connections above.</p>
                   ) : (
                     <div className="space-y-2">
                       {localIntegrations.map((integration) => (
-                        <div key={integration.id} className={`p-2 border rounded text-xs flex justify-between items-center ${innerCardBgClass} ${borderClass}`}>
+                        <div key={integration.id} className={`p-2.5 border rounded-xl text-xs flex justify-between items-center ${innerCardBgClass} ${borderClass}`}>
                           <div>
                             <span className={`font-bold ${textWhiteClass} uppercase`}>{integration.provider === "googlecalendar" ? "google calendar" : integration.provider}</span>
-                            <span className="text-gray-500 ml-2">({integration.connected_email})</span>
+                            <span className="text-slate-500 ml-2">({integration.connected_email})</span>
                           </div>
-                          <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${integration.status === "connected" ? "bg-green-950/60 text-green-300" : "bg-red-950/60 text-red-300"}`}>
+                          <span className={`text-[9px] px-2 py-0.5 rounded-lg font-bold uppercase ${
+                            integration.status === "connected" 
+                              ? "bg-green-500/10 text-green-700 dark:text-green-350" 
+                              : "bg-red-500/10 text-red-700 dark:text-red-350"
+                          }`}>
                             {integration.status}
                           </span>
                         </div>
@@ -1208,7 +1308,7 @@ export default function DashboardPage() {
               <div className={`pb-2 border-b ${border900Class}`}>
                 <span className={`text-xs uppercase tracking-wider ${textMutedClass}`}>Live Zustand Store State</span>
               </div>
-              <pre className={`p-4 border ${border900Class} ${innerCardBgClass} rounded text-[10px] text-green-400 overflow-x-auto whitespace-pre-wrap`}>
+              <pre className={`p-4 border ${border900Class} ${innerCardBgClass} rounded-2xl text-[10px] text-green-600 dark:text-green-400 overflow-x-auto whitespace-pre-wrap font-mono`}>
                 {JSON.stringify({
                   user,
                   gmailConnected,
@@ -1230,64 +1330,64 @@ export default function DashboardPage() {
       {showComposeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowComposeModal(false)}>
           <div 
-            className={`w-full max-w-xl border rounded-lg shadow-2xl overflow-hidden flex flex-col min-h-[400px] ${cardBgClass} transition-transform duration-300 transform scale-100`}
+            className={`w-full max-w-xl border border-slate-200/20 dark:border-white/5 rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[400px] ${cardBgClass} transition-transform duration-300 transform scale-100`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className={`p-4 border-b ${borderClass} flex items-center justify-between`}>
+            <div className={`p-4 border-b ${borderClass} flex items-center justify-between ${accordionHeaderBgClass}`}>
               <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Compose New Message</h3>
               <button 
                 onClick={() => setShowComposeModal(false)}
-                className="text-zinc-500 hover:text-zinc-300 font-bold text-lg cursor-pointer"
+                className="text-slate-500 hover:text-slate-900 dark:hover:text-white font-bold text-lg cursor-pointer"
               >
                 ×
               </button>
             </div>
             <form onSubmit={handleSendComposeMail} className="flex-1 flex flex-col p-4 space-y-4">
               <div className="space-y-1">
-                <label className="text-[10px] text-zinc-500 uppercase font-bold">To:</label>
+                <label className="text-[10px] text-slate-500 uppercase font-bold">To:</label>
                 <input 
                   type="email" 
                   value={composeTo}
                   onChange={(e) => setComposeTo(e.target.value)}
                   placeholder="recipient@example.com"
                   required
-                  className="w-full text-xs p-2.5 bg-[#141724] border border-slate-800 rounded outline-none focus:ring-1 focus:ring-purple-600 text-white"
+                  className={`w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] text-zinc-500 uppercase font-bold">Subject:</label>
+                <label className="text-[10px] text-slate-500 uppercase font-bold">Subject:</label>
                 <input 
                   type="text" 
                   value={composeSubject}
                   onChange={(e) => setComposeSubject(e.target.value)}
                   placeholder="Enter email subject"
                   required
-                  className="w-full text-xs p-2.5 bg-[#141724] border border-slate-800 rounded outline-none focus:ring-1 focus:ring-purple-600 text-white"
+                  className={`w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
                 />
               </div>
               <div className="flex-1 flex flex-col space-y-1">
-                <label className="text-[10px] text-zinc-500 uppercase font-bold">Message:</label>
+                <label className="text-[10px] text-slate-500 uppercase font-bold">Message:</label>
                 <textarea 
                   value={composeBody}
                   onChange={(e) => setComposeBody(e.target.value)}
                   placeholder="Type your message here..."
                   rows={8}
                   required
-                  className="flex-1 text-xs p-3 bg-[#141724] border border-slate-800 rounded outline-none focus:ring-1 focus:ring-purple-600 text-white resize-none"
+                  className={`flex-1 text-xs p-3 outline-none rounded-xl border transition-all duration-300 ${inputBgClass} resize-none`}
                 />
               </div>
-              <div className="pt-2 border-t border-slate-800/80 flex justify-end gap-2 shrink-0">
+              <div className={`pt-3 border-t border-slate-900/10 dark:border-white/10 flex justify-end gap-2 shrink-0`}>
                 <button
                   type="button"
                   onClick={() => setShowComposeModal(false)}
-                  className="px-3.5 py-2 text-zinc-500 hover:text-zinc-300 rounded font-bold uppercase text-[10px] cursor-pointer"
+                  className="px-3.5 py-2 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSendingCompose || !composeTo.trim() || !composeSubject.trim() || !composeBody.trim()}
-                  className="px-4 py-2 bg-purple-800 hover:bg-purple-700 disabled:bg-slate-800 disabled:text-zinc-600 text-white rounded font-bold uppercase text-[10px] cursor-pointer transition-colors"
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-zinc-800 disabled:text-slate-400 dark:disabled:text-zinc-605 text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors"
                 >
                   {isSendingCompose ? "Sending..." : "Send Email"}
                 </button>
