@@ -49,41 +49,41 @@ export default function DashboardPage() {
 
   const isDark = theme === "dark";
   const bgClass = isDark ? "text-gray-300 selection:bg-purple-500 selection:text-white" : "text-slate-700 selection:bg-cyan-500 selection:text-black";
-  const headerBgClass = isDark ? "border-b border-white/5" : "border-b border-slate-900/5";
-  const borderClass = isDark ? "border-white/5" : "border-slate-900/5";
-  const border900Class = isDark ? "border-white/10" : "border-slate-900/10";
+  const headerBgClass = isDark ? "border-b border-white/10" : "border-b border-white/40";
+  const borderClass = isDark ? "border-white/5" : "border-white/20";
+  const border900Class = isDark ? "border-white/10" : "border-white/30";
   
-  // Frosted glass cards:
+  // Frosted glass cards (completely transparent glass theme like landing page topbar):
   const cardBgClass = isDark 
-    ? "bg-slate-950/45 backdrop-blur-xl border border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.2)]"
-    : "bg-white/45 backdrop-blur-xl border border-slate-900/10 shadow-[0_4px_30px_rgba(0,0,0,0.02)]";
+    ? "bg-transparent backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.15)]"
+    : "bg-transparent backdrop-blur-2xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.04)]";
   
-  const innerCardBgClass = isDark ? "bg-black/20" : "bg-slate-900/5";
+  const innerCardBgClass = isDark ? "bg-black/15" : "bg-white/20";
   
   // Pill tabs:
   const activeTabClass = isDark 
     ? "bg-purple-500/20 text-purple-350 border-purple-500/40" 
-    : "bg-cyan-500/10 text-cyan-700 border-cyan-500/20";
+    : "bg-cyan-500/15 text-cyan-800 border-cyan-500/30";
   
   const inactiveTabClass = isDark 
     ? "text-gray-400 hover:text-white border-transparent" 
     : "text-slate-500 hover:text-slate-900 border-transparent";
     
-  const tabContainerBgClass = isDark ? "bg-black/10" : "bg-slate-900/5";
-  const actionContainerBgClass = isDark ? "bg-black/10" : "bg-slate-900/5";
+  const tabContainerBgClass = isDark ? "bg-black/15" : "bg-white/20";
+  const actionContainerBgClass = isDark ? "bg-black/15" : "bg-white/20";
   
   // Inputs:
   const inputBgClass = isDark 
-    ? "bg-black/25 focus:bg-black/40 border-white/10 focus:border-purple-500/50 text-white" 
-    : "bg-slate-900/5 focus:bg-slate-900/10 border-slate-900/10 focus:border-cyan-500/50 text-slate-900";
+    ? "bg-black/20 focus:bg-black/35 border-white/10 focus:border-purple-500/50 text-white" 
+    : "bg-white/35 focus:bg-white/55 border-white/40 focus:border-cyan-500/50 text-slate-900";
     
   const buttonBgClass = isDark 
-    ? "bg-white/5 hover:bg-white/10 text-white border border-white/5" 
-    : "bg-slate-900/5 hover:bg-slate-900/10 text-slate-800 border border-slate-900/5";
+    ? "bg-white/5 hover:bg-white/10 text-white border border-white/10" 
+    : "bg-white/40 hover:bg-white/60 text-slate-800 border border-white/50";
     
   const textWhiteClass = isDark ? "text-white" : "text-slate-900";
   const textMutedClass = isDark ? "text-slate-400" : "text-slate-500";
-  const accordionHeaderBgClass = isDark ? "bg-black/15" : "bg-slate-900/5";
+  const accordionHeaderBgClass = isDark ? "bg-black/15" : "bg-white/20";
 
   const ambientBg = isDark
     ? `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E"), linear-gradient(135deg, #0b0c10 0%, #12131a 30%, #1a1528 70%, #0b0c10 100%)`
@@ -523,8 +523,8 @@ export default function DashboardPage() {
       </div>
 
       {/* Floating Header */}
-      <header className={`w-full backdrop-blur-xl border border-slate-200/20 dark:border-white/5 rounded-2xl px-6 py-3 mb-6 flex items-center justify-between shadow-sm transition-all duration-300 ${
-        isDark ? "bg-slate-950/45" : "bg-white/45"
+      <header className={`w-full backdrop-blur-2xl border rounded-2xl px-6 py-3 mb-6 flex items-center justify-between shadow-sm transition-all duration-300 ${
+        isDark ? "bg-transparent border-white/10" : "bg-transparent border-white/50"
       }`}>
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gradient-to-b from-cyan-400 to-blue-600 flex items-center justify-center font-bold text-white tracking-tighter shadow-sm">
@@ -1213,7 +1213,7 @@ export default function DashboardPage() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className={`p-5 rounded-2xl border border-slate-900/5 dark:border-white/5 space-y-4 ${innerCardBgClass}`}>
+              <div className={`p-5 rounded-2xl border ${borderClass} space-y-4 ${innerCardBgClass}`}>
                 <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Preferences</h3>
                 
                 <div className="space-y-1.5">
@@ -1247,7 +1247,7 @@ export default function DashboardPage() {
                   <select
                     value={syncInterval}
                     onChange={(e) => updateSettings({ syncInterval: parseInt(e.target.value, 10) })}
-                    className={`w-full text-xs px-3 py-2 border border-slate-900/10 dark:border-white/10 rounded-xl outline-none transition-all duration-300 ${inputBgClass}`}
+                    className={`w-full text-xs px-3 py-2 border ${border900Class} rounded-xl outline-none transition-all duration-300 ${inputBgClass}`}
                   >
                     <option value={15}>Every 15 minutes</option>
                     <option value={30}>Every 30 minutes</option>
@@ -1257,7 +1257,7 @@ export default function DashboardPage() {
                   </select>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-slate-900/5 dark:border-white/5">
+                <div className="flex items-center justify-between pt-2 border-t ${borderClass}">
                   <div>
                     <label className="text-[10px] text-slate-550 uppercase font-bold block">AI Auto-Priority</label>
                     <span className="text-[9px] text-slate-500">Classify incoming emails using gpt-4o-mini</span>
@@ -1275,7 +1275,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className={`p-5 rounded-2xl border border-slate-900/5 dark:border-white/5 space-y-4 ${innerCardBgClass}`}>
+              <div className={`p-5 rounded-2xl border ${borderClass} space-y-4 ${innerCardBgClass}`}>
                 <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Synced Integrations (Neon DB Cache)</h3>
                 <p className="text-[10px] text-slate-500">Local records of connection status synced from Corsair:</p>
                 
@@ -1338,7 +1338,7 @@ export default function DashboardPage() {
       {showComposeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowComposeModal(false)}>
           <div 
-            className={`w-full max-w-xl border border-slate-200/20 dark:border-white/5 rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[400px] ${cardBgClass} transition-transform duration-300 transform scale-100`}
+            className={`w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[400px] ${cardBgClass} transition-transform duration-300 transform scale-100`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className={`p-4 border-b ${borderClass} flex items-center justify-between ${accordionHeaderBgClass}`}>
