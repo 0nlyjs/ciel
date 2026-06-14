@@ -3,6 +3,8 @@ import { db } from "./db";
 import * as schema from "./schema";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { headers } from "next/headers";
+import { createAuthMiddleware } from "better-auth/api";
+import { eq, and, lt } from "drizzle-orm";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -27,11 +29,49 @@ export const auth = betterAuth({
       emailVerified: "verified",
     },
   },
-  account: {
-    accountLinking: {
-      enabled: true,
-      trustedProviders: ["google"],
-    },
+  accountLinking: {
+    enabled: true,
+    trustedProviders: ["google"],
+  },
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      // 1. Clean up any unverified users older than 24 hours on sign-up/sign-in attempts
+      if (ctx.path === "/sign-up/email" || ctx.path === "/sign-in/email") {
+        try {
+          const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          await db
+            .delete(schema.users)
+            .where(
+              and(
+                eq(schema.users.verified, false),
+                lt(schema.users.createdAt, oneDayAgo)
+              )
+            );
+        } catch (error) {
+          console.error("[Auth Hook] Error during old unverified users cleanup:", error);
+        }
+      }
+
+      // 2. If signing up with an email that is already in the DB but unverified, delete it first
+      if (ctx.path === "/sign-up/email" && ctx.body?.email) {
+        try {
+          const email = ctx.body.email.trim().toLowerCase();
+          const existingUsers = await db
+            .select()
+            .from(schema.users)
+            .where(eq(schema.users.email, email));
+
+          if (existingUsers.length > 0 && !existingUsers[0].verified) {
+            console.log(`[Auth Hook] Purging unverified user ${email} before fresh sign-up.`);
+            await db
+              .delete(schema.users)
+              .where(eq(schema.users.email, email));
+          }
+        } catch (error) {
+          console.error("[Auth Hook] Error purging unverified user on signup:", error);
+        }
+      }
+    }),
   },
   emailVerification: {
     sendOnSignUp: true,
