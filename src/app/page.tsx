@@ -54,12 +54,16 @@ export default function LandingPage() {
       </div>
       
       {/* Foreground UI Layer */}
-      <div className="relative z-10 min-h-screen flex flex-col justify-between">
+      <div className={`relative z-10 min-h-screen flex flex-col justify-between transition-all duration-300 ${
+        showAuthModal ? "lg:pr-[448px]" : ""
+      }`}>
       
       {/* Top Navigation Bar */}
       {/* Top Navigation Bar */}
-      <header className="liquid-glass-island">
-        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+      <header className={`liquid-glass-island transition-all duration-300 !max-w-none ${
+        showAuthModal ? "lg:!left-[calc(50%-224px)] lg:!w-[calc(100%-448px-2rem)]" : ""
+      }`}>
+        <div className="w-full px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-gradient-to-b from-cyan-400 to-blue-600 flex items-center justify-center font-bold text-white tracking-tighter shadow-[0_4px_12px_rgba(6,182,212,0.3),inset_0_1px_1px_rgba(255,255,255,0.5)]">
               C
@@ -78,17 +82,30 @@ export default function LandingPage() {
                 Dashboard
               </button>
             ) : (
-              <button
-                onClick={() => {
-                  setIsSignUp(false);
-                  setAuthError("");
-                  setAuthSuccess("");
-                  setShowAuthModal(true);
-                }}
-                className="px-4 py-1.5 liquid-glass-button text-[10px] uppercase text-slate-700 hover:text-slate-900"
-              >
-                Login
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setIsSignUp(false);
+                    setAuthError("");
+                    setAuthSuccess("");
+                    setShowAuthModal(true);
+                  }}
+                  className="px-4 py-1.5 liquid-glass-button text-[10px] uppercase text-slate-700 hover:text-slate-900 cursor-pointer"
+                >
+                  Login
+                </button>
+                <button
+                  onClick={() => {
+                    setIsSignUp(true);
+                    setAuthError("");
+                    setAuthSuccess("");
+                    setShowAuthModal(true);
+                  }}
+                  className="px-4 py-1.5 liquid-glass-button-cyan text-[10px] uppercase cursor-pointer"
+                >
+                  Get Started
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -403,16 +420,19 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* Auth Popup Modal */}
-      {showAuthModal && (
+      {/* Auth Sliding Sidebar */}
+      <div
+        className={`fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm lg:bg-transparent lg:backdrop-blur-none transition-opacity duration-300 ${
+          showAuthModal ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
+        onClick={() => setShowAuthModal(false)}
+      >
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
-          onClick={() => setShowAuthModal(false)}
+          className={`max-w-md w-full h-full !bg-slate-50/20 !bg-none backdrop-blur-xl rounded-none border-y-0 border-r-0 border-l border-slate-200/30 p-8 flex flex-col justify-center relative overflow-hidden transition-transform duration-300 ease-in-out shadow-[-10px_0_30px_rgba(0,0,0,0.03)] ${
+            showAuthModal ? "translate-x-0" : "translate-x-full"
+          }`}
+          onClick={(e) => e.stopPropagation()}
         >
-          <div
-              className="max-w-md w-full liquid-glass-modal p-8 relative overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
             {/* Subtle background glow accents inside modal */}
             <div className="absolute -top-10 -right-10 w-32 h-32 bg-cyan-400/10 rounded-full blur-2xl pointer-events-none" />
             <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
@@ -420,19 +440,19 @@ export default function LandingPage() {
             {/* Close Button */}
             <button
               onClick={() => setShowAuthModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-all cursor-pointer p-1.5 rounded-full bg-white/5 hover:bg-white/15 border border-white/5 hover:border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]"
+              className="absolute top-4 right-4 text-slate-500 hover:text-slate-900 transition-all cursor-pointer p-1.5 rounded-full bg-slate-900/5 hover:bg-slate-900/10 border border-slate-900/5 hover:border-slate-900/10 shadow-sm"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-xl font-bold text-white mb-1 tracking-normal leading-tight text-center font-sans">CIEL WORKSPACE</h3>
-            <p className="text-[10px] text-gray-500 mb-6 uppercase tracking-wider text-center">Node Security Authorization</p>
+            <h3 className="text-xl font-bold text-slate-900 mb-1 tracking-normal leading-tight text-center font-sans">CIEL WORKSPACE</h3>
+            <p className="text-[10px] text-slate-500 mb-6 uppercase tracking-wider text-center">Node Security Authorization</p>
 
             {isVerificationSent ? (
               <div className="space-y-4">
-                <div className="border border-green-800/40 bg-green-950/20 p-4 rounded-xl text-xs text-green-300 leading-relaxed">
+                <div className="border border-green-200 bg-green-50/50 p-4 rounded-xl text-xs text-green-700 leading-relaxed">
                   <span className="font-bold block uppercase mb-1">VERIFICATION LINK DISPATCHED</span>
-                  A secure verification link has been sent to <span className="underline font-bold text-white">{authEmail}</span>. 
+                  A secure verification link has been sent to <span className="underline font-bold text-slate-900">{authEmail}</span>. 
                   Please check your inbox and click the link to activate your node.
                 </div>
                 <button
@@ -443,25 +463,25 @@ export default function LandingPage() {
                     setAuthSuccess("");
                     setAuthError("");
                   }}
-                  className="w-full py-2.5 liquid-glass-button text-gray-300 text-xs uppercase tracking-wider"
+                  className="w-full py-2.5 liquid-glass-button text-slate-700 hover:text-slate-900 text-xs uppercase tracking-wider border border-slate-900/10"
                 >
                   Back to Sign In
                 </button>
               </div>
             ) : (
               <div className="space-y-4">
-                <p className="text-[9px] leading-relaxed text-cyan-400/80 font-bold uppercase tracking-widest text-center">
+                <p className="text-[9px] leading-relaxed text-cyan-600 font-bold uppercase tracking-widest text-center">
                   {isSignUp ? "INITIALIZE_NEW_IDENTITY_NODE" : "AUTHORIZE_SECURE_SESSION"}
                 </p>
 
                 {authError && (
-                  <div className="border border-red-950 bg-red-950/20 p-3 rounded-lg text-[11px] text-red-400 whitespace-pre-wrap border-red-900/40">
+                  <div className="border border-red-200 bg-red-50/50 p-3 rounded-lg text-[11px] text-red-600 whitespace-pre-wrap">
                     {authError}
                   </div>
                 )}
 
                 {authSuccess && (
-                  <div className="border border-green-950 bg-green-950/20 p-3 rounded-lg text-[11px] text-green-400 border-green-900/40">
+                  <div className="border border-green-200 bg-green-50/50 p-3 rounded-lg text-[11px] text-green-600">
                     {authSuccess}
                   </div>
                 )}
@@ -530,36 +550,36 @@ export default function LandingPage() {
                 >
                   {isSignUp && (
                     <div>
-                      <label className="text-[9px] text-gray-500 uppercase tracking-widest block mb-1">NODE_NAME</label>
+                      <label className="text-[9px] text-slate-500 uppercase tracking-widest block mb-1">NODE_NAME</label>
                       <input
                         type="text"
                         placeholder="e.g. John Doe"
                         value={authName}
                         onChange={(e) => setAuthName(e.target.value)}
-                        className="w-full liquid-glass-input text-xs px-3 py-2.5 text-white"
+                        className="w-full bg-slate-900/5 focus:bg-slate-900/10 border border-slate-900/10 focus:border-cyan-500/50 outline-none rounded-xl text-xs px-3 py-2.5 text-slate-900 transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
                       />
                     </div>
                   )}
 
                   <div>
-                    <label className="text-[9px] text-gray-500 uppercase tracking-widest block mb-1">EMAIL_ADDRESS</label>
+                    <label className="text-[9px] text-slate-500 uppercase tracking-widest block mb-1">EMAIL_ADDRESS</label>
                     <input
                       type="email"
                       placeholder="e.g. guest@ciel.app"
                       value={authEmail}
                       onChange={(e) => setAuthEmail(e.target.value)}
-                      className="w-full liquid-glass-input text-xs px-3 py-2.5 text-white"
+                      className="w-full bg-slate-900/5 focus:bg-slate-900/10 border border-slate-900/10 focus:border-cyan-500/50 outline-none rounded-xl text-xs px-3 py-2.5 text-slate-900 transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[9px] text-gray-500 uppercase tracking-widest block mb-1">PASSWORD_SECRET</label>
+                    <label className="text-[9px] text-slate-500 uppercase tracking-widest block mb-1">PASSWORD_SECRET</label>
                     <input
                       type="password"
                       placeholder="••••••••"
                       value={authPassword}
                       onChange={(e) => setAuthPassword(e.target.value)}
-                      className="w-full liquid-glass-input text-xs px-3 py-2.5 text-white"
+                      className="w-full bg-slate-900/5 focus:bg-slate-900/10 border border-slate-900/10 focus:border-cyan-500/50 outline-none rounded-xl text-xs px-3 py-2.5 text-slate-900 transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
                     />
                   </div>
 
@@ -572,9 +592,10 @@ export default function LandingPage() {
                   </button>
                 </form>
 
-                <div className="relative flex items-center justify-center my-4">
-                  <hr className="w-full border-white/5" />
-                  <span className="absolute bg-[#0b0c10] px-2 text-[9px] text-gray-600 uppercase tracking-widest">OR</span>
+                <div className="flex items-center gap-3 my-4">
+                  <div className="flex-1 h-[1px] bg-slate-900/10" />
+                  <span className="text-[9px] text-slate-400 uppercase tracking-widest font-mono">OR</span>
+                  <div className="flex-1 h-[1px] bg-slate-900/10" />
                 </div>
 
                 <button
@@ -589,7 +610,7 @@ export default function LandingPage() {
                       console.error("Google login error", err);
                     }
                   }}
-                  className="w-full py-2.5 liquid-glass-button text-xs uppercase tracking-wider flex items-center justify-center gap-2"
+                  className="w-full py-2.5 liquid-glass-button text-xs uppercase tracking-wider flex items-center justify-center gap-2 text-slate-700 hover:text-slate-900 border border-slate-900/10 transition-colors"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -608,7 +629,7 @@ export default function LandingPage() {
                       setAuthError("");
                       setAuthSuccess("");
                     }}
-                    className="text-[10px] text-gray-500 hover:text-white transition-colors underline uppercase tracking-wider cursor-pointer bg-transparent border-none"
+                    className="text-[10px] text-slate-500 hover:text-slate-900 transition-colors underline uppercase tracking-wider cursor-pointer bg-transparent border-none"
                   >
                     {isSignUp ? "Already registered? Sign In" : "Need an account? Register Node"}
                   </button>
@@ -617,7 +638,6 @@ export default function LandingPage() {
             )}
           </div>
         </div>
-      )}
       </div>
     </div>
   );
