@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
-import { Space_Mono } from "next/font/google";
+import { Outfit, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 
-const fontMono = Space_Mono({
-  variable: "--font-mono",
+const fontSans = Outfit({
+  variable: "--font-outfit",
   subsets: ["latin"],
-  weight: ["400", "700"],
+});
+
+const fontMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
+  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
@@ -22,10 +26,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${fontMono.variable} h-full antialiased`}
+      className="h-full"
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
+      <body className={`${fontSans.variable} ${fontMono.variable} min-h-full flex flex-col antialiased`}>
         <Providers>{children}</Providers>
       </body>
     </html>

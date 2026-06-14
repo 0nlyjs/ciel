@@ -445,18 +445,18 @@ export default function DashboardPage() {
 
   if (isPending || !session) {
     return (
-      <div className="min-h-screen bg-[#0a0b0d] text-gray-400 flex items-center justify-center font-mono">
+      <div className="min-h-screen bg-[#0a0b0d] text-gray-400 flex items-center justify-center font-sans">
         <p>Loading developer dashboard session...</p>
       </div>
     );
   }
 
   return (
-    <div className={`${activeView === "chat" ? "h-screen overflow-hidden" : "min-h-screen"} ${bgClass} p-6 font-mono flex flex-col transition-colors duration-300`}>
+    <div className={`${activeView === "chat" ? "h-screen overflow-hidden" : "min-h-screen"} ${bgClass} p-6 font-sans flex flex-col transition-colors duration-300`}>
       {/* Header */}
       <header className={`${headerBgClass} pb-4 mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4`}>
         <div>
-          <h1 className={`text-lg font-bold ${textWhiteClass} uppercase tracking-widest`}>CIEL // DEV CONSOLE</h1>
+          <h1 className={`text-lg font-extrabold ${textWhiteClass} uppercase tracking-normal leading-tight`}>CIEL // DEV CONSOLE</h1>
           <p className={`text-xs ${textMutedClass} uppercase`}>Backend Integration Testing Dashboard</p>
         </div>
         
@@ -479,7 +479,7 @@ export default function DashboardPage() {
           {/* Gmail status */}
           <div className={`border ${borderClass} ${cardBgClass} p-4 rounded flex flex-col justify-between`}>
             <div>
-              <h2 className={`text-xs font-bold ${textWhiteClass} mb-1 uppercase tracking-wider`}>Gmail Integration</h2>
+              <h2 className={`text-xs font-bold ${textWhiteClass} mb-1 uppercase tracking-normal leading-tight`}>Gmail Integration</h2>
               <p className={`text-xs ${textMutedClass} mb-3`}>Corsair synchronization status for user emails.</p>
               <div className="flex items-center gap-2 mb-4">
                 <span className={`inline-block w-2.5 h-2.5 rounded-full ${gmailConnected ? "bg-green-500" : "bg-red-500"}`} />
@@ -530,7 +530,7 @@ export default function DashboardPage() {
           {/* Calendar status */}
           <div className={`border ${borderClass} ${cardBgClass} p-4 rounded flex flex-col justify-between`}>
             <div>
-              <h2 className={`text-xs font-bold ${textWhiteClass} mb-1 uppercase tracking-wider`}>Google Calendar</h2>
+              <h2 className={`text-xs font-bold ${textWhiteClass} mb-1 uppercase tracking-normal leading-tight`}>Google Calendar</h2>
               <p className={`text-xs ${textMutedClass} mb-3`}>Corsair synchronization status for user schedules.</p>
               <div className="flex items-center gap-2 mb-4">
                 <span className={`inline-block w-2.5 h-2.5 rounded-full ${calendarConnected ? "bg-green-500" : "bg-red-500"}`} />
@@ -625,7 +625,7 @@ export default function DashboardPage() {
                 placeholder="Search Emails & Calendar events (triggers vector search DB lookup)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className={`flex-1 ${inputBgClass} border ${borderClass} text-xs px-3 py-2 outline-none rounded`}
+                className={`flex-1 ${inputBgClass} border ${borderClass} text-xs px-3 py-2 outline-none rounded font-mono`}
               />
               <button
                 type="submit"
@@ -768,12 +768,12 @@ export default function DashboardPage() {
                                 <span className={`font-bold ${textWhiteClass}`}>FROM: {email.from}</span>
                                 <span className="text-gray-500 ml-2">&lt;{email.fromEmail}&gt;</span>
                               </div>
-                              <span className="text-gray-500 text-[10px]">{displayDate}</span>
+                              <span className="text-gray-500 text-[10px] font-mono">{displayDate}</span>
                             </div>
                             <div>
-                              <h3 className={`text-sm font-bold ${textWhiteClass}`}>{email.subject}</h3>
+                              <h3 className={`text-sm font-bold ${textWhiteClass} tracking-normal leading-tight`}>{email.subject}</h3>
                             </div>
-                            <p className={`${isDark ? "text-gray-400" : "text-gray-600"} whitespace-pre-wrap leading-relaxed ${actionContainerBgClass}/50 p-3 border ${border900Class} rounded select-text`}>
+                            <p className={`${isDark ? "text-gray-400" : "text-gray-600"} font-sans font-normal leading-relaxed whitespace-pre-wrap ${actionContainerBgClass}/50 p-3 border ${border900Class} rounded select-text`}>
                               {email.body}
                             </p>
                             <div className="flex gap-4 text-[10px] text-gray-500 uppercase font-semibold pt-1">
@@ -874,7 +874,7 @@ export default function DashboardPage() {
                         ) : (
                           <div className="px-4 py-3 flex items-center justify-between gap-4 hover:bg-gray-500/10 whitespace-nowrap overflow-hidden">
                             <div className="flex items-center gap-4 min-w-0 flex-1 overflow-hidden">
-                              <span className={`text-[10px] shrink-0 w-24 whitespace-nowrap ${dateTextClass}`}>
+                              <span className={`text-[10px] shrink-0 w-24 whitespace-nowrap ${dateTextClass} font-mono`}>
                                 {displayDate.split(",")[0]}
                               </span>
                               <span className={`shrink-0 w-44 truncate whitespace-nowrap ${senderTextClass}`}>
@@ -913,17 +913,17 @@ export default function DashboardPage() {
                   {calendarEvents.map((evt) => (
                     <div key={evt.id} className={`border ${border900Class} p-3 ${innerCardBgClass} rounded text-xs`}>
                       <div className={`flex flex-col sm:flex-row justify-between mb-2 pb-1.5 border-b ${border900Class}/50`}>
-                        <span className={`font-bold ${textWhiteClass}`}>{evt.title}</span>
-                        <span className="text-gray-500">
+                        <span className={`font-bold ${textWhiteClass} tracking-tight`}>{evt.title}</span>
+                        <span className="text-gray-500 font-mono">
                           {mounted ? `${new Date(evt.start).toLocaleString()} - ${new Date(evt.end).toLocaleString()}` : ""}
                         </span>
                       </div>
-                      {evt.location && <p className={`mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Location: {evt.location}</p>}
+                      {evt.location && <p className={`mb-1 ${isDark ? "text-gray-400" : "text-gray-600"} font-sans font-normal leading-relaxed`}>Location: {evt.location}</p>}
                       {evt.attendees && evt.attendees.length > 0 && (
-                        <p className={`mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Attendees: {evt.attendees.join(", ")}</p>
+                        <p className={`mb-1 ${isDark ? "text-gray-400" : "text-gray-600"} font-sans font-normal leading-relaxed`}>Attendees: {evt.attendees.join(", ")}</p>
                       )}
                       {evt.description && (
-                        <p className={`${isDark ? "text-gray-400" : "text-gray-600"} whitespace-pre-wrap leading-relaxed ${actionContainerBgClass}/50 p-2 border ${border900Class} rounded mt-2`}>{evt.description}</p>
+                        <p className={`${isDark ? "text-gray-400" : "text-gray-600"} font-sans font-normal leading-relaxed whitespace-pre-wrap ${actionContainerBgClass}/50 p-2 border ${border900Class} rounded mt-2`}>{evt.description}</p>
                       )}
                     </div>
                   ))}
@@ -939,7 +939,7 @@ export default function DashboardPage() {
                 <div className={`flex items-center justify-between border-b ${borderClass} pb-3`}>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse shrink-0" />
-                    <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-wider`}>Active Session</h3>
+                    <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Active Session</h3>
                     {activeConversationId && (
                       <span className="text-[10px] text-zinc-500 font-mono">({activeConversationId})</span>
                     )}
@@ -976,7 +976,7 @@ export default function DashboardPage() {
 
                 <div className={`flex-1 space-y-3 ${innerCardBgClass} p-4 border ${border900Class} rounded overflow-y-auto min-h-0`}>
                   {chatMessages.map((msg) => (
-                    <div key={msg.id} className="text-xs leading-relaxed flex items-start gap-1">
+                    <div key={msg.id} className={`text-xs leading-relaxed flex items-start gap-1 ${msg.role === "assistant" ? "font-mono" : "font-sans font-normal"}`}>
                       <span className={`font-bold ${msg.role === "user" ? "text-cyan-400" : "text-purple-400"} uppercase shrink-0 mt-[2px]`}>
                         [{msg.role}]:
                       </span>
@@ -1067,7 +1067,7 @@ export default function DashboardPage() {
               {showHistory && (
                 <div className={`w-72 border-l ${borderClass} pl-4 flex flex-col min-h-0 shrink-0`}>
                   <div className={`flex items-center justify-between border-b ${borderClass} pb-3 mb-3`}>
-                    <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-wider`}>
+                    <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>
                       Conversation History
                     </h3>
                     <button
@@ -1106,7 +1106,7 @@ export default function DashboardPage() {
                               <span className="text-[9px] text-zinc-400 font-mono">Tokens: {conv.tokens_used}</span>
                             )}
                             <span className="text-[8px] text-zinc-600 self-end mt-1">
-                              {new Date(conv.updated_at).toLocaleString()}
+                              <span className="font-mono">{new Date(conv.updated_at).toLocaleString()}</span>
                             </span>
                           </button>
                         );
@@ -1127,7 +1127,7 @@ export default function DashboardPage() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className={`border p-4 rounded ${cardBgClass} space-y-4`}>
-                  <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-wider`}>Preferences</h3>
+                  <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Preferences</h3>
                   
                   <div className="space-y-1">
                     <label className="text-[10px] text-gray-500 uppercase font-bold block">UI Color Theme</label>
@@ -1177,7 +1177,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div className={`border p-4 rounded ${cardBgClass} space-y-4`}>
-                  <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-wider`}>Synced Integrations (Neon DB Cache)</h3>
+                  <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Synced Integrations (Neon DB Cache)</h3>
                   <p className="text-[10px] text-gray-500">Local records of connection status synced from Corsair:</p>
                   
                   {localIntegrations.length === 0 ? (
@@ -1234,7 +1234,7 @@ export default function DashboardPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className={`p-4 border-b ${borderClass} flex items-center justify-between`}>
-              <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-wider`}>Compose New Message</h3>
+              <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Compose New Message</h3>
               <button 
                 onClick={() => setShowComposeModal(false)}
                 className="text-zinc-500 hover:text-zinc-300 font-bold text-lg cursor-pointer"
