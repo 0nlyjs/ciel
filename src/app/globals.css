@@ -54,7 +54,7 @@ body {
    Real pebble-lens refraction with 3D convex dome aesthetics
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Floating Island Navigation Bar ── */
+/* ── Transparent Box Navigation Bar ── */
 .liquid-glass-island {
   position: fixed;
   top: 16px;
@@ -63,42 +63,20 @@ body {
   width: calc(100% - 2rem);
   max-width: 1024px;
   z-index: 50;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.45) 0%,
-    rgba(255, 255, 255, 0.18) 100%
-  );
-  backdrop-filter: url(#liquid-glass-refract) blur(28px) saturate(1.8) brightness(1.05);
-  -webkit-backdrop-filter: url(#liquid-glass-refract) blur(28px) saturate(1.8) brightness(1.05);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  border-top-color: rgba(255, 255, 255, 0.85);
-  border-bottom-color: rgba(255, 255, 255, 0.25);
-  border-radius: 9999px;
+  background: transparent;
+  backdrop-filter: url(#navbar-magnifier) blur(12px);
+  -webkit-backdrop-filter: url(#navbar-magnifier) blur(12px);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
   box-shadow:
-    /* Convex dome: bright top edge */
-    inset 0 2px 0 0 rgba(255, 255, 255, 0.9),
-    /* Convex dome: dark bottom edge */
-    inset 0 -2px 4px 0 rgba(0, 0, 0, 0.06),
-    /* Inner light fill */
-    inset 0 0 20px 0 rgba(255, 255, 255, 0.15),
-    /* Outer floating shadow */
-    0 8px 32px -4px rgba(0, 0, 0, 0.1),
-    0 2px 8px -2px rgba(0, 0, 0, 0.06);
+    0 10px 25px -5px rgba(0, 0, 0, 0.05),
+    0 8px 16px -6px rgba(0, 0, 0, 0.03);
   contain: layout style paint;
 }
 
-/* Specular highlight reflection on the island */
+/* Disabled specular highlight reflection for transparent box */
 .liquid-glass-island::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(
-    ellipse 80% 50% at 50% 0%,
-    rgba(255, 255, 255, 0.5) 0%,
-    rgba(255, 255, 255, 0.0) 70%
-  );
-  pointer-events: none;
+  display: none;
 }
 
 /* ── Glass Card (Section Cards) ── */

@@ -49,12 +49,37 @@ export default function RootLayout({
               <feGaussianBlur in="warped" stdDeviation="0.4" />
             </filter>
 
+            {/* Magnifier lens effect */}
+            <filter id="navbar-magnifier" x="0" y="0" width="1" height="1">
+              <feImage
+                href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48bGluZWFyR3JhZGllbnQgaWQ9ImdYIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMCI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjZmYwMDAwIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMDAwMDAwIi8+PC9saW5lYXJHcmFkaWVudD48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0idXJsKCNnWCkiLz48L3N2Zz4="
+                result="mapX"
+                x="0"
+                y="0"
+                width="1"
+                height="1"
+                preserveAspectRatio="none"
+              />
+              <feImage
+                href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48bGluZWFyR3JhZGllbnQgaWQ9ImdZIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjMDA4NjAwIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMDA3OTAwIi8+PC9saW5lYXJHcmFkaWVudD48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0idXJsKCNnWSkiLz48L3N2Zz4="
+                result="mapY"
+                x="0"
+                y="0"
+                width="1"
+                height="1"
+                preserveAspectRatio="none"
+              />
+              <feBlend in="mapX" in2="mapY" mode="screen" result="map" />
+              <feDisplacementMap in="SourceGraphic" in2="map" scale="120" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+
             {/* Stronger refraction for larger surfaces (modal) */}
             <filter id="liquid-glass-refract-strong" x="-10%" y="-10%" width="120%" height="120%">
               <feTurbulence type="fractalNoise" baseFrequency="0.01" numOctaves="3" seed="2" result="noise" />
               <feDisplacementMap in="SourceGraphic" in2="noise" scale="5" xChannelSelector="R" yChannelSelector="G" result="warped" />
               <feGaussianBlur in="warped" stdDeviation="0.6" />
             </filter>
+
           </defs>
         </svg>
         <Providers>{children}</Providers>
