@@ -90,7 +90,7 @@ export const verificationCodes = pgTable("verification_codes", {
 
 export const userSettings = pgTable("user_settings", {
   userEmail: varchar("user_email", { length: 255 }).primaryKey().references(() => users.email, { onDelete: "cascade" }),
-  theme: varchar("theme", { length: 50 }).default("dark"),
+  theme: varchar("theme", { length: 50 }).default("light"),
   syncIntervalMinutes: integer("sync_interval_minutes").default(60),
   aiAutoPriority: boolean("ai_auto_priority").default(true),
   createdAt: timestamp("created_at").defaultNow(),

@@ -28,7 +28,7 @@ export async function GET() {
       const defaultSettings = await db.insert(userSettings)
         .values({
           userEmail: email,
-          theme: 'dark',
+          theme: 'light',
           syncIntervalMinutes: 60,
           aiAutoPriority: true,
         })
@@ -64,14 +64,14 @@ export async function POST(req: Request) {
     const updated = await db.insert(userSettings)
       .values({
         userEmail: email,
-        theme: theme || 'dark',
+        theme: theme || 'light',
         syncIntervalMinutes: sync_interval_minutes !== undefined ? parseInt(sync_interval_minutes, 10) : 60,
         aiAutoPriority: ai_auto_priority !== undefined ? !!ai_auto_priority : true
       })
       .onConflictDoUpdate({
         target: [userSettings.userEmail],
         set: {
-          theme: theme || 'dark',
+          theme: theme || 'light',
           syncIntervalMinutes: sync_interval_minutes !== undefined ? parseInt(sync_interval_minutes, 10) : 60,
           aiAutoPriority: ai_auto_priority !== undefined ? !!ai_auto_priority : true
         }

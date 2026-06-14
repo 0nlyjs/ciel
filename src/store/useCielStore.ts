@@ -304,7 +304,7 @@ export const useCielStore = create<CielState>((set) => ({
   },
 
   // settings default state
-  theme: "dark",
+  theme: "light",
   syncInterval: 60,
   aiAutoPriority: true,
   localIntegrations: [],
@@ -315,7 +315,7 @@ export const useCielStore = create<CielState>((set) => ({
       if (res.ok) {
         const data = await res.json();
         set({
-          theme: data.theme || "dark",
+          theme: data.theme || "light",
           syncInterval: data.sync_interval_minutes || 60,
           aiAutoPriority: data.ai_auto_priority !== undefined ? !!data.ai_auto_priority : true,
         });
