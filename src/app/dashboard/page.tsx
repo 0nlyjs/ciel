@@ -28,7 +28,7 @@ export default function DashboardPage() {
   const fetchCalendarEvents = useCielStore((s) => s.fetchCalendarEvents);
   const markAsRead = useCielStore((s) => s.markAsRead);
 
-  const startRange = emailsTotal > 0 ? (emailsPage - 1) * emailsPerPage + 1 : 0;
+  const startRange = emailsTotal > 0 ? (emailsPage === 1 ? 1 : (emailsPage - 1) * emailsPerPage) : 0;
   const endRange = Math.min(emailsPage * emailsPerPage, emailsTotal);
   
   const searchQuery = useCielStore((s) => s.searchQuery);
@@ -116,6 +116,8 @@ export default function DashboardPage() {
   const [conversationsList, setConversationsList] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [tokensConsumed, setTokensConsumed] = useState(0);
+  const [gmailPanelExpanded, setGmailPanelExpanded] = useState(false);
+  const [calendarPanelExpanded, setCalendarPanelExpanded] = useState(false);
 
   const fetchConversations = async () => {
     try {
@@ -565,7 +567,7 @@ export default function DashboardPage() {
 
       {/* Integration Panels - slide down and hide when chat expanded */}
       <section
-        className={`grid grid-cols-1 md:grid-cols-2 gap-4 min-h-0 overflow-hidden flex-1 transition-[max-height,opacity,margin] duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+        className={`flex flex-col md:flex-row gap-4 min-h-0 overflow-hidden flex-1 transition-[max-height,opacity,margin] duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${
           chatExpanded
             ? "opacity-0 mb-0 pointer-events-none"
             : "opacity-100 mb-4"
@@ -573,59 +575,83 @@ export default function DashboardPage() {
         style={{ maxHeight: chatExpanded ? '0px' : '80vh' }}
       >
         {/* Gmail Panel */}
-        <div className={`rounded-2xl flex flex-col ${cardBgClass} overflow-hidden transition-all duration-300 min-h-0`}>
+        <div 
+          className={`rounded-2xl flex flex-col ${cardBgClass} overflow-hidden transition-[max-height] duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] min-h-0 w-full md:flex-1 ${
+            !gmailPanelExpanded ? "flex-none md:self-start" : "flex-1 md:h-full md:self-stretch"
+          }`}
+          style={{ 
+            maxHeight: gmailPanelExpanded ? "80vh" : "72px" 
+          }}
+        >
           {/* Gmail Header */}
-          <div className="p-5 pb-3">
-            <div className="flex items-center justify-between mb-1">
-              <h2 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Gmail Integration</h2>
-              <div className="flex items-center gap-2">
-                <span className={`inline-block w-2 h-2 rounded-full ${gmailConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
-                <span className={`text-[10px] font-semibold uppercase ${gmailConnected ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>{gmailConnected ? "CONNECTED" : "DISCONNECTED"}</span>
-              </div>
-            </div>
-            <p className={`text-[11px] ${textMutedClass}`}>Corsair synchronization status for user emails.</p>
-          </div>
-
-          {gmailConnected ? (
-            <div className="flex-1 flex flex-col min-h-0">
-              {/* Email Action Bar */}
-              <div className={`px-5 pb-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2`}>
-                <form onSubmit={handleSearchSubmit} className="flex-1 flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Search emails..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className={`flex-1 ${inputBgClass} border ${borderClass} text-xs px-3 py-2 outline-none rounded-xl font-mono`}
-                  />
-                  <button type="submit" className={`text-xs px-3 py-2 font-bold uppercase border border-slate-900/10 dark:border-white/5 rounded-xl cursor-pointer ${buttonBgClass}`}>Search</button>
-                </form>
-                <div className="flex gap-1.5 shrink-0">
-                  <button
-                    onClick={async () => {
-                      setIsRefreshing(true);
-                      try { await fetchEmails(true); } catch (e) { console.error(e); } finally { setIsRefreshing(false); }
-                    }}
-                    disabled={isRefreshing}
-                    className={`text-xs px-3 py-2 font-bold uppercase border border-slate-900/10 dark:border-white/5 rounded-xl cursor-pointer disabled:opacity-50 ${buttonBgClass}`}
-                  >
-                    {isRefreshing ? "..." : "Refresh"}
-                  </button>
-                  <button
-                    onClick={() => handleInitiateCompose()}
-                    className="px-3 py-2 bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20 rounded-xl text-xs font-bold cursor-pointer hover:bg-purple-500/25 transition-colors uppercase shrink-0"
-                  >
-                    + Compose
-                  </button>
+          <div 
+            onClick={() => setGmailPanelExpanded(!gmailPanelExpanded)}
+            className="h-[72px] px-5 flex items-center justify-between cursor-pointer select-none hover:bg-slate-500/5 transition-colors shrink-0"
+          >
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-1">
+                <h2 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Gmail Integration</h2>
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <span className={`inline-block w-2 h-2 rounded-full ${gmailConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
+                  <span className={`text-[10px] font-semibold uppercase ${gmailConnected ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>{gmailConnected ? "CONNECTED" : "DISCONNECTED"}</span>
                 </div>
               </div>
+              <p className={`text-[11px] ${textMutedClass} truncate`}>Corsair synchronization status for user emails.</p>
+            </div>
+            
+            {/* Arrow symbol */}
+            <div className="ml-4 shrink-0 text-slate-400 hover:text-slate-200">
+              <svg className={`w-4 h-4 transform transition-transform duration-500 ${gmailPanelExpanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
 
-              {/* Email List */}
-              <div className={`flex-1 border-t ${borderClass} overflow-y-auto`}>
-                {/* Pagination Header */}
-                <div className={`px-5 py-2.5 flex justify-between items-center border-b ${borderClass} ${accordionHeaderBgClass}`}>
+          {/* Animated Body Container */}
+          <div 
+            className="transition-opacity duration-300 ease-in-out flex-1 flex flex-col min-h-0"
+            style={{ 
+              opacity: gmailPanelExpanded ? 1 : 0 
+            }}
+          >
+            {gmailConnected ? (
+              <div className="flex-1 flex flex-col min-h-0">
+                {/* Email Action Bar */}
+                <div className={`px-5 pb-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2`}>
+                  <form onSubmit={handleSearchSubmit} className="flex-1 flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Search emails..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className={`flex-1 ${inputBgClass} border ${borderClass} text-xs px-3 py-2 outline-none rounded-xl font-mono`}
+                    />
+                    <button type="submit" className={`text-xs px-3 py-2 font-bold uppercase border border-slate-900/10 dark:border-white/5 rounded-xl cursor-pointer ${buttonBgClass}`}>Search</button>
+                  </form>
+                  <div className="flex gap-1.5 shrink-0">
+                    <button
+                      onClick={async () => {
+                        setIsRefreshing(true);
+                        try { await fetchEmails(true); } catch (e) { console.error(e); } finally { setIsRefreshing(false); }
+                      }}
+                      disabled={isRefreshing}
+                      className={`text-xs px-3 py-2 font-bold uppercase border border-slate-900/10 dark:border-white/5 rounded-xl cursor-pointer disabled:opacity-50 ${buttonBgClass}`}
+                    >
+                      {isRefreshing ? "..." : "Refresh"}
+                    </button>
+                    <button
+                      onClick={() => handleInitiateCompose()}
+                      className="px-3 py-2 bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20 rounded-xl text-xs font-bold cursor-pointer hover:bg-purple-500/25 transition-colors uppercase shrink-0"
+                    >
+                      + Compose
+                    </button>
+                  </div>
+                </div>
+
+                {/* Pagination Header (static, out of scroll view) */}
+                <div className={`px-5 py-2.5 flex justify-between items-center border-t border-b ${borderClass} shrink-0`}>
                   <span className={`text-[10px] uppercase tracking-wider ${textMutedClass}`}>
-                    Inbox ({startRange}-{endRange} of {emailsTotal})
+                    Inbox
                   </span>
                   <div className="flex items-center gap-1.5">
                     <button
@@ -635,7 +661,7 @@ export default function DashboardPage() {
                     >
                       Prev
                     </button>
-                    <span className="text-[10px] text-slate-500 font-bold px-1">{emailsPage}</span>
+                    <span className="text-[10px] text-slate-500 font-mono font-bold px-1.5">{startRange}-{endRange}</span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -650,220 +676,250 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {emails.length === 0 ? (
-                  <p className={`text-xs ${textMutedClass} p-5`}>No emails cached in database. Click Refresh or check your credentials.</p>
-                ) : (
-                  <div>
-                    {emails.map((email) => {
-                      const isExpanded = expandedEmailId === email.id;
-                      const displayDate = (() => {
-                        if (!mounted) return "";
-                        try { return new Date(email.date).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
-                        catch { return email.date; }
-                      })();
-                      const emailBgClass = email.read
-                        ? (isDark ? "bg-black/15 text-slate-400 opacity-80" : "bg-slate-900/5 text-slate-500 opacity-80")
-                        : (isDark ? "bg-white/5 border-l-2 border-l-purple-500" : "bg-white/70 border-l-2 border-l-cyan-500 shadow-sm");
-                      const senderTextClass = email.read ? "text-slate-500 font-normal" : (isDark ? "text-white font-bold" : "text-slate-950 font-bold");
-                      const subjectTextClass = email.read ? (isDark ? "text-slate-400 font-normal" : "text-slate-500 font-normal") : (isDark ? "text-white font-bold" : "text-slate-950 font-bold");
-                      const dateTextClass = email.read ? "text-slate-500 font-normal" : (isDark ? "text-purple-400 font-bold" : "text-cyan-600 font-bold");
+                {/* Email List (scrollable) */}
+                <div className="flex-1 overflow-y-auto">
+                  {emails.length === 0 ? (
+                    <p className={`text-xs ${textMutedClass} p-5`}>No emails cached in database. Click Refresh or check your credentials.</p>
+                  ) : (
+                    <div>
+                      {emails.map((email) => {
+                        const isExpanded = expandedEmailId === email.id;
+                        const displayDate = (() => {
+                          if (!mounted) return "";
+                          try { return new Date(email.date).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
+                          catch { return email.date; }
+                        })();
+                        const emailBgClass = email.read
+                          ? (isDark ? "bg-black/15 text-slate-400 opacity-80" : "bg-slate-900/5 text-slate-500 opacity-80")
+                          : (isDark ? "bg-white/5 border-l-2 border-l-purple-500" : "bg-white/70 border-l-2 border-l-cyan-500 shadow-sm");
+                        const senderTextClass = email.read ? "text-slate-500 font-normal" : (isDark ? "text-white font-bold" : "text-slate-955 font-bold");
+                        const subjectTextClass = email.read ? (isDark ? "text-slate-400 font-normal" : "text-slate-500 font-normal") : (isDark ? "text-white font-bold" : "text-slate-955 font-bold");
+                        const dateTextClass = email.read ? "text-slate-500 font-normal" : (isDark ? "text-purple-400 font-bold" : "text-cyan-600 font-bold");
 
-                      return (
-                        <div
-                          key={email.id}
-                          onClick={() => { setExpandedEmailId(isExpanded ? null : email.id); if (!email.read) markAsRead(email.id); }}
-                          className={`border-b ${borderClass} ${emailBgClass} text-xs cursor-pointer hover:bg-slate-500/10 transition-all duration-200 overflow-hidden`}
-                        >
-                          {isExpanded ? (
-                            <div className={`p-4 space-y-3 ${accordionHeaderBgClass}`}>
-                              <div className={`flex flex-col sm:flex-row justify-between pb-2 border-b ${border900Class}`}>
-                                <div>
-                                  <span className={`font-bold ${textWhiteClass}`}>FROM: {email.from}</span>
-                                  <span className="text-slate-500 ml-2">&lt;{email.fromEmail}&gt;</span>
-                                </div>
-                                <span className="text-slate-500 text-[10px] font-mono">{displayDate}</span>
-                              </div>
-                              <div><h3 className={`text-sm font-bold ${textWhiteClass} tracking-normal leading-tight`}>{email.subject}</h3></div>
-                              <p className={`${isDark ? "text-slate-300" : "text-slate-700"} font-sans font-normal leading-relaxed whitespace-pre-wrap ${innerCardBgClass} p-4 border border-slate-900/5 dark:border-white/5 rounded-xl select-text`}>{email.body}</p>
-                              <div className="flex gap-4 text-[10px] text-slate-500 uppercase font-semibold pt-1">
-                                <span>Category: <span className={isDark ? "text-slate-400" : "text-slate-650"}>{email.category}</span></span>
-                                <span>Priority: <span className={isDark ? "text-slate-400" : "text-slate-650"}>{email.priority}</span></span>
-                                <span>Read: <span className={isDark ? "text-slate-400" : "text-slate-650"}>{email.read ? "yes" : "no"}</span></span>
-                              </div>
-                              {/* AI Reply & Compose Controls */}
-                              <div className="mt-4 pt-3 border-t border-slate-900/10 dark:border-white/10 space-y-3" onClick={(e) => e.stopPropagation()}>
-                                {activeReplyEmailId !== email.id ? (
-                                  <div className="flex items-center gap-2">
-                                    <button onClick={() => handleInitiateSmartReply(email)} className="px-3.5 py-1.5 bg-purple-500/10 text-purple-600 dark:text-purple-300 hover:bg-purple-500/20 border border-purple-500/20 rounded-xl font-bold uppercase text-[10px] cursor-pointer flex items-center gap-1.5 transition-colors">
-                                      <span>✨</span> Reply with AI
-                                    </button>
-                                    <button onClick={() => handleInitiateCompose(email.fromEmail, `Re: ${email.subject}`)} className="px-3.5 py-1.5 border border-slate-900/10 dark:border-white/5 bg-slate-900/5 dark:bg-white/5 text-slate-800 dark:text-slate-200 hover:bg-slate-900/10 dark:hover:bg-white/10 rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors">
-                                      Manual Reply
-                                    </button>
+                        return (
+                          <div
+                            key={email.id}
+                            onClick={() => { setExpandedEmailId(isExpanded ? null : email.id); if (!email.read) markAsRead(email.id); }}
+                            className={`border-b ${borderClass} ${emailBgClass} text-xs cursor-pointer hover:bg-slate-500/10 transition-all duration-200 overflow-hidden`}
+                          >
+                            {isExpanded ? (
+                              <div className={`p-4 space-y-3 ${accordionHeaderBgClass}`}>
+                                <div className={`flex flex-col sm:flex-row justify-between pb-2 border-b ${border900Class}`}>
+                                  <div>
+                                    <span className={`font-bold ${textWhiteClass}`}>FROM: {email.from}</span>
+                                    <span className="text-slate-500 ml-2">&lt;{email.fromEmail}&gt;</span>
                                   </div>
-                                ) : (
-                                  <div className={`space-y-3 p-4 border border-slate-900/5 dark:border-white/5 rounded-xl ${innerCardBgClass}`}>
-                                    {isGeneratingReplies && (
-                                      <div className="py-4 text-center text-xs text-slate-500 font-mono animate-pulse flex items-center justify-center gap-2">
-                                        <span className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" />
-                                        <span>Ciel AI is analyzing context and drafting smart replies...</span>
+                                  <span className="text-slate-500 text-[10px] font-mono">{displayDate}</span>
+                                </div>
+                                <div><h3 className={`text-sm font-bold ${textWhiteClass} tracking-normal leading-tight`}>{email.subject}</h3></div>
+                                <p className={`${isDark ? "text-slate-350" : "text-slate-700"} font-sans font-normal leading-relaxed whitespace-pre-wrap ${innerCardBgClass} p-4 border border-slate-900/5 dark:border-white/5 rounded-xl select-text`}>{email.body}</p>
+                                <div className="flex gap-4 text-[10px] text-slate-500 uppercase font-semibold pt-1">
+                                  <span>Category: <span className={isDark ? "text-slate-400" : "text-slate-650"}>{email.category}</span></span>
+                                  <span>Priority: <span className={isDark ? "text-slate-400" : "text-slate-650"}>{email.priority}</span></span>
+                                  <span>Read: <span className={isDark ? "text-slate-400" : "text-slate-650"}>{email.read ? "yes" : "no"}</span></span>
+                                </div>
+                                {/* AI Reply & Compose Controls */}
+                                <div className="mt-4 pt-3 border-t border-slate-900/10 dark:border-white/10 space-y-3" onClick={(e) => e.stopPropagation()}>
+                                  {activeReplyEmailId !== email.id ? (
+                                    <div className="flex items-center gap-2">
+                                      <button onClick={() => handleInitiateSmartReply(email)} className="px-3.5 py-1.5 bg-purple-500/10 text-purple-600 dark:text-purple-300 hover:bg-purple-500/20 border border-purple-500/20 rounded-xl font-bold uppercase text-[10px] cursor-pointer flex items-center gap-1.5 transition-colors">
+                                        <span>✨</span> Reply with AI
+                                      </button>
+                                      <button onClick={() => handleInitiateCompose(email.fromEmail, `Re: ${email.subject}`)} className="px-3.5 py-1.5 border border-slate-900/10 dark:border-white/5 bg-slate-900/5 dark:bg-white/5 text-slate-800 dark:text-slate-200 hover:bg-slate-900/10 dark:hover:bg-white/10 rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors">
+                                        Reply
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[10px] uppercase font-bold text-slate-500">Draft reply using AI:</span>
+                                        <button onClick={() => setActiveReplyEmailId(null)} className="text-[10px] font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white uppercase">Cancel</button>
                                       </div>
-                                    )}
-                                    {!isGeneratingReplies && aiSuggestions.length > 0 && (
-                                      <div className="space-y-2">
-                                        <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Select a reply template:</span>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                      {isGeneratingReplies ? (
+                                        <div className="text-[11px] text-slate-500 animate-pulse">Drafting alternative replies...</div>
+                                      ) : (
+                                        <div className="flex flex-wrap gap-2">
                                           {aiSuggestions.map((sug, idx) => (
                                             <button
                                               key={idx}
                                               onClick={() => { setSelectedReplyIndex(idx); setReplyBody(sug.body); }}
-                                              className={`p-3 text-left border rounded-xl transition-all duration-200 select-none cursor-pointer ${
+                                              className={`text-[9px] px-3 py-1.5 border rounded-xl font-bold uppercase cursor-pointer transition-all ${
                                                 selectedReplyIndex === idx
-                                                  ? (isDark ? "bg-purple-950/40 border-purple-500 text-purple-200" : "bg-purple-50 border-purple-300 text-purple-900")
-                                                  : (isDark ? "bg-black/20 border-white/5 hover:border-white/10 text-slate-400" : "bg-white border-slate-200 hover:border-slate-300 text-slate-600")
+                                                  ? "bg-purple-600 border-purple-600 text-white"
+                                                  : `border-slate-900/10 dark:border-white/5 text-slate-650 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white ${isDark ? "bg-white/5" : "bg-slate-900/5"}`
                                               }`}
                                             >
-                                              <div className="font-bold text-[10px] mb-1 uppercase tracking-wider">{sug.label}</div>
-                                              <div className="text-[9px] line-clamp-2 leading-relaxed opacity-80">{sug.body}</div>
+                                              {sug.label}
                                             </button>
                                           ))}
                                         </div>
-                                      </div>
-                                    )}
-                                    {(!isGeneratingReplies || replyBody) && (
-                                      <div className="space-y-2">
-                                        <textarea
-                                          value={replyBody}
-                                          onChange={(e) => setReplyBody(e.target.value)}
-                                          placeholder="Select a suggestion above or type your reply manually here..."
-                                          rows={4}
-                                          className={`w-full text-xs p-3 outline-none rounded-xl border transition-all duration-300 ${inputBgClass} resize-none`}
-                                        />
-                                        <div className="flex items-center justify-between">
-                                          <span className="text-[9px] text-slate-500">Subject: Re: {email.subject}</span>
-                                          <div className="flex items-center gap-2">
-                                            <button onClick={() => { setActiveReplyEmailId(null); setReplyBody(""); setAiSuggestions([]); setSelectedReplyIndex(null); }} className="px-3 py-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-xl font-bold uppercase text-[9px] cursor-pointer">Cancel</button>
-                                            <button onClick={() => handleSendSmartReply(email.fromEmail, email.subject)} disabled={isSendingReply || !replyBody.trim()} className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl font-bold uppercase text-[9px] cursor-pointer transition-colors">
+                                      )}
+                                      {(!isGeneratingReplies || replyBody) && (
+                                        <div className="space-y-2">
+                                          <textarea
+                                            value={replyBody}
+                                            onChange={(e) => setReplyBody(e.target.value)}
+                                            rows={5}
+                                            className="w-full text-xs p-3 border border-slate-200 dark:border-slate-800 bg-white/5 outline-none rounded-xl resize-none text-slate-900 dark:text-white"
+                                          />
+                                          <div className="flex items-center justify-end gap-2">
+                                            <button
+                                              onClick={() => handleSendSmartReply(email.fromEmail, email.subject)}
+                                              disabled={isSendingReply || !replyBody.trim()}
+                                              className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold uppercase rounded-xl disabled:opacity-50 transition-colors cursor-pointer"
+                                            >
                                               {isSendingReply ? "Sending..." : "Send Reply"}
                                             </button>
                                           </div>
                                         </div>
-                                      </div>
-                                    )}
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="px-5 py-3 flex items-center justify-between gap-4 hover:bg-slate-500/5 transition-colors">
+                                <div className="flex-1 min-w-0 pr-4">
+                                  <div className="flex items-baseline justify-between mb-0.5">
+                                    <span className={`${senderTextClass} truncate mr-2`}>{email.from}</span>
+                                    <span className={`${dateTextClass} text-[10px] font-mono shrink-0`}>{displayDate}</span>
                                   </div>
-                                )}
+                                  <p className={`${subjectTextClass} truncate text-[11px]`}>{email.subject}</p>
+                                </div>
+                                <div className="shrink-0 flex items-center gap-2">
+                                  <span className={`text-[9px] px-1.5 py-0.5 rounded-lg border font-mono font-bold uppercase shrink-0 ${
+                                    email.priority === "high"
+                                      ? (isDark ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-red-50 border-red-200 text-red-700")
+                                      : (isDark ? "bg-slate-800 border-slate-700 text-slate-400" : "bg-slate-100 border-slate-200 text-slate-600")
+                                  }`}>{email.priority}</span>
+                                </div>
                               </div>
-                            </div>
-                          ) : (
-                            <div className="px-4 py-3 flex items-center justify-between gap-4 whitespace-nowrap overflow-hidden transition-colors">
-                              <div className="flex items-center gap-4 min-w-0 flex-1 overflow-hidden">
-                                <span className={`text-[10px] shrink-0 w-24 whitespace-nowrap ${dateTextClass} font-mono`}>{displayDate.split(",")[0]}</span>
-                                <span className={`shrink-0 w-44 truncate whitespace-nowrap ${senderTextClass}`}>{email.from}</span>
-                                <span className="truncate flex-1 block whitespace-nowrap overflow-hidden text-ellipsis">
-                                  <span className={subjectTextClass}>{email.subject}</span>
-                                  <span className={`${isDark ? "text-slate-550" : "text-slate-400"} font-normal ml-3 whitespace-nowrap`}>— {email.body ? email.body.substring(0, 150).replace(/\r?\n/g, " ") : ""}</span>
-                                </span>
-                              </div>
-                              <span className="text-[10px] text-slate-500 uppercase shrink-0 font-bold whitespace-nowrap">{email.category}</span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="px-5 pb-5 pt-2">
-              <button
-                onClick={async () => {
-                  try {
-                    const res = await fetch("/api/auth/corsair/connect?plugin=gmail");
-                    const data = await res.json();
-                    if (data.authorizeUrl) window.location.href = data.authorizeUrl;
-                  } catch (e) { console.error("Failed to connect gmail:", e); }
-                }}
-                className={`text-center w-full py-2.5 ${buttonBgClass} border border-slate-900/10 dark:border-white/5 rounded-xl text-xs uppercase font-bold cursor-pointer`}
-              >
-                Connect Gmail
-              </button>
-            </div>
-          )}
+            ) : (
+              <div className="px-5 pb-5 pt-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("/api/auth/corsair/connect?plugin=gmail");
+                      const data = await res.json();
+                      if (data.authorizeUrl) window.location.href = data.authorizeUrl;
+                    } catch (e) { console.error("Failed to connect gmail:", e); }
+                  }}
+                  className={`text-center w-full py-2.5 ${buttonBgClass} border border-slate-900/10 dark:border-white/5 rounded-xl text-xs uppercase font-bold cursor-pointer`}
+                >
+                  Connect Gmail
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Calendar Panel */}
-        <div className={`rounded-2xl flex flex-col ${cardBgClass} overflow-hidden transition-all duration-300 min-h-0`}>
+        <div 
+          className={`rounded-2xl flex flex-col ${cardBgClass} overflow-hidden transition-[max-height] duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] min-h-0 w-full md:flex-1 ${
+            !calendarPanelExpanded ? "flex-none md:self-start" : "flex-1 md:h-full md:self-stretch"
+          }`}
+          style={{ 
+            maxHeight: calendarPanelExpanded ? "80vh" : "72px" 
+          }}
+        >
           {/* Calendar Header */}
-          <div className="p-5 pb-3">
-            <div className="flex items-center justify-between mb-1">
-              <h2 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Google Calendar</h2>
-              <div className="flex items-center gap-2">
-                <span className={`inline-block w-2 h-2 rounded-full ${calendarConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
-                <span className={`text-[10px] font-semibold uppercase ${calendarConnected ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>{calendarConnected ? "CONNECTED" : "DISCONNECTED"}</span>
+          <div 
+            onClick={() => setCalendarPanelExpanded(!calendarPanelExpanded)}
+            className="h-[72px] px-5 flex items-center justify-between cursor-pointer select-none hover:bg-slate-500/5 transition-colors shrink-0"
+          >
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-1">
+                <h2 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Google Calendar</h2>
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <span className={`inline-block w-2 h-2 rounded-full ${calendarConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
+                  <span className={`text-[10px] font-semibold uppercase ${calendarConnected ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>{calendarConnected ? "CONNECTED" : "DISCONNECTED"}</span>
+                </div>
               </div>
+              <p className={`text-[11px] ${textMutedClass} truncate`}>Corsair synchronization status for user schedules.</p>
             </div>
-            <p className={`text-[11px] ${textMutedClass}`}>Corsair synchronization status for user schedules.</p>
+            
+            {/* Arrow symbol */}
+            <div className="ml-4 shrink-0 text-slate-400 hover:text-slate-200">
+              <svg className={`w-4 h-4 transform transition-transform duration-500 ${calendarPanelExpanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
           </div>
 
-          {calendarConnected ? (
-            <div className="flex-1 flex flex-col min-h-0">
-              {/* Calendar Action Bar */}
-              <div className={`px-5 pb-3 flex items-center gap-2`}>
+          {/* Animated Body Container */}
+          <div 
+            className="transition-opacity duration-300 ease-in-out flex-1 flex flex-col min-h-0"
+            style={{ 
+              opacity: calendarPanelExpanded ? 1 : 0 
+            }}
+          >
+            {calendarConnected ? (
+              <div className="flex-1 flex flex-col min-h-0">
+                {/* Calendar Action Bar */}
+                <div className={`px-5 pb-3 flex items-center gap-2 shrink-0`}>
+                  <button
+                    onClick={async () => {
+                      setIsRefreshing(true);
+                      try { await fetchCalendarEvents(); } catch (e) { console.error(e); } finally { setIsRefreshing(false); }
+                    }}
+                    disabled={isRefreshing}
+                    className={`text-xs px-3 py-2 font-bold uppercase border border-slate-900/10 dark:border-white/5 rounded-xl cursor-pointer disabled:opacity-50 ${buttonBgClass}`}
+                  >
+                    {isRefreshing ? "Refreshing..." : "Refresh Events"}
+                  </button>
+                  <span className={`text-[10px] ${textMutedClass} font-bold uppercase`}>{calendarEvents.length} events</span>
+                </div>
+
+                {/* Calendar Event List */}
+                <div className={`flex-1 border-t ${borderClass} overflow-y-auto p-4 space-y-3`}>
+                  {calendarEvents.length === 0 ? (
+                    <p className={`text-xs ${textMutedClass}`}>No calendar events cached in database. Click Refresh or check your credentials.</p>
+                  ) : (
+                    calendarEvents.map((evt) => (
+                      <div key={evt.id} className={`border ${borderClass} p-4 ${innerCardBgClass} rounded-xl text-xs shadow-sm`}>
+                        <div className={`flex flex-col sm:flex-row justify-between mb-2 pb-1.5 border-b ${borderClass}/50`}>
+                          <span className={`font-bold ${textWhiteClass} tracking-tight`}>{evt.title}</span>
+                          <span className="text-slate-500 font-mono">
+                            {mounted ? `${new Date(evt.start).toLocaleString()} - ${new Date(evt.end).toLocaleString()}` : ""}
+                          </span>
+                        </div>
+                        {evt.location && <p className={`mb-1 ${isDark ? "text-slate-350" : "text-slate-650"} font-sans font-normal leading-relaxed`}>Location: {evt.location}</p>}
+                        {evt.attendees && evt.attendees.length > 0 && (
+                          <p className={`mb-1 ${isDark ? "text-slate-350" : "text-slate-650"} font-sans font-normal leading-relaxed`}>Attendees: {evt.attendees.join(", ")}</p>
+                        )}
+                        {evt.description && (
+                          <p className={`${isDark ? "text-slate-350" : "text-slate-700"} font-sans font-normal leading-relaxed whitespace-pre-wrap bg-slate-900/5 dark:bg-black/20 p-3 border border-slate-900/5 dark:border-white/5 rounded-xl mt-2`}>{evt.description}</p>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="px-5 pb-5 pt-2 shrink-0">
                 <button
                   onClick={async () => {
-                    setIsRefreshing(true);
-                    try { await fetchCalendarEvents(); } catch (e) { console.error(e); } finally { setIsRefreshing(false); }
+                    try {
+                      const res = await fetch("/api/auth/corsair/connect?plugin=googlecalendar");
+                      const data = await res.json();
+                      if (data.authorizeUrl) window.location.href = data.authorizeUrl;
+                    } catch (e) { console.error("Failed to connect calendar:", e); }
                   }}
-                  disabled={isRefreshing}
-                  className={`text-xs px-3 py-2 font-bold uppercase border border-slate-900/10 dark:border-white/5 rounded-xl cursor-pointer disabled:opacity-50 ${buttonBgClass}`}
+                  className={`text-center w-full py-2.5 ${buttonBgClass} border border-slate-900/10 dark:border-white/5 rounded-xl text-xs uppercase font-bold cursor-pointer`}
                 >
-                  {isRefreshing ? "Refreshing..." : "Refresh Events"}
+                  Connect Calendar
                 </button>
-                <span className={`text-[10px] ${textMutedClass} font-bold uppercase`}>{calendarEvents.length} events</span>
               </div>
-
-              {/* Calendar Event List */}
-              <div className={`flex-1 border-t ${borderClass} overflow-y-auto p-4 space-y-3`}>
-                {calendarEvents.length === 0 ? (
-                  <p className={`text-xs ${textMutedClass}`}>No calendar events cached in database. Click Refresh or check your credentials.</p>
-                ) : (
-                  calendarEvents.map((evt) => (
-                    <div key={evt.id} className={`border ${borderClass} p-4 ${innerCardBgClass} rounded-xl text-xs shadow-sm`}>
-                      <div className={`flex flex-col sm:flex-row justify-between mb-2 pb-1.5 border-b ${borderClass}/50`}>
-                        <span className={`font-bold ${textWhiteClass} tracking-tight`}>{evt.title}</span>
-                        <span className="text-slate-500 font-mono">
-                          {mounted ? `${new Date(evt.start).toLocaleString()} - ${new Date(evt.end).toLocaleString()}` : ""}
-                        </span>
-                      </div>
-                      {evt.location && <p className={`mb-1 ${isDark ? "text-slate-350" : "text-slate-650"} font-sans font-normal leading-relaxed`}>Location: {evt.location}</p>}
-                      {evt.attendees && evt.attendees.length > 0 && (
-                        <p className={`mb-1 ${isDark ? "text-slate-350" : "text-slate-650"} font-sans font-normal leading-relaxed`}>Attendees: {evt.attendees.join(", ")}</p>
-                      )}
-                      {evt.description && (
-                        <p className={`${isDark ? "text-slate-350" : "text-slate-700"} font-sans font-normal leading-relaxed whitespace-pre-wrap bg-slate-900/5 dark:bg-black/20 p-3 border border-slate-900/5 dark:border-white/5 rounded-xl mt-2`}>{evt.description}</p>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="px-5 pb-5 pt-2">
-              <button
-                onClick={async () => {
-                  try {
-                    const res = await fetch("/api/auth/corsair/connect?plugin=googlecalendar");
-                    const data = await res.json();
-                    if (data.authorizeUrl) window.location.href = data.authorizeUrl;
-                  } catch (e) { console.error("Failed to connect calendar:", e); }
-                }}
-                className={`text-center w-full py-2.5 ${buttonBgClass} border border-slate-900/10 dark:border-white/5 rounded-xl text-xs uppercase font-bold cursor-pointer`}
-              >
-                Connect Calendar
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </section>
       {/* AI Chat — Expands in-place */}
