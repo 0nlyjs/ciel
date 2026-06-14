@@ -95,54 +95,66 @@ export default function LandingPage() {
       </header>
 
       {/* Main Content Sections */}
-      <main className="flex-1 w-full max-w-5xl mx-auto px-6 pt-32 pb-16 space-y-24">
+      <main className="flex-1 w-full max-w-6xl mx-auto px-6 pt-32 pb-16 space-y-24">
         
         {/* Section 1: Hero (The Awakening) */}
-        <section className="flex flex-col items-center justify-center text-center min-h-[75vh] py-12 space-y-8 max-w-3xl mx-auto">
-          {/* Decorative Tag */}
-          <div className="text-[11px] uppercase font-bold tracking-widest flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse shrink-0" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">Next-Gen Agentic Workspace</span>
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center min-h-[75vh] py-12 w-full text-left">
+          <div className="space-y-8 max-w-xl">
+            {/* Decorative Tag */}
+            <div className="text-[11px] uppercase font-bold tracking-widest flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse shrink-0" />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">Next-Gen Agentic Workspace</span>
+            </div>
+
+            {/* Main Headline */}
+            <h1 className="text-5xl md:text-7xl font-extrabold text-slate-900 tracking-normal leading-tight uppercase">
+              Think Fast.<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 drop-shadow-[0_0_15px_rgba(6,182,212,0.2)]">
+                Work Faster.
+              </span>
+            </h1>
+
+            {/* Sub-Headline */}
+            <p className="text-sm md:text-base text-slate-600 leading-relaxed">
+              Your time is valuable. Ceil clears the noise and handles the busywork, so you can stay in the zone and get things done.
+            </p>
+
+            {/* Action Button */}
+            <div className="pt-4">
+              <button
+                onClick={() => {
+                  if (isAuthenticated) {
+                    router.push("/dashboard");
+                  } else {
+                    setIsSignUp(true);
+                    setAuthError("");
+                    setAuthSuccess("");
+                    setShowAuthModal(true);
+                  }
+                }}
+                className="px-8 py-4 liquid-glass-button-cyan text-xs tracking-widest flex items-center gap-2 group"
+              >
+                {isAuthenticated ? "Go to Dashboard" : "Launch Ceil"}
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </button>
+            </div>
           </div>
 
-          {/* Main Headline */}
-          <h1 className="text-5xl md:text-7xl font-extrabold text-slate-900 tracking-normal leading-tight uppercase">
-            Think Fast.<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 drop-shadow-[0_0_15px_rgba(6,182,212,0.2)]">
-              Work Faster.
-            </span>
-          </h1>
-
-          {/* Sub-Headline */}
-          <p className="text-sm md:text-base text-slate-600 leading-relaxed">
-            Your time is valuable. Ceil clears the noise and handles the busywork, so you can stay in the zone and get things done.
-          </p>
-
-          {/* Action Button */}
-          <div className="pt-4">
-            <button
-              onClick={() => {
-                if (isAuthenticated) {
-                  router.push("/dashboard");
-                } else {
-                  setIsSignUp(true);
-                  setAuthError("");
-                  setAuthSuccess("");
-                  setShowAuthModal(true);
-                }
-              }}
-              className="px-8 py-4 liquid-glass-button-cyan text-xs tracking-widest flex items-center gap-2 group"
-            >
-              {isAuthenticated ? "Go to Dashboard" : "Launch Ceil"}
-              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-            </button>
+          {/* Placeholder column for future image */}
+          <div className="hidden md:block w-full h-[360px] border border-dashed border-slate-350/40 rounded-2xl bg-slate-500/5 relative overflow-hidden shadow-[inset_0_1px_4px_rgba(0,0,0,0.02)]">
+            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400/50 uppercase tracking-widest font-mono">Placeholder Image Area</div>
           </div>
         </section>
 
         {/* Section 2: The Agent (Corsair MCP Focus) */}
-        <section className="py-8">
-          <div className="p-8 md:p-12 space-y-6 text-center max-w-4xl mx-auto">
-            <div className="flex items-center gap-2 mx-auto justify-center text-[11px] font-bold uppercase tracking-widest relative z-10">
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center py-12 w-full text-left">
+          {/* Placeholder column for future image (renders first on desktop, bottom on mobile) */}
+          <div className="hidden md:block w-full h-[360px] border border-dashed border-slate-355/40 rounded-2xl bg-slate-500/5 relative overflow-hidden shadow-[inset_0_1px_4px_rgba(0,0,0,0.02)] order-last md:order-first">
+            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400/50 uppercase tracking-widest font-mono">Placeholder Image Area</div>
+          </div>
+
+          <div className="space-y-6 max-w-xl">
+            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest relative z-10">
               <Command className="w-3.5 h-3.5 text-purple-500 shrink-0" />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500">Corsair MCP Layer</span>
             </div>
@@ -151,26 +163,26 @@ export default function LandingPage() {
               Just Tell Ceil What to Do.
             </h2>
 
-            <p className="text-xs md:text-sm text-slate-600 leading-relaxed max-w-2xl mx-auto relative z-10">
+            <p className="text-xs md:text-sm text-slate-600 leading-relaxed relative z-10">
               Press <kbd className="px-1.5 py-0.5 rounded bg-black/5 border border-black/10 text-slate-900 text-[10px] font-mono">Cmd + K</kbd> and just type. Need to set up a meeting for Thursday? Want to clear out your junk mail? Just ask. Ceil understands plain English and handles the complex steps for you. It is like having a real assistant built right into your screen.
             </p>
 
-            {/* 3-Column Mini-Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 relative z-10">
-              <div className="p-5 text-left space-y-2">
-                <Terminal className="w-5 h-5 text-cyan-500" />
+            {/* Vertical Stack Mini-Cards */}
+            <div className="space-y-3 pt-2 relative z-10">
+              <div className="p-4 rounded-xl border border-black/5 bg-slate-50/50 text-left space-y-1">
+                <Terminal className="w-4 h-4 text-cyan-500" />
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Chat to Act</h4>
                 <p className="text-[11px] text-slate-600 leading-relaxed">Just type what you want.</p>
               </div>
 
-              <div className="p-5 text-left space-y-2">
-                <Filter className="w-5 h-5 text-purple-500" />
+              <div className="p-4 rounded-xl border border-black/5 bg-slate-50/50 text-left space-y-1">
+                <Filter className="w-4 h-4 text-purple-500" />
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Smart Sorting</h4>
                 <p className="text-[11px] text-slate-600 leading-relaxed">AI finds your most important emails.</p>
               </div>
 
-              <div className="p-5 text-left space-y-2">
-                <MousePointerClick className="w-5 h-5 text-blue-500" />
+              <div className="p-4 rounded-xl border border-black/5 bg-slate-50/50 text-left space-y-1">
+                <MousePointerClick className="w-4 h-4 text-blue-500" />
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Keyboard Only</h4>
                 <p className="text-[11px] text-slate-600 leading-relaxed">Never click through menus again.</p>
               </div>
@@ -179,9 +191,9 @@ export default function LandingPage() {
         </section>
 
         {/* Section 3: The Engine (Speed & Postgres Focus) */}
-        <section className="py-8">
-          <div className="p-8 md:p-12 space-y-6 text-center max-w-4xl mx-auto">
-            <div className="flex items-center gap-2 mx-auto justify-center text-[11px] font-bold uppercase tracking-widest relative z-10">
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center py-12 w-full text-left">
+          <div className="space-y-6 max-w-xl">
+            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest relative z-10">
               <Zap className="w-3.5 h-3.5 text-cyan-500 shrink-0" />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 to-blue-500">Database Speed Engine</span>
             </div>
@@ -190,29 +202,152 @@ export default function LandingPage() {
               Find Anything Instantly.
             </h2>
 
-            <p className="text-xs md:text-sm text-slate-600 leading-relaxed max-w-2xl mx-auto relative z-10">
+            <p className="text-xs md:text-sm text-slate-600 leading-relaxed relative z-10">
               Waiting for pages to load is frustrating. Ceil solves this by saving your data locally. This means you can search your entire email history and find any calendar event in less than one second. No loading bars. It is just always ready.
             </p>
 
-            {/* 3-Column Mini-Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 relative z-10">
-              <div className="p-5 text-left space-y-2">
-                <Search className="w-5 h-5 text-cyan-500" />
+            {/* Vertical Stack Mini-Cards */}
+            <div className="space-y-3 pt-2 relative z-10">
+              <div className="p-4 rounded-xl border border-black/5 bg-slate-50/50 text-left space-y-1">
+                <Search className="w-4 h-4 text-cyan-500" />
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Instant Search</h4>
                 <p className="text-[11px] text-slate-600 leading-relaxed">Find emails in under a second.</p>
               </div>
 
-              <div className="p-5 text-left space-y-2">
-                <Clock className="w-5 h-5 text-purple-500" />
+              <div className="p-4 rounded-xl border border-black/5 bg-slate-50/50 text-left space-y-1">
+                <Clock className="w-4 h-4 text-purple-500" />
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Zero Waiting</h4>
                 <p className="text-[11px] text-slate-600 leading-relaxed">No loading screens or spinners.</p>
               </div>
 
-              <div className="p-5 text-left space-y-2">
-                <RefreshCw className="w-5 h-5 text-blue-500" />
+              <div className="p-4 rounded-xl border border-black/5 bg-slate-50/50 text-left space-y-1">
+                <RefreshCw className="w-4 h-4 text-blue-500" />
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Always Live</h4>
                 <p className="text-[11px] text-slate-600 leading-relaxed">Syncs your calendar in real-time.</p>
               </div>
+            </div>
+          </div>
+
+          {/* Placeholder column for future image */}
+          <div className="hidden md:block w-full h-[360px] border border-dashed border-slate-350/40 rounded-2xl bg-slate-500/5 relative overflow-hidden shadow-[inset_0_1px_4px_rgba(0,0,0,0.02)]">
+            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400/50 uppercase tracking-widest font-mono">Placeholder Image Area</div>
+          </div>
+        </section>
+
+        {/* Pricing Section */}
+        <section className="py-12 border-t border-slate-200/50 space-y-12">
+          <div className="text-center max-w-2xl mx-auto space-y-3">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-normal uppercase">
+              Simple, Transparent Pricing.
+            </h2>
+            <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
+              Start for free today. Upgrade as your agentic workspace grows.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto pt-4 relative z-10">
+            {/* Free Plan */}
+            <div className="p-8 rounded-2xl border border-black/5 bg-slate-50/50 space-y-6 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.02)]">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-cyan-600 font-sans">Developer Tier</span>
+                  <h3 className="text-xl font-bold text-slate-900 uppercase">Free Plan</h3>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-4xl font-black text-slate-900">$0</span>
+                  <span className="text-xs text-slate-500 font-medium">/ month</span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Perfect for individual developers getting started with local agentic workflows.
+                </p>
+                <hr className="border-black/5" />
+                <ul className="space-y-2.5 text-xs text-slate-600">
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                    <span>Local SQLite Database Sync</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                    <span>Up to 10,000 Search Queries/mo</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                    <span>Basic Email & Calendar Integration</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                    <span>Standard Response Times</span>
+                  </li>
+                </ul>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (isAuthenticated) {
+                    router.push("/dashboard");
+                  } else {
+                    setIsSignUp(true);
+                    setAuthError("");
+                    setAuthSuccess("");
+                    setShowAuthModal(true);
+                  }
+                }}
+                className="w-full py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-700 hover:text-slate-900 shadow-sm transition-all duration-200 cursor-pointer"
+              >
+                {isAuthenticated ? "Go to Dashboard" : "Get Started Free"}
+              </button>
+            </div>
+
+            {/* Pro Plan */}
+            <div className="p-8 rounded-2xl border border-purple-500/10 bg-slate-50/50 space-y-6 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.02)] relative overflow-hidden">
+              {/* Coming Soon Tag */}
+              <div className="absolute top-4 right-4 bg-purple-500/10 text-purple-700 border border-purple-500/20 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest">
+                Coming Soon
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-purple-600 font-sans">Enterprise Ready</span>
+                  <h3 className="text-xl font-bold text-slate-900 uppercase">Pro Plan</h3>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-4xl font-black text-slate-900">$15</span>
+                  <span className="text-xs text-slate-500 font-medium">/ month</span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  For power users and teams requiring infinite scale, priority sync, and deep memory context.
+                </p>
+                <hr className="border-black/5" />
+                <ul className="space-y-2.5 text-xs text-slate-600">
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                    <span className="font-semibold text-slate-900">Everything in Free, plus:</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                    <span>Unlimited Database Sync & Size</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                    <span>Multi-Node Real-time Sync</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                    <span>Deep Memory (Vector Context)</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                    <span>Priority Support</span>
+                  </li>
+                </ul>
+              </div>
+
+              <button
+                disabled
+                className="w-full py-2.5 rounded-xl bg-slate-200 border border-slate-300/10 text-[11px] font-bold uppercase tracking-wider text-slate-400 cursor-not-allowed shadow-none"
+              >
+                Coming Soon
+              </button>
             </div>
           </div>
         </section>
