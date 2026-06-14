@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signIn, signUp } from "@/lib/auth-client";
 import {
@@ -17,11 +17,7 @@ import {
   MousePointerClick
 } from "lucide-react";
 
-import dynamic from "next/dynamic";
 
-const ThreeBackground = dynamic(() => import("@/components/ThreeBackground"), {
-  ssr: false,
-});
 
 export default function LandingPage() {
   const { data: session, isPending } = useSession();
@@ -41,8 +37,21 @@ export default function LandingPage() {
 
   return (
     <div className="relative min-h-screen bg-transparent text-[#334155] font-sans selection:bg-cyan-500 selection:text-black">
-      {/* 3D R3F Background Layer */}
-      <ThreeBackground />
+      {/* Ambient Animated Background Layer */}
+      <div
+        className="fixed inset-0 pointer-events-none -z-10 select-none overflow-hidden"
+        style={{
+          background: `
+            url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.035'/%3E%3C/svg%3E"),
+            linear-gradient(135deg, #bfdbfe 0%, #c7d2fe 16%, #ddd6fe 32%, #fbcfe8 48%, #fecdd3 64%, #fed7aa 80%, #bbf7d0 100%)
+          `,
+        }}
+      >
+        {/* Soft, blurred glowing blobs that slowly pulse/float */}
+        <div className="absolute top-[10%] left-[5%] w-[45vw] h-[45vw] max-w-[600px] rounded-full bg-sky-300/35 blur-[120px] animate-float-slow-1" />
+        <div className="absolute bottom-[10%] right-[5%] w-[50vw] h-[50vw] max-w-[700px] rounded-full bg-pink-300/35 blur-[140px] animate-float-slow-2" />
+        <div className="absolute top-[40%] left-[35%] w-[40vw] h-[40vw] max-w-[500px] rounded-full bg-violet-300/25 blur-[120px] animate-float-slow-3" />
+      </div>
       
       {/* Foreground UI Layer */}
       <div className="relative z-10 min-h-screen flex flex-col justify-between">
