@@ -6,6 +6,54 @@ import { useCielStore } from "@/store/useCielStore";
 import { useSession, signOut } from "@/lib/auth-client";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 
+const getDaysInMonth = (date: Date) => {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const firstDayIndex = new Date(year, month, 1).getDay(); // 0 is Sunday, 1 is Monday, etc.
+  const totalDays = new Date(year, month + 1, 0).getDate();
+  
+  const cells: { date: Date; isCurrentMonth: boolean; dayNum: number }[] = [];
+  
+  // Previous month filler days
+  const prevMonthTotalDays = new Date(year, month, 0).getDate();
+  for (let i = firstDayIndex - 1; i >= 0; i--) {
+    cells.push({
+      date: new Date(year, month - 1, prevMonthTotalDays - i),
+      isCurrentMonth: false,
+      dayNum: prevMonthTotalDays - i
+    });
+  }
+  
+  // Current month days
+  for (let i = 1; i <= totalDays; i++) {
+    cells.push({
+      date: new Date(year, month, i),
+      isCurrentMonth: true,
+      dayNum: i
+    });
+  }
+  
+  // Next month filler days (to make the grid a complete multiple of 7, e.g., 42 cells)
+  const remaining = 42 - cells.length;
+  for (let i = 1; i <= remaining; i++) {
+    cells.push({
+      date: new Date(year, month + 1, i),
+      isCurrentMonth: false,
+      dayNum: i
+    });
+  }
+  
+  return cells;
+};
+
+const isSameDay = (date1: Date, date2: Date) => {
+  return (
+    date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getDate() === date2.getDate()
+  );
+};
+
 export default function DashboardPage() {
   const { data: session, isPending } = useSession();
   const router = useRouter();
@@ -118,6 +166,8 @@ export default function DashboardPage() {
   const [tokensConsumed, setTokensConsumed] = useState(0);
   const [gmailPanelExpanded, setGmailPanelExpanded] = useState(false);
   const [calendarPanelExpanded, setCalendarPanelExpanded] = useState(false);
+  const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("day");
+  const [calendarAnchorDate, setCalendarAnchorDate] = useState<Date>(new Date("2026-06-14"));
 
   const fetchConversations = async () => {
     try {
@@ -863,43 +913,242 @@ export default function DashboardPage() {
           >
             {calendarConnected ? (
               <div className="flex-1 flex flex-col min-h-0">
-                {/* Calendar Action Bar */}
-                <div className={`px-5 pb-3 flex items-center gap-2 shrink-0`}>
-                  <button
-                    onClick={async () => {
-                      setIsRefreshing(true);
-                      try { await fetchCalendarEvents(); } catch (e) { console.error(e); } finally { setIsRefreshing(false); }
-                    }}
-                    disabled={isRefreshing}
-                    className={`text-xs px-3 py-2 font-bold uppercase border border-slate-900/10 dark:border-white/5 rounded-xl cursor-pointer disabled:opacity-50 ${buttonBgClass}`}
-                  >
-                    {isRefreshing ? "Refreshing..." : "Refresh Events"}
-                  </button>
-                  <span className={`text-[10px] ${textMutedClass} font-bold uppercase`}>{calendarEvents.length} events</span>
+                {/* Calendar Action & Navigation Bar */}
+                <div className="px-5 pb-3 flex flex-col gap-2 shrink-0">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <button
+                      onClick={async () => {
+                        setIsRefreshing(true);
+                        try { await fetchCalendarEvents(); } catch (e) { console.error(e); } finally { setIsRefreshing(false); }
+                      }}
+                      disabled={isRefreshing}
+                      className={`text-[10px] px-2.5 py-1.5 font-bold uppercase border rounded-lg cursor-pointer disabled:opacity-50 transition-all ${buttonBgClass}`}
+                    >
+                      {isRefreshing ? "..." : "Refresh"}
+                    </button>
+                    
+                    {/* View Selectors */}
+                    <div className="flex rounded-lg border border-white/10 overflow-hidden bg-black/10">
+                      {(["day", "week", "month"] as const).map((view) => (
+                        <button
+                          key={view}
+                          onClick={() => setCalendarView(view)}
+                          className={`text-[9px] px-2.5 py-1 font-bold uppercase cursor-pointer transition-all ${
+                            calendarView === view
+                              ? "bg-purple-600/20 text-purple-350"
+                              : "text-slate-400 hover:text-white"
+                          }`}
+                        >
+                          {view}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Date Navigation & Label */}
+                  <div className={`pt-2 border-t ${borderClass} flex items-center justify-between gap-2`}>
+                    <span className={`text-[10px] ${textWhiteClass} font-mono font-bold uppercase`}>
+                      {(() => {
+                        if (!mounted) return "";
+                        if (calendarView === "day") {
+                          return calendarAnchorDate.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+                        } else if (calendarView === "week") {
+                          const sun = new Date(calendarAnchorDate);
+                          sun.setDate(calendarAnchorDate.getDate() - calendarAnchorDate.getDay());
+                          const sat = new Date(sun);
+                          sat.setDate(sun.getDate() + 6);
+                          return `${sun.toLocaleDateString([], { month: "short", day: "numeric" })} - ${sat.toLocaleDateString([], { month: "short", day: "numeric" })}`;
+                        } else {
+                          return calendarAnchorDate.toLocaleDateString([], { month: "long", year: "numeric" });
+                        }
+                      })()}
+                    </span>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => {
+                          const newDate = new Date(calendarAnchorDate);
+                          if (calendarView === "day") newDate.setDate(newDate.getDate() - 1);
+                          else if (calendarView === "week") newDate.setDate(newDate.getDate() - 7);
+                          else newDate.setMonth(newDate.getMonth() - 1);
+                          setCalendarAnchorDate(newDate);
+                        }}
+                        className={`text-[9px] px-2 py-1 font-bold uppercase border rounded-lg cursor-pointer ${buttonBgClass}`}
+                      >
+                        Prev
+                      </button>
+                      <button
+                        onClick={() => setCalendarAnchorDate(new Date("2026-06-14"))}
+                        className={`text-[9px] px-2 py-1 font-bold uppercase border rounded-lg cursor-pointer ${buttonBgClass}`}
+                      >
+                        Today
+                      </button>
+                      <button
+                        onClick={() => {
+                          const newDate = new Date(calendarAnchorDate);
+                          if (calendarView === "day") newDate.setDate(newDate.getDate() + 1);
+                          else if (calendarView === "week") newDate.setDate(newDate.getDate() + 7);
+                          else newDate.setMonth(newDate.getMonth() + 1);
+                          setCalendarAnchorDate(newDate);
+                        }}
+                        className={`text-[9px] px-2 py-1 font-bold uppercase border rounded-lg cursor-pointer ${buttonBgClass}`}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Calendar Event List */}
-                <div className={`flex-1 border-t ${borderClass} overflow-y-auto p-4 space-y-3`}>
-                  {calendarEvents.length === 0 ? (
-                    <p className={`text-xs ${textMutedClass}`}>No calendar events cached in database. Click Refresh or check your credentials.</p>
+                {/* Calendar View Content Area */}
+                <div className={`flex-1 border-t ${borderClass} overflow-y-auto p-4 min-h-0`}>
+                  {!mounted ? (
+                    <div className={`text-xs ${textMutedClass}`}>Loading calendar...</div>
+                  ) : calendarView === "day" ? (
+                    /* Day View */
+                    <div className="space-y-3">
+                      {(() => {
+                        const dayEvents = calendarEvents.filter((evt) => isSameDay(new Date(evt.start), calendarAnchorDate));
+                        if (dayEvents.length === 0) {
+                          return <p className={`text-xs ${textMutedClass}`}>No events scheduled for this day.</p>;
+                        }
+                        return dayEvents.map((evt) => (
+                          <div key={evt.id} className={`border ${borderClass} p-4 ${innerCardBgClass} rounded-xl text-xs shadow-sm`}>
+                            <div className={`flex flex-col sm:flex-row justify-between mb-2 pb-1.5 border-b ${borderClass}/50`}>
+                              <span className={`font-bold ${textWhiteClass} tracking-tight`}>{evt.title}</span>
+                              <span className="text-slate-500 font-mono">
+                                {new Date(evt.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} - {new Date(evt.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </div>
+                            {evt.location && <p className={`mb-1 ${isDark ? "text-slate-350" : "text-slate-650"} font-sans font-normal leading-relaxed`}>Location: {evt.location}</p>}
+                            {evt.attendees && evt.attendees.length > 0 && (
+                              <p className={`mb-1 ${isDark ? "text-slate-350" : "text-slate-650"} font-sans font-normal leading-relaxed`}>Attendees: {evt.attendees.join(", ")}</p>
+                            )}
+                            {evt.description && (
+                              <p className={`${isDark ? "text-slate-350" : "text-slate-700"} font-sans font-normal leading-relaxed whitespace-pre-wrap bg-slate-900/5 dark:bg-black/20 p-3 border border-slate-900/5 dark:border-white/5 rounded-xl mt-2`}>{evt.description}</p>
+                            )}
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  ) : calendarView === "week" ? (
+                    /* Week View */
+                    <div className="flex flex-col md:grid md:grid-cols-7 gap-2 h-full min-h-0">
+                      {(() => {
+                        const startOfWeek = new Date(calendarAnchorDate);
+                        startOfWeek.setDate(calendarAnchorDate.getDate() - calendarAnchorDate.getDay());
+                        const weekDays = Array.from({ length: 7 }, (_, i) => {
+                          const d = new Date(startOfWeek);
+                          d.setDate(startOfWeek.getDate() + i);
+                          return d;
+                        });
+                        return weekDays.map((day) => {
+                          const eventsForDay = calendarEvents.filter((evt) => isSameDay(new Date(evt.start), day));
+                          const isToday = isSameDay(day, new Date("2026-06-14"));
+                          const isAnchor = isSameDay(day, calendarAnchorDate);
+                          
+                          return (
+                            <div 
+                              key={day.toISOString()} 
+                              onClick={() => { setCalendarAnchorDate(day); setCalendarView("day"); }}
+                              className={`flex-1 min-h-0 flex flex-col p-2 rounded-xl border transition-all cursor-pointer hover:bg-white/5 ${
+                                isToday
+                                  ? "bg-purple-500/5 border-purple-500/30"
+                                  : isAnchor
+                                  ? "bg-white/5 border-white/20"
+                                  : `border-white/5 ${innerCardBgClass}`
+                              }`}
+                            >
+                              {/* Day Header */}
+                              <div className="text-center pb-1.5 border-b border-white/5 mb-1.5 shrink-0">
+                                <span className="text-[9px] uppercase text-slate-500 block font-bold">
+                                  {day.toLocaleDateString([], { weekday: "short" })}
+                                </span>
+                                <span className={`text-xs font-bold font-mono ${isToday ? "text-purple-400" : textWhiteClass}`}>
+                                  {day.getDate()}
+                                </span>
+                              </div>
+
+                              {/* Day Events */}
+                              <div className="flex-1 overflow-y-auto space-y-1 min-h-[50px] md:min-h-0">
+                                {eventsForDay.length === 0 ? (
+                                  <span className="text-[9px] text-slate-500/50 block text-center italic mt-2">No events</span>
+                                ) : (
+                                  eventsForDay.map((evt) => {
+                                    const timeStr = new Date(evt.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+                                    return (
+                                      <div 
+                                        key={evt.id} 
+                                        className="p-1 rounded bg-purple-500/10 border border-purple-500/20 text-[9px] text-purple-300 truncate"
+                                        title={`${evt.title} (${timeStr})`}
+                                      >
+                                        <span className="font-mono font-bold mr-1">{timeStr}</span>
+                                        {evt.title}
+                                      </div>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
                   ) : (
-                    calendarEvents.map((evt) => (
-                      <div key={evt.id} className={`border ${borderClass} p-4 ${innerCardBgClass} rounded-xl text-xs shadow-sm`}>
-                        <div className={`flex flex-col sm:flex-row justify-between mb-2 pb-1.5 border-b ${borderClass}/50`}>
-                          <span className={`font-bold ${textWhiteClass} tracking-tight`}>{evt.title}</span>
-                          <span className="text-slate-500 font-mono">
-                            {mounted ? `${new Date(evt.start).toLocaleString()} - ${new Date(evt.end).toLocaleString()}` : ""}
+                    /* Month View */
+                    <div className="flex flex-col h-full min-h-0">
+                      {/* Day labels header */}
+                      <div className="grid grid-cols-7 gap-1 text-center border-b border-white/5 pb-1 mb-1.5 shrink-0">
+                        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName) => (
+                          <span key={dayName} className="text-[9px] uppercase font-bold text-slate-500">
+                            {dayName}
                           </span>
-                        </div>
-                        {evt.location && <p className={`mb-1 ${isDark ? "text-slate-350" : "text-slate-650"} font-sans font-normal leading-relaxed`}>Location: {evt.location}</p>}
-                        {evt.attendees && evt.attendees.length > 0 && (
-                          <p className={`mb-1 ${isDark ? "text-slate-350" : "text-slate-650"} font-sans font-normal leading-relaxed`}>Attendees: {evt.attendees.join(", ")}</p>
-                        )}
-                        {evt.description && (
-                          <p className={`${isDark ? "text-slate-350" : "text-slate-700"} font-sans font-normal leading-relaxed whitespace-pre-wrap bg-slate-900/5 dark:bg-black/20 p-3 border border-slate-900/5 dark:border-white/5 rounded-xl mt-2`}>{evt.description}</p>
-                        )}
+                        ))}
                       </div>
-                    ))
+
+                      {/* Month cells grid */}
+                      <div className="flex-1 grid grid-cols-7 grid-rows-6 gap-1 min-h-0">
+                        {getDaysInMonth(calendarAnchorDate).map((cell) => {
+                          const dayEvts = calendarEvents.filter((evt) => isSameDay(new Date(evt.start), cell.date));
+                          const isToday = isSameDay(cell.date, new Date("2026-06-14"));
+                          const isSelected = isSameDay(cell.date, calendarAnchorDate);
+                          
+                          return (
+                            <div
+                              key={cell.date.toISOString()}
+                              onClick={() => { setCalendarAnchorDate(cell.date); setCalendarView("day"); }}
+                              className={`min-h-0 p-1 rounded-lg border transition-all cursor-pointer flex flex-col justify-between hover:bg-white/5 ${
+                                isToday
+                                  ? "bg-purple-500/5 border-purple-500/30"
+                                  : isSelected
+                                  ? "bg-white/5 border-white/20"
+                                  : `border-white/5 ${innerCardBgClass}`
+                              } ${!cell.isCurrentMonth ? "opacity-30" : "opacity-100"}`}
+                            >
+                              <span className={`text-[9px] font-bold font-mono self-end ${isToday ? "text-purple-400" : textWhiteClass}`}>
+                                {cell.dayNum}
+                              </span>
+                              
+                              <div className="flex-1 flex flex-col justify-end space-y-0.5 mt-1 overflow-hidden">
+                                {dayEvts.slice(0, 2).map((evt) => (
+                                  <div 
+                                    key={evt.id} 
+                                    className="text-[8px] bg-purple-500/10 text-purple-300 border border-purple-500/20 px-0.5 rounded truncate w-full"
+                                    title={evt.title}
+                                  >
+                                    {evt.title}
+                                  </div>
+                                ))}
+                                {dayEvts.length > 2 && (
+                                  <span className="text-[7px] text-slate-500 font-bold block text-right">
+                                    +{dayEvts.length - 2} more
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
