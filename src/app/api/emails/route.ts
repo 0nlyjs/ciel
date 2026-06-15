@@ -44,7 +44,7 @@ export async function GET(req: Request) {
     const forceSync = url.searchParams.get("sync") === "true";
     const limit = parseInt(url.searchParams.get("limit") || "50", 10);
     const offset = parseInt(url.searchParams.get("offset") || "0", 10);
-    const syncLimit = parseInt(url.searchParams.get("sync_limit") || "150", 10);
+    const syncLimit = parseInt(url.searchParams.get("sync_limit") || "50", 10);
     const folder = url.searchParams.get("folder") || "all";
     const priority = url.searchParams.get("priority");
     const category = url.searchParams.get("category");

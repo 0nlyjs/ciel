@@ -65,6 +65,8 @@ export default function DashboardPage() {
   const user = useCielStore((s) => s.user);
   const login = useCielStore((s) => s.login);
   const logout = useCielStore((s) => s.logout);
+  const activeTab = useCielStore((s) => s.activeTab);
+  const setActiveTab = useCielStore((s) => s.setActiveTab);
   const gmailConnected = useCielStore((s) => s.gmailConnected);
   const calendarConnected = useCielStore((s) => s.calendarConnected);
   const fetchIntegrationStatus = useCielStore((s) => s.fetchIntegrationStatus);
@@ -75,6 +77,8 @@ export default function DashboardPage() {
   const emailsPerPage = useCielStore((s) => s.emailsPerPage);
   const emailsHasMore = useCielStore((s) => s.emailsHasMore);
   const fetchEmails = useCielStore((s) => s.fetchEmails);
+  const isSyncing = useCielStore((s) => s.isSyncing);
+  const loadEmailsFromCache = useCielStore((s) => s.loadEmailsFromCache);
   const activeFolder = useCielStore((s) => s.activeFolder);
   const setActiveFolder = useCielStore((s) => s.setActiveFolder);
   const calendarEvents = useCielStore((s) => s.calendarEvents);
@@ -305,15 +309,39 @@ export default function DashboardPage() {
   // Load initial data on dashboard mount
   useEffect(() => {
     if (session) {
+      loadEmailsFromCache();
       fetchIntegrationStatus();
       fetchSettings();
       fetchLocalIntegrations();
-      fetchEmails().then(() => {
-        fetchEmails(true);
-      });
-      fetchCalendarEvents();
+      
+      // Check if we just redirected from OAuth connection successfully
+      let isOAuthSuccess = false;
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const connected = params.get("connected");
+        if (connected === "gmail") {
+          isOAuthSuccess = true;
+          window.history.replaceState({}, "", "/dashboard");
+          setActiveTab("inbox");
+          toast.success("Gmail connected successfully! Starting sync...");
+          fetchEmails(true);
+        } else if (connected === "googlecalendar") {
+          isOAuthSuccess = true;
+          window.history.replaceState({}, "", "/dashboard");
+          setActiveTab("calendar");
+          toast.success("Calendar connected successfully!");
+          fetchCalendarEvents();
+        }
+      }
+
+      if (!isOAuthSuccess) {
+        fetchEmails().then(() => {
+          fetchEmails(true);
+        });
+        fetchCalendarEvents();
+      }
     }
-  }, [session, fetchIntegrationStatus, fetchSettings, fetchLocalIntegrations, fetchEmails, fetchCalendarEvents]);
+  }, [session, fetchIntegrationStatus, fetchSettings, fetchLocalIntegrations, fetchEmails, fetchCalendarEvents, loadEmailsFromCache, setActiveTab]);
 
   // Real-time Event Stream Listener (SSE)
   useEffect(() => {
@@ -374,6 +402,17 @@ export default function DashboardPage() {
       return () => clearTimeout(timer);
     }
   }, [chatMessages, isSendingChat, chatExpanded]);
+
+  const handleFolderSwitch = (folder: "all" | "sent") => {
+    setIsTabLoading(true);
+    setActiveFolder(folder);
+    setExpandedEmailId(null);
+    setTimeout(() => {
+      loadEmailsFromCache();
+      setIsTabLoading(false);
+      fetchEmails(false, 1);
+    }, 120);
+  };
 
   // Handle Search Submission
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -901,12 +940,7 @@ export default function DashboardPage() {
                 <div className={`px-5 py-2.5 flex justify-between items-center border-t border-b ${borderClass} shrink-0`}>
                   <div className="flex items-center gap-4">
                     <button
-                      onClick={async () => {
-                        setIsTabLoading(true);
-                        setActiveFolder("all");
-                        await fetchEmails(false, 1);
-                        setIsTabLoading(false);
-                      }}
+                      onClick={() => handleFolderSwitch("all")}
                       className={`relative py-1 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all duration-200 ${
                         activeFolder === "all"
                           ? "text-purple-600 dark:text-purple-400"
@@ -919,16 +953,11 @@ export default function DashboardPage() {
                       )}
                     </button>
                     <button
-                      onClick={async () => {
-                        setIsTabLoading(true);
-                        setActiveFolder("sent");
-                        await fetchEmails(false, 1);
-                        setIsTabLoading(false);
-                      }}
+                      onClick={() => handleFolderSwitch("sent")}
                       className={`relative py-1 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all duration-200 ${
                         activeFolder === "sent"
                           ? "text-purple-600 dark:text-purple-400"
-                          : "text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-400"
+                          : "text-slate-400 hover:text-slate-650 dark:text-slate-500 dark:hover:text-slate-400"
                       }`}
                     >
                       Sent Mails
@@ -1004,7 +1033,23 @@ export default function DashboardPage() {
                       ))}
                     </div>
                   ) : emails.length === 0 ? (
-                    <p className={`text-xs ${textMutedClass} p-5`}>No emails cached in database. Click Refresh or check your credentials.</p>
+                    isSyncing ? (
+                      <div className="p-12 flex flex-col items-center justify-center space-y-4">
+                        <div className="relative w-12 h-12 flex items-center justify-center">
+                          <div className="absolute inset-0 border-4 border-purple-500/20 rounded-full"></div>
+                          <div className="absolute inset-0 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                          <svg className="w-5 h-5 text-purple-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 19v-8.93a2 2 0 01.89-1.664l8-5.333a2 2 0 012.22 0l8 5.333A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-2.25-1.5a2 2 0 00-2.22 0l-2.25 1.5" />
+                          </svg>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider animate-pulse">Syncing Ciel Inbox...</p>
+                          <p className={`text-[10px] ${textMutedClass} mt-1 max-w-[240px]`}>Securely retrieving and classifying your messages with local AI.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className={`text-xs ${textMutedClass} p-5`}>No emails cached in database. Click Refresh or check your credentials.</p>
+                    )
                   ) : (
                     <div>
                       {(() => {

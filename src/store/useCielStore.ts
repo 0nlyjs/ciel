@@ -77,10 +77,11 @@ interface CielState {
   setCalendarEvents: (events: CalendarEvent[]) => void;
   addCalendarEvent: (event: CalendarEvent) => void;
 
-  // db synchronization actions
+    // db synchronization actions
   fetchEmails: (forceSync?: boolean, page?: number) => Promise<void>;
   fetchCalendarEvents: () => Promise<void>;
   performSearch: (query: string) => Promise<void>;
+  loadEmailsFromCache: () => void;
 
   // chat state
   chatMessages: ChatMessage[];
@@ -175,7 +176,9 @@ export const useCielStore = create<CielState>((set, get) => ({
   setEmailsPage: (page) => set({ emailsPage: page }),
   setSelectedEmailIndex: (index) => set({ selectedEmailIndex: index }),
   setSearchQuery: (query) => set({ searchQuery: query }),
-  setActiveFolder: (folder) => set({ activeFolder: folder }),
+  setActiveFolder: (folder) => {
+    set({ activeFolder: folder });
+  },
   markAsRead: async (id) => {
     await useCielStore.getState().updateEmail(id, { read: true });
   },
@@ -269,7 +272,6 @@ export const useCielStore = create<CielState>((set, get) => ({
       ),
     })),
 
-  // db synchronization actions
   fetchEmails: async (forceSync?: boolean, page?: number) => {
     if (forceSync) set({ isSyncing: true });
     try {
@@ -282,7 +284,7 @@ export const useCielStore = create<CielState>((set, get) => ({
       if (forceSync) queryParams.set("sync", "true");
       queryParams.set("limit", limit.toString());
       queryParams.set("offset", offset.toString());
-      queryParams.set("sync_limit", ((targetPage * limit) + 150).toString());
+      queryParams.set("sync_limit", (targetPage * limit).toString());
       queryParams.set("folder", state.activeFolder);
 
       const res = await fetch(`/api/emails?${queryParams.toString()}`);
@@ -296,12 +298,48 @@ export const useCielStore = create<CielState>((set, get) => ({
             emailsHasMore: data.hasMore !== undefined ? !!data.hasMore : true,
             selectedEmailIndex: data.emails.length > 0 ? 0 : null,
           });
+
+          // Cache first page to localStorage
+          if (targetPage === 1 && typeof window !== "undefined") {
+            try {
+              const recent200 = data.emails.slice(0, 200);
+              localStorage.setItem(`ciel_emails_cache_${state.activeFolder}`, JSON.stringify(recent200));
+            } catch (cacheErr) {
+              console.error("[Store] Failed to cache emails:", cacheErr);
+            }
+          }
         }
       }
     } catch (error) {
       console.error("[Store] Failed to fetch emails from database:", error);
     } finally {
       if (forceSync) set({ isSyncing: false });
+    }
+  },
+
+  loadEmailsFromCache: () => {
+    if (typeof window !== "undefined") {
+      try {
+        const folder = get().activeFolder;
+        const cached = localStorage.getItem(`ciel_emails_cache_${folder}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.length > 0) {
+            const limit = get().emailsPerPage;
+            const initialEmails = parsed.slice(0, limit);
+            set({
+              emails: initialEmails,
+              emailsTotal: parsed.length,
+              emailsPage: 1,
+              emailsHasMore: parsed.length > limit,
+              selectedEmailIndex: 0
+            });
+            console.log(`[Store] Loaded ${initialEmails.length} emails from cache for folder ${folder}`);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load cached emails:", e);
+      }
     }
   },
 

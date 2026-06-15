@@ -292,26 +292,28 @@ async function syncBatchOfSkeletons(skeletons: any[], userEmail: string, sentIds
   }
 
   if (parsedEmails.length > 0) {
-    const toInsert = await Promise.all(
-      parsedEmails.map(async (email) => {
-        const aiResult = await classifyEmail(email.subject, email.body);
-        return {
-          id: email.id,
-          userEmail,
-          fromName: email.fromName,
-          fromEmail: email.fromEmail,
-          subject: email.subject,
-          body: email.body,
-          date: email.date,
-          read: email.read,
-          priority: aiResult.priority,
-          category: aiResult.category,
-          quickReplies: aiResult.quickReplies,
-          contextTag: aiResult.contextTag,
-          labelIds: email.labelIds,
-        };
-      })
-    );
+    const toInsert = parsedEmails.map((email) => {
+      const fallback = runKeywordFallback(email.subject, email.body);
+      return {
+        id: email.id,
+        userEmail,
+        fromName: email.fromName,
+        fromEmail: email.fromEmail,
+        subject: email.subject,
+        body: email.body,
+        date: email.date,
+        read: email.read,
+        priority: fallback.priority,
+        category: fallback.category,
+        quickReplies: [
+          "Sounds good, approved.",
+          "I need more details.",
+          "Let's discuss on a call."
+        ],
+        contextTag: fallback.category === "work" ? "Work" : "General",
+        labelIds: email.labelIds,
+      };
+    });
 
     try {
       await db.insert(emails)
@@ -320,10 +322,6 @@ async function syncBatchOfSkeletons(skeletons: any[], userEmail: string, sentIds
           target: [emails.id],
           set: {
             read: sql`EXCLUDED.read`,
-            priority: sql`EXCLUDED.priority`,
-            category: sql`EXCLUDED.category`,
-            quickReplies: sql`EXCLUDED.quick_replies`,
-            contextTag: sql`EXCLUDED.context_tag`,
             labelIds: sql`EXCLUDED.label_ids`,
           }
         });
@@ -398,51 +396,17 @@ function broadcastSyncStart(userEmail: string) {
   }
 }
 
-export async function syncUserEmails(userEmail: string, syncLimit: number = 200) {
-  console.log(`[Sync Service] Starting background sync pipeline for ${userEmail} (limit: ${syncLimit})...`);
+export async function syncUserEmails(userEmail: string, syncLimit: number = 50) {
+  const targetSyncLimit = syncLimit;
+  console.log(`[Sync Service] Starting background sync pipeline for ${userEmail} (limit: ${targetSyncLimit})...`);
   broadcastSyncStart(userEmail);
   try {
-    const [inboxSkeletons, sentSkeletons] = await Promise.all([
-      CorsairClient.listGmailMessagesDirectly(userEmail, syncLimit),
-      CorsairClient.listGmailMessagesDirectly(userEmail, 200, "in:sent")
-    ]);
+    // Phase 1: Sync Received Mails (Inbox) first
+    console.log(`[Sync Service] Phase 1: Listing received/inbox messages (limit: ${targetSyncLimit})...`);
+    const inboxSkeletons = await CorsairClient.listGmailMessagesDirectly(userEmail, targetSyncLimit);
+    console.log(`[Sync Service] Phase 1: Found ${inboxSkeletons.length} inbox skeletons.`);
 
-    const sentIds = new Set(sentSkeletons.map((s: any) => s.id));
-    const mergedSkeletonsMap = new Map<string, any>();
-    inboxSkeletons.forEach((s) => mergedSkeletonsMap.set(s.id, s));
-    sentSkeletons.forEach((s) => mergedSkeletonsMap.set(s.id, s));
-    const messageSkeletons = Array.from(mergedSkeletonsMap.values());
-    const messageSkeletonsLength = messageSkeletons.length;
-    console.log(`[Sync Service] Corsair returned ${inboxSkeletons.length} inbox skeletons and ${sentSkeletons.length} sent skeletons. Merged into ${messageSkeletonsLength} unique skeletons.`);
-
-    if (messageSkeletonsLength > 0) {
-      const localUnreadRes = await db.select({
-        id: emails.id,
-      })
-      .from(emails)
-      .where(
-        and(
-          eq(emails.userEmail, userEmail),
-          eq(emails.read, false)
-        )
-      )
-      .orderBy(desc(emails.date))
-      .limit(8);
-
-      const localUnreadIds = localUnreadRes.map((r: any) => r.id);
-      const latestSkeletons = messageSkeletons.slice(0, 8).map((m: any) => m.id);
-
-      const checkIdsSet = new Set<string>();
-      localUnreadIds.forEach((id: string) => checkIdsSet.add(id));
-      latestSkeletons.forEach((id: string) => checkIdsSet.add(id));
-      const checkIds = Array.from(checkIdsSet).slice(0, 12);
-
-      if (checkIds.length > 0) {
-        verifyReadStatusInBackground(checkIds, userEmail).catch((err) => {
-          console.error("[Sync Service] Background candidate check error:", err);
-        });
-      }
-
+    if (inboxSkeletons.length > 0) {
       const existingRes = await db.select({
         id: emails.id,
       })
@@ -450,56 +414,84 @@ export async function syncUserEmails(userEmail: string, syncLimit: number = 200)
       .where(eq(emails.userEmail, userEmail));
       const existingIds = new Set(existingRes.map((r: any) => r.id));
 
-      const missingSkeletons = messageSkeletons.filter(
+      const missingInboxSkeletons = inboxSkeletons.filter(
         (msg) => !existingIds.has(msg.id),
       );
-      console.log(`[Sync Service] Found ${missingSkeletons.length} missing emails to fetch.`);
+      console.log(`[Sync Service] Phase 1: Found ${missingInboxSkeletons.length} missing inbox emails to fetch.`);
 
-      if (missingSkeletons.length > 0) {
-        console.log(`[Sync Service] Fetching and inserting ${missingSkeletons.length} missing emails...`);
-        await runBackgroundSyncForRemaining(missingSkeletons, userEmail, sentIds);
+      if (missingInboxSkeletons.length > 0) {
+        await runBackgroundSyncForRemaining(missingInboxSkeletons, userEmail);
       }
 
-      // Check for cached emails missing embeddings to backfill them
-      const missingEmbeddingsRes = await db.select({
+      // Run premium AI classification only on the top 10 newest emails to minimize API token usage
+      try {
+        const recentEmails = await db.select()
+          .from(emails)
+          .where(eq(emails.userEmail, userEmail))
+          .orderBy(desc(emails.date))
+          .limit(10);
+
+        if (recentEmails.length > 0) {
+          console.log(`[Sync Service] Running AI classification for the top ${recentEmails.length} newest emails...`);
+          await Promise.all(
+            recentEmails.map(async (email) => {
+              const aiResult = await classifyEmail(email.subject || "", email.body || "");
+              await db.update(emails)
+                .set({
+                  priority: aiResult.priority,
+                  category: aiResult.category,
+                  quickReplies: aiResult.quickReplies,
+                  contextTag: aiResult.contextTag,
+                })
+                .where(eq(emails.id, email.id));
+            })
+          );
+        }
+      } catch (aiErr) {
+        console.error("[Sync Service] Error during premium AI classification:", aiErr);
+      }
+    }
+
+    // Immediately broadcast sync complete for inbox
+    console.log("[Sync Service] Phase 1: Inbox sync complete. Broadcasting to client...");
+    broadcastSyncComplete(userEmail);
+
+    // Phase 2: Sync Sent Mails next
+    console.log(`[Sync Service] Phase 2: Listing sent messages (limit: ${targetSyncLimit})...`);
+    const sentSkeletons = await CorsairClient.listGmailMessagesDirectly(userEmail, targetSyncLimit, "in:sent");
+    console.log(`[Sync Service] Phase 2: Found ${sentSkeletons.length} sent skeletons.`);
+
+    if (sentSkeletons.length > 0) {
+      const existingRes = await db.select({
         id: emails.id,
-        fromName: emails.fromName,
-        fromEmail: emails.fromEmail,
-        subject: emails.subject,
-        body: emails.body,
       })
       .from(emails)
-      .leftJoin(searchDocuments, eq(emails.id, searchDocuments.sourceId))
-      .where(
-        and(
-          eq(emails.userEmail, userEmail),
-          isNull(searchDocuments.id)
-        )
-      )
-      .limit(100);
+      .where(eq(emails.userEmail, userEmail));
+      const existingIds = new Set(existingRes.map((r: any) => r.id));
 
-      if (missingEmbeddingsRes.length > 0) {
-        console.log(`[Sync Service] Found ${missingEmbeddingsRes.length} existing emails missing embeddings. Generating in background...`);
-        const parsedEmailsForBackfill = missingEmbeddingsRes.map((e) => {
-          const bodySnippet = (e.body || "").substring(0, 15000);
-          return {
-            id: e.id,
-            textToEmbed: `From: ${e.fromName || "Unknown"} <${e.fromEmail || "unknown@domain.com"}>\nSubject: ${e.subject || ""}\nBody: ${bodySnippet}`,
-          };
-        });
+      const missingSentSkeletons = sentSkeletons.filter(
+        (msg) => !existingIds.has(msg.id),
+      );
+      console.log(`[Sync Service] Phase 2: Found ${missingSentSkeletons.length} missing sent emails to fetch.`);
 
-        setTimeout(() => {
-          generateAndSaveEmbeddings(parsedEmailsForBackfill, userEmail).catch((err) => {
-            console.error("[Sync] Background backfill embeddings launcher error:", err);
-          });
-        }, 0);
+      if (missingSentSkeletons.length > 0) {
+        const sentIds = new Set(sentSkeletons.map((s: any) => s.id));
+        await runBackgroundSyncForRemaining(missingSentSkeletons, userEmail, sentIds);
       }
 
+      // Clean up deleted sent/inbox skeletons
+      const mergedSkeletonsMap = new Map<string, any>();
+      inboxSkeletons.forEach((s) => mergedSkeletonsMap.set(s.id, s));
+      sentSkeletons.forEach((s) => mergedSkeletonsMap.set(s.id, s));
+      const messageSkeletons = Array.from(mergedSkeletonsMap.values());
       await cleanDeletedEmails(messageSkeletons, userEmail);
     }
 
+    // Broadcast sync complete for sent as well
+    console.log("[Sync Service] Phase 2: Sent sync complete. Broadcasting to client...");
     broadcastSyncComplete(userEmail);
-    return { success: true, count: messageSkeletonsLength };
+
+    return { success: true, count: inboxSkeletons.length + sentSkeletons.length };
   } catch (error) {
     console.error(`[Sync Service] Sync failed for ${userEmail}:`, error);
     throw error;
