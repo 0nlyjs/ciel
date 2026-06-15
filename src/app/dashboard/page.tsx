@@ -1,61 +1,19 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCielStore } from "@/store/useCielStore";
-import { useSession, signOut } from "@/lib/auth-client";
-import { MarkdownRenderer } from "@/components/MarkdownRenderer";
-import { useHotkeys } from "react-hotkeys-hook";
-import { PerformanceCanvas } from "@/components/PerformanceCanvas";
+import { useSession } from "@/lib/auth-client";
 import toast from "react-hot-toast";
 
-const getDaysInMonth = (date: Date) => {
-  const year = date.getFullYear();
-  const month = date.getMonth();
-  const firstDayIndex = new Date(year, month, 1).getDay(); // 0 is Sunday, 1 is Monday, etc.
-  const totalDays = new Date(year, month + 1, 0).getDate();
-  
-  const cells: { date: Date; isCurrentMonth: boolean; dayNum: number }[] = [];
-  
-  // Previous month filler days
-  const prevMonthTotalDays = new Date(year, month, 0).getDate();
-  for (let i = firstDayIndex - 1; i >= 0; i--) {
-    cells.push({
-      date: new Date(year, month - 1, prevMonthTotalDays - i),
-      isCurrentMonth: false,
-      dayNum: prevMonthTotalDays - i
-    });
-  }
-  
-  // Current month days
-  for (let i = 1; i <= totalDays; i++) {
-    cells.push({
-      date: new Date(year, month, i),
-      isCurrentMonth: true,
-      dayNum: i
-    });
-  }
-  
-  // Next month filler days (to make the grid a complete multiple of 7, e.g., 42 cells)
-  const remaining = 42 - cells.length;
-  for (let i = 1; i <= remaining; i++) {
-    cells.push({
-      date: new Date(year, month + 1, i),
-      isCurrentMonth: false,
-      dayNum: i
-    });
-  }
-  
-  return cells;
-};
-
-const isSameDay = (date1: Date, date2: Date) => {
-  return (
-    date1.getFullYear() === date2.getFullYear() &&
-    date1.getMonth() === date2.getMonth() &&
-    date1.getDate() === date2.getDate()
-  );
-};
+// Sub-components
+import { DashboardLayout } from "./_components/DashboardLayout";
+import { Sidebar } from "./_components/Sidebar";
+import { OverviewTab } from "./_components/OverviewTab";
+import { InboxTab } from "./_components/InboxTab";
+import { CalendarTab } from "./_components/CalendarTab";
+import { ChatTab } from "./_components/ChatTab";
+import { SettingsTab } from "./_components/SettingsTab";
 
 export default function DashboardPage() {
   const { data: session, isPending } = useSession();
@@ -67,99 +25,19 @@ export default function DashboardPage() {
   const logout = useCielStore((s) => s.logout);
   const activeTab = useCielStore((s) => s.activeTab);
   const setActiveTab = useCielStore((s) => s.setActiveTab);
-  const gmailConnected = useCielStore((s) => s.gmailConnected);
-  const calendarConnected = useCielStore((s) => s.calendarConnected);
   const fetchIntegrationStatus = useCielStore((s) => s.fetchIntegrationStatus);
-  
-  const emails = useCielStore((s) => s.emails);
-  const emailsTotal = useCielStore((s) => s.emailsTotal);
-  const emailsPage = useCielStore((s) => s.emailsPage);
-  const emailsPerPage = useCielStore((s) => s.emailsPerPage);
-  const emailsHasMore = useCielStore((s) => s.emailsHasMore);
   const fetchEmails = useCielStore((s) => s.fetchEmails);
-  const isSyncing = useCielStore((s) => s.isSyncing);
-  const loadEmailsFromCache = useCielStore((s) => s.loadEmailsFromCache);
-  const activeFolder = useCielStore((s) => s.activeFolder);
-  const setActiveFolder = useCielStore((s) => s.setActiveFolder);
-  const calendarEvents = useCielStore((s) => s.calendarEvents);
   const fetchCalendarEvents = useCielStore((s) => s.fetchCalendarEvents);
+  const loadEmailsFromCache = useCielStore((s) => s.loadEmailsFromCache);
   const selectedDate = useCielStore((s) => s.selectedDate);
   const initializeClientDate = useCielStore((s) => s.initializeClientDate);
-  const markAsRead = useCielStore((s) => s.markAsRead);
-
-  const startRange = emailsTotal > 0 ? (emailsPage === 1 ? 1 : (emailsPage - 1) * emailsPerPage) : 0;
-  const endRange = Math.min(emailsPage * emailsPerPage, emailsTotal);
-  
-  const searchQuery = useCielStore((s) => s.searchQuery);
-  const setSearchQuery = useCielStore((s) => s.setSearchQuery);
-  const performSearch = useCielStore((s) => s.performSearch);
-  
-  const chatMessages = useCielStore((s) => s.chatMessages);
-  const clearChat = useCielStore((s) => s.clearChat);
-
-  // Settings & Integrations state
-  const theme = useCielStore((s) => s.theme);
-  const syncInterval = useCielStore((s) => s.syncInterval);
-  const aiAutoPriority = useCielStore((s) => s.aiAutoPriority);
-  const localIntegrations = useCielStore((s) => s.localIntegrations);
   const fetchSettings = useCielStore((s) => s.fetchSettings);
-  const updateSettings = useCielStore((s) => s.updateSettings);
   const fetchLocalIntegrations = useCielStore((s) => s.fetchLocalIntegrations);
-
+  const theme = useCielStore((s) => s.theme);
   const isDark = theme === "dark";
-  const bgClass = isDark ? "text-gray-300 selection:bg-purple-500 selection:text-white" : "text-slate-700 selection:bg-cyan-500 selection:text-black";
-  const headerBgClass = isDark ? "border-b border-white/10" : "border-b border-white/40";
-  const borderClass = isDark ? "border-white/5" : "border-white/20";
-  const border900Class = isDark ? "border-white/10" : "border-white/30";
-  
-  // Frosted glass cards (completely transparent glass theme like landing page topbar):
-  const cardBgClass = isDark 
-    ? "bg-transparent backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.15)]"
-    : "bg-transparent backdrop-blur-2xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.04)]";
-  
-  const innerCardBgClass = isDark ? "bg-black/15" : "bg-white/20";
-  
-  // Pill tabs:
-  const activeTabClass = isDark 
-    ? "bg-purple-500/20 text-purple-350 border-purple-500/40" 
-    : "bg-cyan-500/15 text-cyan-800 border-cyan-500/30";
-  
-  const inactiveTabClass = isDark 
-    ? "text-gray-400 hover:text-white border-transparent" 
-    : "text-slate-500 hover:text-slate-900 border-transparent";
-    
-  const tabContainerBgClass = isDark ? "bg-black/15" : "bg-white/20";
-  const actionContainerBgClass = isDark ? "bg-black/15" : "bg-white/20";
-  
-  // Inputs:
-  const inputBgClass = isDark 
-    ? "bg-black/20 focus:bg-black/35 border-white/10 focus:border-purple-500/50 text-white" 
-    : "bg-white/35 focus:bg-white/55 border-white/40 focus:border-cyan-500/50 text-slate-900";
-    
-  const buttonBgClass = isDark 
-    ? "bg-white/5 hover:bg-white/10 text-white border border-white/10" 
-    : "bg-white/40 hover:bg-white/60 text-slate-800 border border-white/50";
-    
-  const textWhiteClass = isDark ? "text-white" : "text-slate-900";
-  const textMutedClass = isDark ? "text-slate-400" : "text-slate-500";
-  const accordionHeaderBgClass = isDark ? "bg-black/15" : "bg-white/20";
 
-  const ambientBg = isDark
-    ? `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E"), linear-gradient(135deg, #0b0c10 0%, #12131a 30%, #1a1528 70%, #0b0c10 100%)`
-    : `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.035'/%3E%3C/svg%3E"), linear-gradient(135deg, #bfdbfe 0%, #c7d2fe 16%, #ddd6fe 32%, #fbcfe8 48%, #fecdd3 64%, #fed7aa 80%, #bbf7d0 100%)`;
-
-  // Tab State
-  const [activeView, setActiveView] = useState<"chat" | "store" | "settings">("chat");
-  const [chatInput, setChatInput] = useState("");
-  const [isSendingChat, setIsSendingChat] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [chatExpanded, setChatExpanded] = useState(false);
-  const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
-  const [selectedContextTag, setSelectedContextTag] = useState<string | null>(null);
-  const [isTabLoading, setIsTabLoading] = useState(false);
+  // Modals / global states
   const [mounted, setMounted] = useState(false);
-
-  // Compose Mail & AI Smart Reply States
   const [showComposeModal, setShowComposeModal] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [composeTo, setComposeTo] = useState("");
@@ -167,75 +45,12 @@ export default function DashboardPage() {
   const [composeBody, setComposeBody] = useState("");
   const [isSendingCompose, setIsSendingCompose] = useState(false);
 
-  const [isGeneratingReplies, setIsGeneratingReplies] = useState(false);
-  const [aiSuggestions, setAiSuggestions] = useState<{ label: string; body: string }[]>([]);
-  const [selectedReplyIndex, setSelectedReplyIndex] = useState<number | null>(null);
-  const [replyBody, setReplyBody] = useState("");
-  const [isSendingReply, setIsSendingReply] = useState(false);
-  const [activeReplyEmailId, setActiveReplyEmailId] = useState<string | null>(null);
-
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [conversationsList, setConversationsList] = useState<any[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
-  const [tokensConsumed, setTokensConsumed] = useState(0);
-  const [gmailPanelExpanded, setGmailPanelExpanded] = useState(false);
-  const [calendarPanelExpanded, setCalendarPanelExpanded] = useState(false);
-  const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("day");
-  const [calendarAnchorDate, setCalendarAnchorDate] = useState<Date | null>(null);
-
-  // Edit Calendar Event States
-  const [showEditEventModal, setShowEditEventModal] = useState(false);
-  const [editingEventId, setEditingEventId] = useState("");
-  const [editEventTitle, setEditEventTitle] = useState("");
-  const [editEventStart, setEditEventStart] = useState("");
-  const [editEventEnd, setEditEventEnd] = useState("");
-  const [editEventLocation, setEditEventLocation] = useState("");
-  const [editEventDescription, setEditEventDescription] = useState("");
-  const [isUpdatingEvent, setIsUpdatingEvent] = useState(false);
-
-  const fetchConversations = async () => {
-    try {
-      const res = await fetch("/api/chat/conversations");
-      if (res.ok) {
-        const data = await res.json();
-        setConversationsList(data.conversations || []);
-      }
-    } catch (e) {
-      console.error("Failed to fetch conversations", e);
-    }
-  };
-
-  const saveConversation = async (convId: string, messages: any[], tokens?: number) => {
-    try {
-      await fetch("/api/chat/conversations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          id: convId, 
-          messages, 
-          tokens_used: tokens !== undefined ? tokens : tokensConsumed 
-        }),
-      });
-      fetchConversations();
-    } catch (e) {
-      console.error("Failed to save conversation", e);
-    }
-  };
-
   // Auth Redirect Guard
   useEffect(() => {
     if (!isPending && !session) {
       router.push("/");
     }
   }, [session, isPending, router]);
-
-  useEffect(() => {
-    fetchConversations();
-    if (!activeConversationId) {
-      setActiveConversationId(Math.random().toString(36).substring(2, 15));
-      setTokensConsumed(0);
-    }
-  }, [activeConversationId]);
 
   useEffect(() => {
     setMounted(true);
@@ -271,29 +86,6 @@ export default function DashboardPage() {
       clearTimeout(timer);
     };
   }, [selectedDate, initializeClientDate]);
-
-  // Sync calendarAnchorDate with selectedDate once hydrated or when it updates
-  useEffect(() => {
-    if (selectedDate) {
-      setCalendarAnchorDate((prev) => {
-        if (!prev) return selectedDate;
-        return prev;
-      });
-    }
-  }, [selectedDate]);
-
-  useEffect(() => {
-    const handleComposeEvent = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      const { to, subject, body } = customEvent.detail || {};
-      handleInitiateCompose(to || "", subject || "");
-      if (body) {
-        setComposeBody(body);
-      }
-    };
-    window.addEventListener("ciel-compose", handleComposeEvent);
-    return () => window.removeEventListener("ciel-compose", handleComposeEvent);
-  }, []);
 
   // Sync Better Auth session state with Zustand store
   useEffect(() => {
@@ -354,13 +146,10 @@ export default function DashboardPage() {
       console.log("[EventSource] Event received:", event.data);
       if (event.data === "new_email") {
         console.log("[EventSource] Syncing new email...");
-        setIsRefreshing(true);
         try {
           await fetchEmails(true);
         } catch (e) {
           console.error("SSE fetchEmails error:", e);
-        } finally {
-          setIsRefreshing(false);
         }
       } else if (event.data === "sync_complete") {
         console.log("[EventSource] Sync complete. Fetching updated list from database...");
@@ -371,13 +160,10 @@ export default function DashboardPage() {
         }
       } else if (event.data === "new_calendar") {
         console.log("[EventSource] Syncing calendar events...");
-        setIsRefreshing(true);
         try {
           await fetchCalendarEvents();
         } catch (e) {
           console.error("SSE fetchCalendarEvents error:", e);
-        } finally {
-          setIsRefreshing(false);
         }
       }
     };
@@ -392,267 +178,26 @@ export default function DashboardPage() {
     };
   }, [session, user?.email, fetchEmails, fetchCalendarEvents]);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
+  // Listen for global custom event trigger
   useEffect(() => {
-    if (chatExpanded) {
-      const timer = setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [chatMessages, isSendingChat, chatExpanded]);
-
-  const handleFolderSwitch = (folder: "all" | "sent") => {
-    setIsTabLoading(true);
-    setActiveFolder(folder);
-    setExpandedEmailId(null);
-    setTimeout(() => {
-      loadEmailsFromCache();
-      setIsTabLoading(false);
-      fetchEmails(false, 1);
-    }, 120);
-  };
-
-  // Handle Search Submission
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      performSearch(searchQuery);
-    } else {
-      fetchEmails();
-      fetchCalendarEvents();
-    }
-  };
-
-  // Handle Chat message submit
-  const handleChatSubmit = async (e?: React.SyntheticEvent, isFreshStart?: boolean) => {
-    if (e) e.preventDefault();
-    if (!chatInput.trim() || isSendingChat) return;
-
-    if (isFreshStart) {
-      useCielStore.setState({ chatMessages: [] });
-    }
-
-    const userMsg = chatInput.trim();
-    setChatInput("");
-    
-    const newUserMessage = {
-      id: Math.random().toString(),
-      role: "user" as const,
-      content: userMsg,
-      timestamp: new Date()
-    };
-    const currentMessages = useCielStore.getState().chatMessages;
-    const updatedMessagesWithUser = [...currentMessages, newUserMessage];
-    useCielStore.setState({ chatMessages: updatedMessagesWithUser });
-    setIsSendingChat(true);
-
-    const freshConvId = Math.random().toString(36).substring(2, 15);
-    const currentConvId = isFreshStart 
-      ? freshConvId 
-      : (activeConversationId || freshConvId);
-
-    const currentTokens = isFreshStart ? 0 : tokensConsumed;
-
-    if (isFreshStart || !activeConversationId) {
-      setActiveConversationId(currentConvId);
-      setTokensConsumed(0);
-    }
-    await saveConversation(currentConvId, updatedMessagesWithUser, currentTokens);
-
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: updatedMessagesWithUser.map(m => ({ role: m.role, content: m.content })),
-          conversationId: currentConvId
-        }),
-      });
-
-      let finalMessages = updatedMessagesWithUser;
-      let addedTokens = 0;
-      if (res.ok) {
-        const data = await res.json();
-        addedTokens = data.tokens || 0;
-        const assistantMsg = {
-          id: Math.random().toString(),
-          role: "assistant" as const,
-          content: data.text,
-          timestamp: new Date()
-        };
-        finalMessages = [...updatedMessagesWithUser, assistantMsg];
-      } else {
-        const errorMsg = {
-          id: Math.random().toString(),
-          role: "assistant" as const,
-          content: "Error communicating with the backend chatbot API.",
-          timestamp: new Date()
-        };
-        finalMessages = [...updatedMessagesWithUser, errorMsg];
+    const handleComposeEvent = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { to, subject, body } = customEvent.detail || {};
+      handleInitiateCompose(to || "", subject || "");
+      if (body) {
+        setComposeBody(body);
       }
-      
-      const newTotalTokens = currentTokens + addedTokens;
-      setTokensConsumed(newTotalTokens);
-      useCielStore.setState({ chatMessages: finalMessages });
-      await saveConversation(currentConvId, finalMessages, newTotalTokens);
-    } catch (err) {
-      console.error("Chat error:", err);
-      const errorMsg = {
-        id: Math.random().toString(),
-        role: "assistant" as const,
-        content: "An unexpected error occurred during chat transmission.",
-        timestamp: new Date()
-      };
-      const finalMessages = [...updatedMessagesWithUser, errorMsg];
-      useCielStore.setState({ chatMessages: finalMessages });
-      await saveConversation(currentConvId, finalMessages, currentTokens);
-    } finally {
-      setIsSendingChat(false);
-      fetchEmails();
-      fetchCalendarEvents();
-    }
-  };
+    };
+    window.addEventListener("ciel-compose", handleComposeEvent);
+    return () => window.removeEventListener("ciel-compose", handleComposeEvent);
+  }, []);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleChatSubmit(e);
-    }
-  };
-
-  const handleStartFreshChat = () => {
-    const newId = Math.random().toString(36).substring(2, 15);
-    setActiveConversationId(newId);
-    setTokensConsumed(0);
-    useCielStore.setState({ chatMessages: [] });
-  };
-
-  const handleInitiateCompose = (to = "", subject = "") => {
+  const handleInitiateCompose = (to = "", subject = "", body = "") => {
     setComposeTo(to);
-    setComposeSubject(subject);
-    setComposeBody("");
-    setShowComposeModal(true);
-  };
-
-  const handleInitiateEditEvent = (evt: any) => {
-    setEditingEventId(evt.id);
-    setEditEventTitle(evt.title || "");
-    
-    const startLocal = new Date(evt.start);
-    const endLocal = new Date(evt.end);
-    
-    const formatLocalDateForInput = (d: Date) => {
-      const pad = (n: number) => String(n).padStart(2, '0');
-      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    };
-
-    setEditEventStart(formatLocalDateForInput(startLocal));
-    setEditEventEnd(formatLocalDateForInput(endLocal));
-    setEditEventLocation(evt.location || "");
-    setEditEventDescription(evt.description || "");
-    setShowEditEventModal(true);
-  };
-
-  const handleUpdateEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingEventId || !editEventTitle.trim() || isUpdatingEvent) return;
-
-    setIsUpdatingEvent(true);
-    try {
-      const res = await fetch("/api/calendar", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: editingEventId,
-          title: editEventTitle,
-          start: new Date(editEventStart).toISOString(),
-          end: new Date(editEventEnd).toISOString(),
-          location: editEventLocation,
-          description: editEventDescription,
-        })
-      });
-
-      if (res.ok) {
-        setShowEditEventModal(false);
-        fetchCalendarEvents();
-        toast.success("Event updated successfully!");
-      } else {
-        const data = await res.json();
-        alert("Failed to update event: " + (data.error || "Unknown error"));
-      }
-    } catch (err) {
-      console.error("Failed to update event", err);
-      alert("Error updating event.");
-    } finally {
-      setIsUpdatingEvent(false);
-    }
-  };
-
-  const handleDeleteEvent = async (eventId: string, title: string) => {
-    if (!confirm(`Are you sure you want to delete the event "${title}"?`)) return;
-
-    try {
-      const res = await fetch("/api/calendar", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: eventId })
-      });
-
-      if (res.ok) {
-        fetchCalendarEvents();
-        toast.success("Event deleted successfully!");
-      } else {
-        const data = await res.json();
-        alert("Failed to delete event: " + (data.error || "Unknown error"));
-      }
-    } catch (err) {
-      console.error("Failed to delete event", err);
-      alert("Error deleting event.");
-    }
-  };
-
-  const handleEmailEventDetails = (evt: any) => {
-    const startStr = new Date(evt.start).toLocaleString();
-    const endStr = new Date(evt.end).toLocaleString();
-    const subject = `Event Details: ${evt.title}`;
-    const body = `Here are the event details:\n\n` +
-      `Title: ${evt.title}\n` +
-      `Time: ${startStr} - ${endStr}\n` +
-      (evt.location ? `Location: ${evt.location}\n` : "") +
-      (evt.attendees && evt.attendees.length > 0 ? `Attendees: ${evt.attendees.join(", ")}\n` : "") +
-      (evt.description ? `Description:\n${evt.description}\n` : "");
-
-    setComposeTo("");
     setComposeSubject(subject);
     setComposeBody(body);
     setShowComposeModal(true);
   };
-
-  const expandedEmail = emails.find((e) => e.id === expandedEmailId);
-
-  useHotkeys("1", () => {
-    if (expandedEmail && expandedEmail.quickReplies?.[0]) {
-      handleInitiateCompose(expandedEmail.fromEmail || "", `Re: ${expandedEmail.subject || ""}`);
-      setComposeBody(expandedEmail.quickReplies[0]);
-    }
-  }, { enableOnFormTags: false }, [expandedEmail]);
-
-  useHotkeys("2", () => {
-    if (expandedEmail && expandedEmail.quickReplies?.[1]) {
-      handleInitiateCompose(expandedEmail.fromEmail || "", `Re: ${expandedEmail.subject || ""}`);
-      setComposeBody(expandedEmail.quickReplies[1]);
-    }
-  }, { enableOnFormTags: false }, [expandedEmail]);
-
-  useHotkeys("3", () => {
-    if (expandedEmail && expandedEmail.quickReplies?.[2]) {
-      handleInitiateCompose(expandedEmail.fromEmail || "", `Re: ${expandedEmail.subject || ""}`);
-      setComposeBody(expandedEmail.quickReplies[2]);
-    }
-  }, { enableOnFormTags: false }, [expandedEmail]);
-
 
   const handleSendComposeMail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -674,6 +219,7 @@ export default function DashboardPage() {
       if (res.ok) {
         setShowComposeModal(false);
         fetchEmails(true, 1);
+        toast.success("Email sent successfully!");
       } else {
         const data = await res.json();
         alert("Failed to send email: " + (data.error || "Unknown error"));
@@ -686,92 +232,6 @@ export default function DashboardPage() {
     }
   };
 
-  const handleInitiateSmartReply = async (email: any) => {
-    setActiveReplyEmailId(email.id);
-    setIsGeneratingReplies(true);
-    setAiSuggestions([]);
-    setSelectedReplyIndex(null);
-    setReplyBody("");
-
-    try {
-      const res = await fetch("/api/emails", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "suggest_replies",
-          subject: email.subject,
-          body: email.body,
-          fromName: email.from
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setAiSuggestions(data.suggestions || []);
-      } else {
-        alert("Failed to load smart replies.");
-      }
-    } catch (err) {
-      console.error("Smart replies error", err);
-    } finally {
-      setIsGeneratingReplies(false);
-    }
-  };
-
-  const handleSendSmartReply = async (toEmail: string, originalSubject: string) => {
-    if (!replyBody.trim() || isSendingReply) return;
-
-    setIsSendingReply(true);
-    try {
-      const replySubject = originalSubject.toLowerCase().startsWith("re:") 
-        ? originalSubject 
-        : `Re: ${originalSubject}`;
-
-      const res = await fetch("/api/emails", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "send",
-          to: toEmail,
-          subject: replySubject,
-          body: replyBody
-        })
-      });
-
-      if (res.ok) {
-        setActiveReplyEmailId(null);
-        setReplyBody("");
-        setAiSuggestions([]);
-        setSelectedReplyIndex(null);
-        fetchEmails(true, 1);
-      } else {
-        const data = await res.json();
-        alert("Failed to send reply: " + (data.error || "Unknown error"));
-      }
-    } catch (err) {
-      console.error("Failed to send smart reply", err);
-      alert("Error sending reply.");
-    } finally {
-      setIsSendingReply(false);
-    }
-  };
-
-  const handleSignOutClick = async () => {
-    await signOut({
-      fetchOptions: {
-        onSuccess: () => {
-          logout();
-          router.push("/");
-        }
-      }
-    });
-  };
-
-  const lastAssistantMsg = [...chatMessages].reverse().find(m => m.role === "assistant");
-  const isDailyLimitReached = lastAssistantMsg?.content?.includes("Daily Limit Reached") || false;
-  const isConvLimitReached = tokensConsumed >= 100000 || (lastAssistantMsg?.content?.includes("Conversation Limit Reached") || false);
-  const isInputDisabled = isSendingChat || isDailyLimitReached || isConvLimitReached;
-
   if (isPending || !session) {
     return (
       <div className="min-h-screen bg-[#0b0c10] text-gray-400 flex flex-col items-center justify-center font-sans gap-4">
@@ -783,1186 +243,37 @@ export default function DashboardPage() {
     );
   }
 
+  // Switch statement rendering the tabs based on activeTab
+  const renderTab = () => {
+    switch (activeTab) {
+      case "overview":
+        return <OverviewTab />;
+      case "inbox":
+        return <InboxTab onInitiateCompose={handleInitiateCompose} />;
+      case "calendar":
+        return <CalendarTab onInitiateCompose={handleInitiateCompose} />;
+      case "chat":
+        return <ChatTab />;
+      case "settings":
+        return <SettingsTab />;
+      default:
+        return <OverviewTab />;
+    }
+  };
+
+  const borderClass = isDark ? "border-white/5" : "border-white/20";
+  const border900Class = isDark ? "border-white/10" : "border-white/30";
+  const cardBgClass = isDark 
+    ? "bg-transparent backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.15)]"
+    : "bg-transparent backdrop-blur-2xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.04)]";
+  const inputBgClass = isDark 
+    ? "bg-black/20 focus:bg-black/35 border-white/10 focus:border-purple-500/50 text-white" 
+    : "bg-white/35 focus:bg-white/55 border-white/40 focus:border-cyan-500/50 text-slate-900";
+  const accordionHeaderBgClass = isDark ? "bg-black/15" : "bg-white/20";
+
   return (
-    <div className={`h-screen overflow-hidden relative bg-transparent ${bgClass} p-6 font-sans flex flex-col transition-all duration-300`}>
-      {/* Ambient Background Layer */}
-      <div
-        className="fixed inset-0 pointer-events-none -z-10 select-none overflow-hidden"
-        style={{
-          background: ambientBg,
-        }}
-      >
-        <div className={`absolute top-[10%] left-[5%] w-[45vw] h-[45vw] max-w-[600px] rounded-full blur-[120px] transition-all duration-500 ${
-          isDark ? "bg-indigo-500/5 animate-float-slow-1" : "bg-sky-300/25 animate-float-slow-1"
-        }`} />
-        <div className={`absolute bottom-[10%] right-[5%] w-[50vw] h-[50vw] max-w-[700px] rounded-full blur-[140px] transition-all duration-500 ${
-          isDark ? "bg-fuchsia-500/5 animate-float-slow-2" : "bg-pink-300/25 animate-float-slow-2"
-        }`} />
-        <div className={`absolute top-[40%] left-[35%] w-[40vw] h-[40vw] max-w-[500px] rounded-full blur-[120px] transition-all duration-500 ${
-          isDark ? "bg-violet-500/5 animate-float-slow-3" : "bg-violet-300/15 animate-float-slow-3"
-        }`} />
-      </div>
-
-      {/* Floating Header */}
-      <header className={`w-full backdrop-blur-2xl border rounded-2xl px-6 py-3 mb-6 flex items-center justify-between shadow-sm transition-all duration-300 ${
-        isDark ? "bg-transparent border-white/10" : "bg-transparent border-white/50"
-      }`}>
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-b from-cyan-400 to-blue-600 flex items-center justify-center font-bold text-white tracking-tighter shadow-sm">
-            C
-          </div>
-          <div>
-            <span className={`font-bold tracking-widest text-xs uppercase ${textWhiteClass}`}>Ceil.</span>
-            <span className="text-[9px] text-cyan-600 dark:text-cyan-400 font-mono ml-2 uppercase tracking-wider font-bold">Workspace Console</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 text-xs">
-          <PerformanceCanvas />
-          <span className={`text-[10px] uppercase font-bold tracking-wider ${textMutedClass} hidden sm:inline mr-2`}>
-            Node: <span className={`font-mono ${textWhiteClass}`}>{session.user.email}</span>
-          </span>
-          <button
-            onClick={() => setShowShortcutsModal(true)}
-            className={`px-3 py-1.5 border border-slate-200/20 dark:border-white/5 rounded-xl text-[9px] uppercase font-bold cursor-pointer transition-all duration-300 hover:shadow-[0_0_12px_rgba(6,182,212,0.35)] hover:border-cyan-500/50 hover:scale-[1.02] flex items-center gap-1.5 ${isDark ? "bg-white/5 text-slate-300 hover:text-white" : "bg-slate-900/5 text-slate-700 hover:text-black"}`}
-          >
-            <span>⌨️</span> Shortcuts
-          </button>
-          <button
-            onClick={() => setActiveView(activeView === "settings" ? "chat" : "settings")}
-            className={`px-3 py-1.5 border rounded-xl text-[9px] uppercase font-bold cursor-pointer transition-all ${
-              activeView === "settings" ? activeTabClass : `border-slate-200/20 dark:border-white/5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white ${isDark ? "bg-white/5" : "bg-slate-900/5"}`
-            }`}
-          >
-            Settings
-          </button>
-          <button
-            onClick={() => setActiveView(activeView === "store" ? "chat" : "store")}
-            className={`px-3 py-1.5 border rounded-xl text-[9px] uppercase font-bold cursor-pointer transition-all ${
-              activeView === "store" ? activeTabClass : `border-slate-200/20 dark:border-white/5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white ${isDark ? "bg-white/5" : "bg-slate-900/5"}`
-            }`}
-          >
-            Store
-          </button>
-          <button
-            onClick={handleSignOutClick}
-            className={`px-3 py-1.5 border border-slate-200/20 dark:border-white/5 rounded-xl text-[9px] uppercase text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer ${isDark ? "bg-white/5" : "bg-slate-900/5"}`}
-          >
-            Sign Out
-          </button>
-        </div>
-      </header>
-
-      {/* Integration Panels - slide down and hide when chat expanded */}
-      <section
-        className={`flex flex-col md:flex-row gap-4 min-h-0 overflow-hidden flex-1 transition-[max-height,opacity,margin] duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-          chatExpanded
-            ? "opacity-0 mb-0 pointer-events-none"
-            : "opacity-100 mb-4"
-        }`}
-        style={{ maxHeight: chatExpanded ? '0px' : '80vh' }}
-      >
-        {/* Gmail Panel */}
-        <div 
-          className={`rounded-2xl flex flex-col ${cardBgClass} overflow-hidden transition-[max-height] duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] min-h-0 w-full md:flex-1 ${
-            !gmailPanelExpanded ? "flex-none md:self-start" : "flex-1 md:h-full md:self-stretch"
-          }`}
-          style={{ 
-            maxHeight: gmailPanelExpanded ? "80vh" : "72px" 
-          }}
-        >
-          {/* Gmail Header */}
-          <div 
-            onClick={() => setGmailPanelExpanded(!gmailPanelExpanded)}
-            className="h-[72px] px-5 flex items-center justify-between cursor-pointer select-none hover:bg-slate-500/5 transition-colors shrink-0"
-          >
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Gmail Integration</h2>
-                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                  <span className={`inline-block w-2 h-2 rounded-full ${gmailConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
-                  <span className={`text-[10px] font-semibold uppercase ${gmailConnected ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>{gmailConnected ? "CONNECTED" : "DISCONNECTED"}</span>
-                </div>
-              </div>
-              <p className={`text-[11px] ${textMutedClass} truncate`}>Corsair synchronization status for user emails.</p>
-            </div>
-            
-            {/* Arrow symbol */}
-            <div className="ml-4 shrink-0 text-slate-400 hover:text-slate-200">
-              <svg className={`w-4 h-4 transform transition-transform duration-500 ${gmailPanelExpanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
-          </div>
-
-          {/* Animated Body Container */}
-          <div 
-            className="transition-opacity duration-300 ease-in-out flex-1 flex flex-col min-h-0"
-            style={{ 
-              opacity: gmailPanelExpanded ? 1 : 0 
-            }}
-          >
-            {gmailConnected ? (
-              <div className="flex-1 flex flex-col min-h-0">
-                {/* Email Action Bar */}
-                <div className={`px-5 pb-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2`}>
-                  <form onSubmit={handleSearchSubmit} className="flex-1 flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Search emails..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className={`flex-1 ${inputBgClass} border ${borderClass} text-xs px-3 py-2 outline-none rounded-xl font-mono`}
-                    />
-                    <button type="submit" className={`text-xs px-3 py-2 font-bold uppercase border border-slate-900/10 dark:border-white/5 rounded-xl cursor-pointer ${buttonBgClass}`}>Search</button>
-                  </form>
-                  <div className="flex gap-1.5 shrink-0">
-                    <button
-                      onClick={async () => {
-                        setIsRefreshing(true);
-                        try { await fetchEmails(true); } catch (e) { console.error(e); } finally { setIsRefreshing(false); }
-                      }}
-                      disabled={isRefreshing}
-                      className={`text-xs px-3 py-2 font-bold uppercase border border-slate-900/10 dark:border-white/5 rounded-xl cursor-pointer disabled:opacity-50 ${buttonBgClass}`}
-                    >
-                      {isRefreshing ? "..." : "Refresh"}
-                    </button>
-                    <button
-                      onClick={() => handleInitiateCompose()}
-                      className="px-3 py-2 bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20 rounded-xl text-xs font-bold cursor-pointer hover:bg-purple-500/25 transition-colors uppercase shrink-0"
-                    >
-                      + Compose
-                    </button>
-                  </div>
-                </div>
-
-                {/* Pagination Header (static, out of scroll view) */}
-                <div className={`px-5 py-2.5 flex justify-between items-center border-t border-b ${borderClass} shrink-0`}>
-                  <div className="flex items-center gap-4">
-                    <button
-                      onClick={() => handleFolderSwitch("all")}
-                      className={`relative py-1 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all duration-200 ${
-                        activeFolder === "all"
-                          ? "text-purple-600 dark:text-purple-400"
-                          : "text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-400"
-                      }`}
-                    >
-                      Received Mails
-                      {activeFolder === "all" && (
-                        <span className="absolute bottom-[-10px] left-0 right-0 h-[2px] bg-purple-500 rounded-full" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => handleFolderSwitch("sent")}
-                      className={`relative py-1 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all duration-200 ${
-                        activeFolder === "sent"
-                          ? "text-purple-600 dark:text-purple-400"
-                          : "text-slate-400 hover:text-slate-650 dark:text-slate-500 dark:hover:text-slate-400"
-                      }`}
-                    >
-                      Sent Mails
-                      {activeFolder === "sent" && (
-                        <span className="absolute bottom-[-10px] left-0 right-0 h-[2px] bg-purple-500 rounded-full" />
-                      )}
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); if (emailsPage > 1) fetchEmails(false, emailsPage - 1); }}
-                      disabled={emailsPage <= 1}
-                      className={`px-2.5 py-1 border border-slate-900/10 dark:border-white/5 rounded-lg text-[9px] font-bold cursor-pointer disabled:opacity-30 uppercase ${buttonBgClass}`}
-                    >
-                      Prev
-                    </button>
-                    <span className="text-[10px] text-slate-500 font-mono font-bold px-1.5">{startRange}-{endRange}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const nextPage = emailsPage + 1;
-                        if (nextPage * emailsPerPage <= emailsTotal) { fetchEmails(false, nextPage); } else { fetchEmails(true, nextPage); }
-                      }}
-                      disabled={!emailsHasMore && emailsPage >= Math.ceil(emailsTotal / emailsPerPage)}
-                      className={`px-2.5 py-1 border border-slate-900/10 dark:border-white/5 rounded-lg text-[9px] font-bold cursor-pointer disabled:opacity-30 uppercase ${buttonBgClass}`}
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-
-                {/* Context Streams Filter Bar */}
-                <div className={`px-5 py-2 flex items-center gap-1.5 overflow-x-auto border-b ${borderClass} shrink-0 bg-slate-500/5`}>
-                  <span className={`text-[9px] uppercase font-bold ${textMutedClass} mr-1 shrink-0`}>Streams:</span>
-                  <button
-                    onClick={() => setSelectedContextTag(null)}
-                    className={`text-[9px] px-2.5 py-1 rounded-xl font-bold uppercase cursor-pointer transition-all ${
-                      selectedContextTag === null
-                        ? "bg-purple-500 text-white"
-                        : `${isDark ? "bg-white/5 text-slate-400 hover:text-white" : "bg-slate-900/5 text-slate-650 hover:text-black"}`
-                    }`}
-                  >
-                    All
-                  </button>
-                  {(Array.from(new Set(emails.map(e => e.contextTag).filter(Boolean))) as string[]).map((tag) => (
-                    <button
-                      key={tag}
-                      onClick={() => setSelectedContextTag(tag)}
-                      className={`text-[9px] px-2.5 py-1 rounded-xl font-bold uppercase cursor-pointer transition-all ${
-                        selectedContextTag === tag
-                          ? "bg-purple-500 text-white"
-                          : `${isDark ? "bg-white/5 text-slate-400 hover:text-white" : "bg-slate-900/5 text-slate-650 hover:text-black"}`
-                      }`}
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Email List (scrollable) */}
-                <div className="flex-1 overflow-y-auto">
-                  {isTabLoading ? (
-                    <div className="divide-y divide-slate-100 dark:divide-white/5 animate-pulse">
-                      {[1, 2, 3, 4, 5].map((i) => (
-                        <div key={i} className="p-4 space-y-3 border-b border-slate-900/5 dark:border-white/5 opacity-65">
-                          <div className="flex justify-between items-center">
-                            <div className="h-3.5 bg-slate-350 dark:bg-white/10 rounded w-1/4"></div>
-                            <div className="h-2.5 bg-slate-350 dark:bg-white/10 rounded w-16"></div>
-                          </div>
-                          <div className="h-3.5 bg-slate-350 dark:bg-white/10 rounded w-2/3"></div>
-                          <div className="h-2.5 bg-slate-350 dark:bg-white/10 rounded w-1/2"></div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : emails.length === 0 ? (
-                    isSyncing ? (
-                      <div className="p-12 flex flex-col items-center justify-center space-y-4">
-                        <div className="relative w-12 h-12 flex items-center justify-center">
-                          <div className="absolute inset-0 border-4 border-purple-500/20 rounded-full"></div>
-                          <div className="absolute inset-0 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-                          <svg className="w-5 h-5 text-purple-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 19v-8.93a2 2 0 01.89-1.664l8-5.333a2 2 0 012.22 0l8 5.333A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-2.25-1.5a2 2 0 00-2.22 0l-2.25 1.5" />
-                          </svg>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider animate-pulse">Syncing Ciel Inbox...</p>
-                          <p className={`text-[10px] ${textMutedClass} mt-1 max-w-[240px]`}>Securely retrieving and classifying your messages with local AI.</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className={`text-xs ${textMutedClass} p-5`}>No emails cached in database. Click Refresh or check your credentials.</p>
-                    )
-                  ) : (
-                    <div>
-                      {(() => {
-                        const filteredEmails = selectedContextTag
-                          ? emails.filter(email => email.contextTag === selectedContextTag)
-                          : emails;
-
-                        if (filteredEmails.length === 0) {
-                          return <p className={`text-xs ${textMutedClass} p-5`}>No emails in this stream. Try checking other streams.</p>;
-                        }
-
-                        return filteredEmails.map((email) => {
-                          const isExpanded = expandedEmailId === email.id;
-                          const displayDate = (() => {
-                            if (!mounted) return "";
-                            try { return new Date(email.date).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
-                            catch { return email.date; }
-                          })();
-                          const emailBgClass = email.read
-                            ? (isDark ? "bg-black/15 text-slate-400 opacity-80" : "bg-slate-900/5 text-slate-500 opacity-80")
-                            : (isDark ? "bg-white/5 border-l-2 border-l-purple-500" : "bg-white/70 border-l-2 border-l-cyan-500 shadow-sm");
-                          const senderTextClass = email.read ? "text-slate-500 font-normal" : (isDark ? "text-white font-bold" : "text-slate-955 font-bold");
-                          const subjectTextClass = email.read ? (isDark ? "text-slate-400 font-normal" : "text-slate-500 font-normal") : (isDark ? "text-white font-bold" : "text-slate-955 font-bold");
-                          const dateTextClass = email.read ? "text-slate-500 font-normal" : (isDark ? "text-purple-400 font-bold" : "text-cyan-600 font-bold");
-
-                          return (
-                            <div
-                              key={email.id}
-                              onClick={() => { setExpandedEmailId(isExpanded ? null : email.id); if (!email.read) markAsRead(email.id); }}
-                              className={`border-b ${borderClass} ${emailBgClass} text-xs cursor-pointer hover:bg-slate-500/10 transition-all duration-200 overflow-hidden`}
-                            >
-                              {isExpanded ? (
-                                <div className={`p-4 space-y-3 ${accordionHeaderBgClass}`}>
-                                  <div className={`flex flex-col sm:flex-row justify-between pb-2 border-b ${border900Class}`}>
-                                    <div>
-                                      <span className={`font-bold ${textWhiteClass}`}>FROM: {email.from}</span>
-                                      <span className="text-slate-500 ml-2">&lt;{email.fromEmail}&gt;</span>
-                                    </div>
-                                    <span className="text-slate-500 text-[10px] font-mono">{displayDate}</span>
-                                  </div>
-                                  <div><h3 className={`text-sm font-bold ${textWhiteClass} tracking-normal leading-tight`}>{email.subject}</h3></div>
-                                  <p className={`${isDark ? "text-slate-350" : "text-slate-700"} font-sans font-normal leading-relaxed whitespace-pre-wrap ${innerCardBgClass} p-4 border border-slate-900/5 dark:border-white/5 rounded-xl select-text`}>{email.body}</p>
-                                  <div className="flex gap-4 text-[10px] text-slate-500 uppercase font-semibold pt-1">
-                                    <span>Category: <span className={isDark ? "text-slate-400" : "text-slate-650"}>{email.category}</span></span>
-                                    <span>Priority: <span className={isDark ? "text-slate-400" : "text-slate-650"}>{email.priority}</span></span>
-                                    <span>Read: <span className={isDark ? "text-slate-400" : "text-slate-650"}>{email.read ? "yes" : "no"}</span></span>
-                                    {email.contextTag && (
-                                      <span>Stream: <span className="text-purple-500 dark:text-purple-400 font-bold">{email.contextTag}</span></span>
-                                    )}
-                                  </div>
-                                  {/* AI Reply & Compose Controls */}
-                                  <div className="mt-4 pt-3 border-t border-slate-900/10 dark:border-white/10 space-y-3" onClick={(e) => e.stopPropagation()}>
-                                    {activeReplyEmailId !== email.id ? (
-                                      <div className="space-y-3">
-                                        <div className="flex items-center gap-2">
-                                          <button onClick={() => handleInitiateSmartReply(email)} className="px-3.5 py-1.5 bg-purple-500/10 text-purple-600 dark:text-purple-300 hover:bg-purple-500/20 border border-purple-500/20 rounded-xl font-bold uppercase text-[10px] cursor-pointer flex items-center gap-1.5 transition-colors">
-                                            <span>✨</span> Reply with AI
-                                          </button>
-                                          <button onClick={() => handleInitiateCompose(email.fromEmail, `Re: ${email.subject}`)} className="px-3.5 py-1.5 border border-slate-900/10 dark:border-white/5 bg-slate-900/5 dark:bg-white/5 text-slate-800 dark:text-slate-200 hover:bg-slate-900/10 dark:hover:bg-white/10 rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors">
-                                            Reply
-                                          </button>
-                                        </div>
-                                        {email.quickReplies && email.quickReplies.length > 0 && (
-                                          <div className="space-y-1.5">
-                                            <span className="text-[9px] uppercase font-bold text-slate-400">Quick Replies:</span>
-                                            <div className="flex flex-wrap gap-2">
-                                              {email.quickReplies.map((replyText: string, idx: number) => (
-                                                <button
-                                                  key={idx}
-                                                  onClick={() => {
-                                                    handleInitiateCompose(email.fromEmail, `Re: ${email.subject}`);
-                                                    setComposeBody(replyText);
-                                                  }}
-                                                  className="text-[9px] px-3 py-1.5 border rounded-xl font-medium cursor-pointer transition-all border-slate-900/10 dark:border-white/5 text-slate-750 dark:text-slate-300 hover:text-slate-955 dark:hover:text-white bg-slate-900/5 dark:bg-white/5 hover:bg-purple-500/10 dark:hover:bg-purple-500/10"
-                                                >
-                                                  <span className="text-purple-500 font-bold mr-1">[{idx + 1}]</span> {replyText}
-                                                </button>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                          <span className="text-[10px] uppercase font-bold text-slate-500">Draft reply using AI:</span>
-                                          <button onClick={() => setActiveReplyEmailId(null)} className="text-[10px] font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white uppercase">Cancel</button>
-                                        </div>
-                                        {isGeneratingReplies ? (
-                                          <div className="text-[11px] text-slate-500 animate-pulse">Drafting alternative replies...</div>
-                                        ) : (
-                                          <div className="flex flex-wrap gap-2">
-                                            {aiSuggestions.map((sug, idx) => (
-                                              <button
-                                                key={idx}
-                                                onClick={() => { setSelectedReplyIndex(idx); setReplyBody(sug.body); }}
-                                                className={`text-[9px] px-3 py-1.5 border rounded-xl font-bold uppercase cursor-pointer transition-all ${
-                                                  selectedReplyIndex === idx
-                                                    ? "bg-purple-600 border-purple-600 text-white"
-                                                    : `border-slate-900/10 dark:border-white/5 text-slate-650 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white ${isDark ? "bg-white/5" : "bg-slate-900/5"}`
-                                                }`}
-                                              >
-                                                {sug.label}
-                                              </button>
-                                            ))}
-                                          </div>
-                                        )}
-                                        {(!isGeneratingReplies || replyBody) && (
-                                          <div className="space-y-2">
-                                            <textarea
-                                              value={replyBody}
-                                              onChange={(e) => setReplyBody(e.target.value)}
-                                              rows={5}
-                                              className="w-full text-xs p-3 border border-slate-200 dark:border-slate-800 bg-white/5 outline-none rounded-xl resize-none text-slate-900 dark:text-white"
-                                            />
-                                            <div className="flex items-center justify-end gap-2">
-                                              <button
-                                                onClick={() => handleSendSmartReply(email.fromEmail, email.subject)}
-                                                disabled={isSendingReply || !replyBody.trim()}
-                                                className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold uppercase rounded-xl disabled:opacity-50 transition-colors cursor-pointer"
-                                              >
-                                                {isSendingReply ? "Sending..." : "Send Reply"}
-                                              </button>
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="px-5 py-3 flex items-center justify-between gap-4 hover:bg-slate-500/5 transition-colors">
-                                  <div className="flex-1 min-w-0 pr-4">
-                                    <div className="flex items-baseline justify-between mb-0.5">
-                                      <span className={`${senderTextClass} truncate mr-2`}>{email.from}</span>
-                                      <span className={`${dateTextClass} text-[10px] font-mono shrink-0`}>{displayDate}</span>
-                                    </div>
-                                    <p className={`${subjectTextClass} truncate text-[11px]`}>{email.subject}</p>
-                                  </div>
-                                  <div className="shrink-0 flex items-center gap-2">
-                                    <span className={`text-[9px] px-1.5 py-0.5 rounded-lg border font-mono font-bold uppercase shrink-0 ${
-                                      email.priority === "high"
-                                        ? (isDark ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-red-50 border-red-200 text-red-700")
-                                        : (isDark ? "bg-slate-800 border-slate-700 text-slate-400" : "bg-slate-100 border-slate-200 text-slate-600")
-                                    }`}>{email.priority}</span>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="px-5 pb-5 pt-2">
-                <button
-                  onClick={async () => {
-                    try {
-                      const res = await fetch("/api/auth/corsair/connect?plugin=gmail");
-                      const data = await res.json();
-                      if (data.authorizeUrl) window.location.href = data.authorizeUrl;
-                    } catch (e) { console.error("Failed to connect gmail:", e); }
-                  }}
-                  className={`text-center w-full py-2.5 ${buttonBgClass} border border-slate-900/10 dark:border-white/5 rounded-xl text-xs uppercase font-bold cursor-pointer`}
-                >
-                  Connect Gmail
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Calendar Panel */}
-        <div 
-          className={`rounded-2xl flex flex-col ${cardBgClass} overflow-hidden transition-[max-height] duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] min-h-0 w-full md:flex-1 ${
-            !calendarPanelExpanded ? "flex-none md:self-start" : "flex-1 md:h-full md:self-stretch"
-          }`}
-          style={{ 
-            maxHeight: calendarPanelExpanded ? "80vh" : "72px" 
-          }}
-        >
-          {/* Calendar Header */}
-          <div 
-            onClick={() => setCalendarPanelExpanded(!calendarPanelExpanded)}
-            className="h-[72px] px-5 flex items-center justify-between cursor-pointer select-none hover:bg-slate-500/5 transition-colors shrink-0"
-          >
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Google Calendar</h2>
-                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                  <span className={`inline-block w-2 h-2 rounded-full ${calendarConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
-                  <span className={`text-[10px] font-semibold uppercase ${calendarConnected ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>{calendarConnected ? "CONNECTED" : "DISCONNECTED"}</span>
-                </div>
-              </div>
-              <p className={`text-[11px] ${textMutedClass} truncate`}>Corsair synchronization status for user schedules.</p>
-            </div>
-            
-            {/* Arrow symbol */}
-            <div className="ml-4 shrink-0 text-slate-400 hover:text-slate-200">
-              <svg className={`w-4 h-4 transform transition-transform duration-500 ${calendarPanelExpanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
-          </div>
-
-          {/* Animated Body Container */}
-          <div 
-            className="transition-opacity duration-300 ease-in-out flex-1 flex flex-col min-h-0"
-            style={{ 
-              opacity: calendarPanelExpanded ? 1 : 0 
-            }}
-          >
-            {calendarConnected ? (
-              <div className="flex-1 flex flex-col min-h-0">
-                {/* Calendar Action & Navigation Bar */}
-                <div className="px-5 pb-3 flex flex-col gap-2 shrink-0">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <button
-                      onClick={async () => {
-                        setIsRefreshing(true);
-                        try { await fetchCalendarEvents(); } catch (e) { console.error(e); } finally { setIsRefreshing(false); }
-                      }}
-                      disabled={isRefreshing}
-                      className={`text-[10px] px-2.5 py-1.5 font-bold uppercase border rounded-lg cursor-pointer disabled:opacity-50 transition-all ${buttonBgClass}`}
-                    >
-                      {isRefreshing ? "..." : "Refresh"}
-                    </button>
-                    
-                    {/* View Selectors */}
-                    <div className="flex rounded-lg border border-white/10 overflow-hidden bg-black/10">
-                      {(["day", "week", "month"] as const).map((view) => (
-                        <button
-                          key={view}
-                          onClick={() => setCalendarView(view)}
-                          className={`text-[9px] px-2.5 py-1 font-bold uppercase cursor-pointer transition-all ${
-                            calendarView === view
-                              ? "bg-purple-600/20 text-purple-350"
-                              : "text-slate-400 hover:text-white"
-                          }`}
-                        >
-                          {view}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Date Navigation & Label */}
-                  <div className={`pt-2 border-t ${borderClass} flex items-center justify-between gap-2`}>
-                    <span className={`text-[10px] ${textWhiteClass} font-mono font-bold uppercase`}>
-                      {(() => {
-                        if (!mounted || !selectedDate || !calendarAnchorDate) return "";
-                        if (calendarView === "day") {
-                          return calendarAnchorDate.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
-                        } else if (calendarView === "week") {
-                          const sun = new Date(calendarAnchorDate);
-                          sun.setDate(calendarAnchorDate.getDate() - calendarAnchorDate.getDay());
-                          const sat = new Date(sun);
-                          sat.setDate(sun.getDate() + 6);
-                          return `${sun.toLocaleDateString([], { month: "short", day: "numeric" })} - ${sat.toLocaleDateString([], { month: "short", day: "numeric" })}`;
-                        } else {
-                          return calendarAnchorDate.toLocaleDateString([], { month: "long", year: "numeric" });
-                        }
-                      })()}
-                    </span>
-
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => {
-                          if (!calendarAnchorDate) return;
-                          const newDate = new Date(calendarAnchorDate);
-                          if (calendarView === "day") newDate.setDate(newDate.getDate() - 1);
-                          else if (calendarView === "week") newDate.setDate(newDate.getDate() - 7);
-                          else newDate.setMonth(newDate.getMonth() - 1);
-                          setCalendarAnchorDate(newDate);
-                        }}
-                        className={`text-[9px] px-2 py-1 font-bold uppercase border rounded-lg cursor-pointer ${buttonBgClass}`}
-                      >
-                        Prev
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (selectedDate) setCalendarAnchorDate(selectedDate);
-                        }}
-                        className={`text-[9px] px-2 py-1 font-bold uppercase border rounded-lg cursor-pointer ${buttonBgClass}`}
-                      >
-                        Today
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (!calendarAnchorDate) return;
-                          const newDate = new Date(calendarAnchorDate);
-                          if (calendarView === "day") newDate.setDate(newDate.getDate() + 1);
-                          else if (calendarView === "week") newDate.setDate(newDate.getDate() + 7);
-                          else newDate.setMonth(newDate.getMonth() + 1);
-                          setCalendarAnchorDate(newDate);
-                        }}
-                        className={`text-[9px] px-2 py-1 font-bold uppercase border rounded-lg cursor-pointer ${buttonBgClass}`}
-                      >
-                        Next
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Calendar View Content Area */}
-                <div className={`flex-1 border-t ${borderClass} overflow-y-auto p-4 min-h-0`}>
-                  {!mounted || !selectedDate || !calendarAnchorDate ? (
-                    <div className={`text-xs ${textMutedClass}`}>Loading calendar...</div>
-                  ) : calendarView === "day" ? (
-                    /* Day View */
-                    <div className="space-y-3">
-                      {(() => {
-                        const dayEvents = calendarEvents.filter((evt) => isSameDay(new Date(evt.start), calendarAnchorDate!));
-                        if (dayEvents.length === 0) {
-                          return <p className={`text-xs ${textMutedClass}`}>No events scheduled for this day.</p>;
-                        }
-                        return dayEvents.map((evt) => (
-                          <div key={evt.id} className={`border ${borderClass} p-4 ${innerCardBgClass} rounded-xl text-xs shadow-sm`}>
-                            <div className={`flex flex-col sm:flex-row justify-between mb-2 pb-1.5 border-b ${borderClass}/50`}>
-                              <span className={`font-bold ${textWhiteClass} tracking-tight`}>{evt.title}</span>
-                              <span className="text-slate-500 font-mono">
-                                {new Date(evt.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} - {new Date(evt.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                              </span>
-                            </div>
-                            {evt.location && <p className={`mb-1 ${isDark ? "text-slate-350" : "text-slate-650"} font-sans font-normal leading-relaxed`}>Location: {evt.location}</p>}
-                            {evt.attendees && evt.attendees.length > 0 && (
-                              <p className={`mb-1 ${isDark ? "text-slate-350" : "text-slate-650"} font-sans font-normal leading-relaxed`}>Attendees: {evt.attendees.join(", ")}</p>
-                            )}
-                            {evt.description && (
-                              <p className={`${isDark ? "text-slate-350" : "text-slate-700"} font-sans font-normal leading-relaxed whitespace-pre-wrap bg-slate-900/5 dark:bg-black/20 p-3 border border-slate-900/5 dark:border-white/5 rounded-xl mt-2`}>{evt.description}</p>
-                            )}
-                            
-                            {/* Event Actions */}
-                            <div className="flex flex-wrap gap-2 mt-3.5 pt-2.5 border-t border-slate-900/5 dark:border-white/5 justify-end">
-                              <button
-                                onClick={() => handleEmailEventDetails(evt)}
-                                className="px-2 py-1 text-[9px] font-bold uppercase cursor-pointer rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 border border-cyan-500/20 hover:bg-cyan-500/20 transition-all flex items-center"
-                                title="Compose email with event details"
-                              >
-                                Email Event Details
-                              </button>
-                              <button
-                                onClick={() => handleInitiateEditEvent(evt)}
-                                className="px-2 py-1 text-[9px] font-bold uppercase cursor-pointer rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20 hover:bg-purple-500/20 transition-all flex items-center"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDeleteEvent(evt.id, evt.title)}
-                                className="px-2 py-1 text-[9px] font-bold uppercase cursor-pointer rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 transition-all flex items-center"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                        ));
-                      })()}
-                    </div>
-                  ) : calendarView === "week" ? (
-                    /* Week View */
-                    <div className="flex flex-col md:grid md:grid-cols-7 gap-2 h-full min-h-0">
-                      {(() => {
-                        const startOfWeek = new Date(calendarAnchorDate!);
-                        startOfWeek.setDate(calendarAnchorDate!.getDate() - calendarAnchorDate!.getDay());
-                        const weekDays = Array.from({ length: 7 }, (_, i) => {
-                          const d = new Date(startOfWeek);
-                          d.setDate(startOfWeek.getDate() + i);
-                          return d;
-                        });
-                        return weekDays.map((day) => {
-                          const eventsForDay = calendarEvents.filter((evt) => isSameDay(new Date(evt.start), day));
-                          const isToday = isSameDay(day, selectedDate!);
-                          const isAnchor = isSameDay(day, calendarAnchorDate!);
-                          
-                          return (
-                            <div 
-                              key={day.toISOString()} 
-                              onClick={() => { setCalendarAnchorDate(day); setCalendarView("day"); }}
-                              className={`flex-1 min-h-0 flex flex-col p-2 rounded-xl border transition-all cursor-pointer hover:bg-white/5 ${
-                                isToday
-                                  ? "bg-purple-500/5 border-purple-500/30"
-                                  : isAnchor
-                                  ? "bg-white/5 border-white/20"
-                                  : `border-white/5 ${innerCardBgClass}`
-                              }`}
-                            >
-                              {/* Day Header */}
-                              <div className="text-center pb-1.5 border-b border-white/5 mb-1.5 shrink-0">
-                                <span className="text-[9px] uppercase text-slate-500 block font-bold">
-                                  {day.toLocaleDateString([], { weekday: "short" })}
-                                </span>
-                                <span className={`text-xs font-bold font-mono ${isToday ? "text-purple-400" : textWhiteClass}`}>
-                                  {day.getDate()}
-                                </span>
-                              </div>
-
-                              {/* Day Events */}
-                              <div className="flex-1 overflow-y-auto space-y-1 min-h-[50px] md:min-h-0">
-                                {eventsForDay.length === 0 ? (
-                                  <span className="text-[9px] text-slate-500/50 block text-center italic mt-2">No events</span>
-                                ) : (
-                                  eventsForDay.map((evt) => {
-                                    const timeStr = new Date(evt.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-                                    return (
-                                      <div 
-                                        key={evt.id} 
-                                        className="p-1 rounded bg-purple-500/10 border border-purple-500/20 text-[9px] text-purple-300 truncate"
-                                        title={`${evt.title} (${timeStr})`}
-                                      >
-                                        <span className="font-mono font-bold mr-1">{timeStr}</span>
-                                        {evt.title}
-                                      </div>
-                                    );
-                                  })
-                                )}
-                              </div>
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
-                  ) : (
-                    /* Month View */
-                    <div className="flex flex-col h-full min-h-0">
-                      {/* Day labels header */}
-                      <div className="grid grid-cols-7 gap-1 text-center border-b border-white/5 pb-1 mb-1.5 shrink-0">
-                        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName) => (
-                          <span key={dayName} className="text-[9px] uppercase font-bold text-slate-500">
-                            {dayName}
-                          </span>
-                        ))}
-                      </div>
-
-                      {/* Month cells grid */}
-                      <div className="flex-1 grid grid-cols-7 grid-rows-6 gap-1 min-h-0">
-                        {getDaysInMonth(calendarAnchorDate!).map((cell) => {
-                          const dayEvts = calendarEvents.filter((evt) => isSameDay(new Date(evt.start), cell.date));
-                          const isToday = isSameDay(cell.date, selectedDate!);
-                          const isSelected = isSameDay(cell.date, calendarAnchorDate!);
-                          
-                          return (
-                            <div
-                              key={cell.date.toISOString()}
-                              onClick={() => { setCalendarAnchorDate(cell.date); setCalendarView("day"); }}
-                              className={`min-h-0 p-1 rounded-lg border transition-all cursor-pointer flex flex-col justify-between hover:bg-white/5 ${
-                                isToday
-                                  ? "bg-purple-500/5 border-purple-500/30"
-                                  : isSelected
-                                  ? "bg-white/5 border-white/20"
-                                  : `border-white/5 ${innerCardBgClass}`
-                              } ${!cell.isCurrentMonth ? "opacity-30" : "opacity-100"}`}
-                            >
-                              <span className={`text-[9px] font-bold font-mono self-end ${isToday ? "text-purple-400" : textWhiteClass}`}>
-                                {cell.dayNum}
-                              </span>
-                              
-                              <div className="flex-1 flex flex-col justify-end space-y-0.5 mt-1 overflow-hidden">
-                                {dayEvts.slice(0, 2).map((evt) => (
-                                  <div 
-                                    key={evt.id} 
-                                    className="text-[8px] bg-purple-500/10 text-purple-300 border border-purple-500/20 px-0.5 rounded truncate w-full"
-                                    title={evt.title}
-                                  >
-                                    {evt.title}
-                                  </div>
-                                ))}
-                                {dayEvts.length > 2 && (
-                                  <span className="text-[7px] text-slate-500 font-bold block text-right">
-                                    +{dayEvts.length - 2} more
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="px-5 pb-5 pt-2 shrink-0">
-                <button
-                  onClick={async () => {
-                    try {
-                      const res = await fetch("/api/auth/corsair/connect?plugin=googlecalendar");
-                      const data = await res.json();
-                      if (data.authorizeUrl) window.location.href = data.authorizeUrl;
-                    } catch (e) { console.error("Failed to connect calendar:", e); }
-                  }}
-                  className={`text-center w-full py-2.5 ${buttonBgClass} border border-slate-900/10 dark:border-white/5 rounded-xl text-xs uppercase font-bold cursor-pointer`}
-                >
-                  Connect Calendar
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-      {/* AI Chat — Expands in-place */}
-      <div className={`rounded-2xl overflow-hidden ${cardBgClass} flex flex-col transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] min-h-0 ${chatExpanded ? "flex-1" : "flex-none"}`}>
-        {/* Chat Header */}
-        <div className="shrink-0 px-4 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 flex-wrap text-xs">
-            <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse shrink-0" />
-            <h3 className={`font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>AI Chat</h3>
-            {chatExpanded && activeConversationId && (
-              <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">({activeConversationId})</span>
-            )}
-            <span className="text-[9px] bg-purple-500/10 text-purple-600 dark:text-purple-350 border border-purple-500/20 px-2 py-0.5 rounded-lg font-mono font-bold shrink-0">
-              Tokens: {tokensConsumed.toLocaleString()} / 100,000
-            </span>
-            <span className="text-[9px] bg-slate-900/5 dark:bg-white/5 text-slate-500 dark:text-slate-400 border border-slate-900/10 dark:border-white/10 px-2 py-0.5 rounded-lg font-mono shrink-0">
-              Daily Quota: 1M max
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {chatExpanded && (
-              <button
-                onClick={handleStartFreshChat}
-                className="text-[10px] px-3.5 py-1.5 bg-purple-500/10 text-purple-600 dark:text-purple-350 border border-purple-500/20 rounded-xl font-bold uppercase cursor-pointer hover:bg-purple-500/20 transition-all duration-200"
-              >
-                + New Chat
-              </button>
-            )}
-            <button
-              onClick={() => {
-                const nextShowHistory = !showHistory;
-                setShowHistory(nextShowHistory);
-                if (nextShowHistory) {
-                  setChatExpanded(true);
-                  fetchConversations();
-                }
-              }}
-              className={`text-[10px] px-3.5 py-1.5 border border-slate-900/10 dark:border-white/10 rounded-xl font-bold uppercase cursor-pointer transition-colors flex items-center gap-1.5 shrink-0 ${buttonBgClass}`}
-            >
-              <span>History</span>
-              <span className="bg-slate-900/10 dark:bg-black/20 px-1.5 py-0.2 rounded text-[9px] text-slate-500">
-                {conversationsList.length}
-              </span>
-            </button>
-            {chatExpanded && (
-              <button
-                onClick={() => {
-                  setChatExpanded(false);
-                  setShowHistory(false);
-                  setTokensConsumed(0);
-                }}
-                className={`w-8 h-8 flex items-center justify-center rounded-xl border border-slate-900/10 dark:border-white/10 text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:border-red-500/30 transition-all cursor-pointer text-lg font-bold ${isDark ? "bg-white/5" : "bg-slate-900/5"}`}
-              >
-                ×
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Collapsed: text input for typing before sending */}
-        {!chatExpanded && (
-          <div className="px-4 pb-4">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (chatInput.trim() && !isInputDisabled) {
-                  setChatExpanded(true);
-                  handleChatSubmit(e, true);
-                }
-              }}
-              className={`border ${borderClass} ${inputBgClass} rounded-2xl px-4 py-2 flex items-center gap-3 hover:ring-2 hover:ring-purple-500/30 focus-within:ring-2 focus-within:ring-purple-500/30 transition-all duration-200`}
-            >
-              <input
-                type="text"
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck="false"
-                placeholder={
-                  isDailyLimitReached 
-                    ? "Daily token quota reached. Please upgrade to the Pro Plan." 
-                    : isConvLimitReached 
-                    ? "Conversation limit reached. Start a new chat or upgrade to Pro."
-                    : "Ask Ciel to send emails, list messages, or schedule meetings..."
-                }
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                disabled={isInputDisabled}
-                className="w-full bg-transparent text-sm outline-none border-none py-2 disabled:opacity-50 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
-              />
-              <button
-                type="submit"
-                disabled={isInputDisabled || !chatInput.trim()}
-                className="bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-zinc-800 disabled:text-slate-400 dark:disabled:text-zinc-650 text-white text-[9px] px-3.5 py-1.5 font-bold uppercase rounded-xl transition-colors cursor-pointer shrink-0"
-              >
-                Send
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* Expanded: full chat content */}
-        {chatExpanded && (
-          <div className="flex-1 flex min-h-0 overflow-hidden">
-            {/* Messages + Input */}
-            <div className="flex-1 flex flex-col min-h-0 px-4 pb-4">
-              {/* Messages Area */}
-              <div className={`flex-1 space-y-4 p-4 border border-slate-900/5 dark:border-white/5 bg-slate-900/5 dark:bg-black/10 rounded-2xl overflow-y-auto min-h-0`}>
-                {chatMessages.length === 0 && (
-                  <div className="flex-1 flex flex-col items-center justify-center py-16 text-center">
-                    <div className="w-14 h-14 rounded-full bg-gradient-to-b from-purple-400 to-purple-700 flex items-center justify-center mb-4 shadow-lg">
-                      <span className="text-white text-xl font-bold">C</span>
-                    </div>
-                    <h4 className={`text-sm font-bold ${textWhiteClass} mb-1`}>Welcome to Ciel AI</h4>
-                    <p className={`text-xs ${textMutedClass} max-w-sm`}>Ask me to send emails, check your calendar, schedule meetings, or answer any question.</p>
-                  </div>
-                )}
-                {chatMessages.map((msg) => {
-                  const isUser = msg.role === "user";
-                  return (
-                    <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"} mb-1`}>
-                      <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs shadow-[0_1px_2px_rgba(0,0,0,0.02)] border ${
-                        isUser
-                          ? (isDark ? "bg-cyan-950/40 border-cyan-800/50 text-cyan-200 rounded-tr-none" : "bg-cyan-50 border-cyan-200 text-cyan-950 rounded-tr-none")
-                          : (isDark ? "bg-black/35 border-white/5 text-slate-300 font-mono rounded-tl-none" : "bg-white/80 border-slate-200 text-slate-800 rounded-tl-none")
-                      }`}>
-                        <div className="flex items-center gap-1.5 mb-1 opacity-60 text-[9px] uppercase tracking-wider font-bold">
-                          <span>{msg.role}</span>
-                          <span>•</span>
-                          <span>{mounted && msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</span>
-                        </div>
-                        <div className={isUser ? "font-sans leading-relaxed" : "font-mono leading-relaxed"}>
-                          <MarkdownRenderer content={msg.content} isDark={isDark} />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-                {isSendingChat && (
-                  <div className="flex justify-start">
-                    <div className={`rounded-2xl rounded-tl-none px-4 py-2.5 text-xs border bg-slate-100/30 dark:bg-white/5 border-slate-900/5 dark:border-white/5 text-slate-400 dark:text-slate-500 animate-pulse`}>
-                      <span>Thinking and generating tool responses...</span>
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Limit Banner */}
-              {(isDailyLimitReached || isConvLimitReached) && (
-                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs mt-3">
-                  <span className="text-red-700 dark:text-red-300 font-semibold flex items-center gap-1.5">
-                    <span>🚨</span>
-                    {isDailyLimitReached ? (
-                      <span>Daily Limit Reached: You have consumed 1M tokens today. Please upgrade to the Pro Plan.</span>
-                    ) : (
-                      <span>Conversation Limit Reached: Session used 100k tokens. Start a new chat or upgrade.</span>
-                    )}
-                  </span>
-                  <div className="flex gap-2 shrink-0">
-                    {isConvLimitReached && !isDailyLimitReached && (
-                      <button
-                        type="button"
-                        onClick={handleStartFreshChat}
-                        className="px-3.5 py-1.5 bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/40 rounded-xl font-bold uppercase hover:bg-red-500/20 transition-colors cursor-pointer text-[10px]"
-                      >
-                        New Chat
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => alert("Pro Plan upgrade portal is not available in hackathon demo mode.")}
-                      className="px-3.5 py-1.5 bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-900/40 rounded-xl font-bold uppercase hover:bg-purple-500/20 transition-colors cursor-pointer text-[10px]"
-                    >
-                      Upgrade to Pro
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Input Form */}
-              <form onSubmit={handleChatSubmit} className={`relative border ${borderClass} ${inputBgClass} rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-purple-600/50 transition-all mt-3 shrink-0`}>
-                <textarea
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck="false"
-                  placeholder={
-                    isDailyLimitReached 
-                      ? "Daily token quota reached. Please upgrade to the Pro Plan." 
-                      : isConvLimitReached 
-                      ? "Conversation limit reached. Start a new chat or upgrade to Pro."
-                      : "Ask Ciel to send emails, list messages, or schedule meetings..."
-                  }
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={isInputDisabled}
-                  rows={3}
-                  className="w-full bg-transparent text-sm p-4 pb-12 outline-none resize-none disabled:opacity-50 text-slate-900 dark:text-white"
-                  autoFocus
-                />
-                <div className="absolute bottom-2.5 right-3 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={clearChat}
-                    disabled={isInputDisabled}
-                    className={`text-xs px-3 py-1.5 font-bold uppercase rounded-xl transition-colors disabled:opacity-50 cursor-pointer ${
-                      isDark ? "text-slate-500 hover:text-white" : "text-slate-400 hover:text-slate-950"
-                    }`}
-                  >
-                    Clear
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isInputDisabled || !chatInput.trim()}
-                    className="bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-zinc-800 disabled:text-slate-400 dark:disabled:text-zinc-650 text-white text-xs px-4 py-1.5 font-bold uppercase rounded-xl transition-colors cursor-pointer"
-                  >
-                    Send
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            {/* Collapsible History Panel */}
-            {showHistory && (
-              <div className={`w-72 border-l ${borderClass} p-4 flex flex-col min-h-0 shrink-0 overflow-hidden`}>
-                <div className={`flex items-center justify-between border-b ${borderClass} pb-3 mb-3`}>
-                  <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>
-                    History
-                  </h3>
-                  <button
-                    onClick={() => setShowHistory(false)}
-                    className="text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white font-bold cursor-pointer"
-                  >
-                    ×
-                  </button>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
-                  {conversationsList.length === 0 ? (
-                    <div className="text-[10px] text-slate-500 text-center py-8">
-                      No saved chats.
-                    </div>
-                  ) : (
-                    conversationsList.map((conv) => {
-                      const isSelected = activeConversationId === conv.id;
-                      return (
-                        <button
-                          key={conv.id}
-                          onClick={() => {
-                            setActiveConversationId(conv.id);
-                            setTokensConsumed(conv.tokens_used || 0);
-                            useCielStore.setState({ chatMessages: conv.messages || [] });
-                          }}
-                          className={`w-full text-left p-3 border rounded-xl transition-all duration-200 flex flex-col gap-1 cursor-pointer text-xs ${
-                            isSelected
-                              ? (isDark ? "bg-purple-950/30 border-purple-800 text-white" : "bg-purple-50 border-purple-300 text-purple-950")
-                              : (isDark ? "bg-black/20 border-white/5 text-slate-400 hover:bg-black/35 hover:text-white" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-black")
-                          }`}
-                        >
-                          <span className="font-bold truncate text-[11px] block">{conv.title || "Untitled Chat"}</span>
-                          <span className="text-[9px] text-slate-500 font-mono truncate">ID: {conv.id}</span>
-                          {conv.tokens_used > 0 && (
-                            <span className="text-[9px] text-slate-400 font-mono">Tokens: {conv.tokens_used}</span>
-                          )}
-                          <span className="text-[8px] text-slate-500 self-end mt-1">
-                            <span className="font-mono">{new Date(conv.updated_at).toLocaleString()}</span>
-                          </span>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Settings Overlay */}
-      {activeView === "settings" && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setActiveView("chat")}>
-          <div
-            className={`w-full max-w-3xl max-h-[80vh] overflow-y-auto rounded-2xl shadow-2xl p-6 ${cardBgClass}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={`flex justify-between items-center pb-4 mb-4 border-b ${border900Class}`}>
-              <span className={`text-xs uppercase tracking-wider font-bold ${textWhiteClass}`}>System Preferences & Database Logs</span>
-              <button onClick={() => setActiveView("chat")} className="text-slate-500 hover:text-slate-900 dark:hover:text-white font-bold text-lg cursor-pointer">×</button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className={`p-5 rounded-2xl border ${borderClass} space-y-4 ${innerCardBgClass}`}>
-                <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Preferences</h3>
-                
-                <div className="space-y-1.5">
-                  <label className="text-[10px] text-slate-500 uppercase font-bold block">UI Color Theme</label>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => updateSettings({ theme: "dark" })}
-                      className={`flex-1 py-2 text-xs font-bold rounded-xl border uppercase cursor-pointer transition-all ${
-                        theme === "dark" 
-                          ? "bg-purple-500/20 text-purple-350 border-purple-500/40" 
-                          : buttonBgClass
-                      }`}
-                    >
-                      Dark (Void)
-                    </button>
-                    <button
-                      onClick={() => updateSettings({ theme: "light" })}
-                      className={`flex-1 py-2 text-xs font-bold rounded-xl border uppercase cursor-pointer transition-all ${
-                        theme === "light" 
-                          ? "bg-cyan-500/10 text-cyan-700 border-cyan-500/20" 
-                          : buttonBgClass
-                      }`}
-                    >
-                      Light (Alabaster)
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] text-slate-500 uppercase font-bold block">Sync Interval</label>
-                  <select
-                    value={syncInterval}
-                    onChange={(e) => updateSettings({ syncInterval: parseInt(e.target.value, 10) })}
-                    className={`w-full text-xs px-3 py-2 border ${border900Class} rounded-xl outline-none transition-all duration-300 ${inputBgClass}`}
-                  >
-                    <option value={15}>Every 15 minutes</option>
-                    <option value={30}>Every 30 minutes</option>
-                    <option value={60}>Every 1 hour (Default)</option>
-                    <option value={720}>Every 12 hours</option>
-                    <option value={1440}>Every 24 hours</option>
-                  </select>
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t ${borderClass}">
-                  <div>
-                    <label className="text-[10px] text-slate-550 uppercase font-bold block">AI Auto-Priority</label>
-                    <span className="text-[9px] text-slate-500">Classify incoming emails using gpt-4o-mini</span>
-                  </div>
-                  <button
-                    onClick={() => updateSettings({ aiAutoPriority: !aiAutoPriority })}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-xl uppercase cursor-pointer transition-colors ${
-                      aiAutoPriority 
-                        ? "bg-green-600/20 text-green-700 dark:text-green-300 border border-green-500/20" 
-                        : "bg-red-500/10 text-red-600 dark:text-red-300 border border-red-500/20"
-                    }`}
-                  >
-                    {aiAutoPriority ? "Enabled" : "Disabled"}
-                  </button>
-                </div>
-              </div>
-
-              <div className={`p-5 rounded-2xl border ${borderClass} space-y-4 ${innerCardBgClass}`}>
-                <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Synced Integrations (Neon DB Cache)</h3>
-                <p className="text-[10px] text-slate-500">Local records of connection status synced from Corsair:</p>
-                
-                {localIntegrations.length === 0 ? (
-                  <p className={`text-xs ${textMutedClass} italic`}>No integration sync records found in database. Check connections above.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {localIntegrations.map((integration) => (
-                      <div key={integration.id} className={`p-2.5 border rounded-xl text-xs flex justify-between items-center ${innerCardBgClass} ${borderClass}`}>
-                        <div>
-                          <span className={`font-bold ${textWhiteClass} uppercase`}>{integration.provider === "googlecalendar" ? "google calendar" : integration.provider}</span>
-                          <span className="text-slate-500 ml-2">({integration.connected_email})</span>
-                        </div>
-                        <span className={`text-[9px] px-2 py-0.5 rounded-lg font-bold uppercase ${
-                          integration.status === "connected" 
-                            ? "bg-green-500/10 text-green-700 dark:text-green-350" 
-                            : "bg-red-500/10 text-red-700 dark:text-red-350"
-                        }`}>
-                          {integration.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Store Overlay */}
-      {activeView === "store" && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setActiveView("chat")}>
-          <div
-            className={`w-full max-w-3xl max-h-[80vh] overflow-y-auto rounded-2xl shadow-2xl p-6 ${cardBgClass}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={`flex justify-between items-center pb-4 mb-4 border-b ${border900Class}`}>
-              <span className={`text-xs uppercase tracking-wider font-bold ${textWhiteClass}`}>Live Zustand Store State</span>
-              <button onClick={() => setActiveView("chat")} className="text-slate-500 hover:text-slate-900 dark:hover:text-white font-bold text-lg cursor-pointer">×</button>
-            </div>
-            <pre className={`p-4 border ${border900Class} ${innerCardBgClass} rounded-2xl text-[10px] text-green-600 dark:text-green-400 overflow-x-auto whitespace-pre-wrap font-mono`}>
-              {JSON.stringify({
-                user,
-                gmailConnected,
-                calendarConnected,
-                emailsCount: emails.length,
-                calendarEventsCount: calendarEvents.length,
-                chatMessagesCount: chatMessages.length,
-                searchQuery,
-                settings: { theme, syncInterval, aiAutoPriority },
-                localIntegrations,
-              }, null, 2)}
-            </pre>
-          </div>
-        </div>
-      )}
+    <DashboardLayout sidebar={<Sidebar onShowShortcuts={() => setShowShortcutsModal(true)} />}>
+      {renderTab()}
 
       {/* Compose Email Modal */}
       {showComposeModal && (
@@ -1972,17 +283,17 @@ export default function DashboardPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className={`p-4 border-b ${borderClass} flex items-center justify-between ${accordionHeaderBgClass}`}>
-              <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Compose New Message</h3>
+              <h3 className={`text-xs font-bold ${isDark ? "text-white" : "text-slate-900"} uppercase tracking-normal leading-tight`}>Compose New Message</h3>
               <button 
                 onClick={() => setShowComposeModal(false)}
-                className="text-slate-500 hover:text-slate-900 dark:hover:text-white font-bold text-lg cursor-pointer"
+                className="text-slate-500 hover:text-slate-950 dark:hover:text-white font-bold text-lg cursor-pointer"
               >
                 ×
               </button>
             </div>
             <form onSubmit={handleSendComposeMail} className="flex-1 flex flex-col p-4 space-y-4">
               <div className="space-y-1">
-                <label className="text-[10px] text-slate-500 uppercase font-bold">To:</label>
+                <label className="text-[10px] text-slate-550 uppercase font-bold">To:</label>
                 <input 
                   type="email" 
                   value={composeTo}
@@ -1993,7 +304,7 @@ export default function DashboardPage() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] text-slate-500 uppercase font-bold">Subject:</label>
+                <label className="text-[10px] text-slate-550 uppercase font-bold">Subject:</label>
                 <input 
                   type="text" 
                   value={composeSubject}
@@ -2004,7 +315,7 @@ export default function DashboardPage() {
                 />
               </div>
               <div className="flex-1 flex flex-col space-y-1">
-                <label className="text-[10px] text-slate-500 uppercase font-bold">Message:</label>
+                <label className="text-[10px] text-slate-550 uppercase font-bold">Message:</label>
                 <textarea 
                   value={composeBody}
                   onChange={(e) => setComposeBody(e.target.value)}
@@ -2018,7 +329,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setShowComposeModal(false)}
-                  className="px-3.5 py-2 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer"
+                  className="px-3.5 py-2 text-slate-500 hover:text-slate-950 dark:hover:text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -2035,104 +346,13 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Edit Calendar Event Modal */}
-      {showEditEventModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowEditEventModal(false)}>
-          <div 
-            className={`w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[400px] ${cardBgClass} transition-transform duration-300 transform scale-100`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={`p-4 border-b ${borderClass} flex items-center justify-between ${accordionHeaderBgClass}`}>
-              <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Edit Event Details</h3>
-              <button 
-                onClick={() => setShowEditEventModal(false)}
-                className="text-slate-500 hover:text-slate-900 dark:hover:text-white font-bold text-lg cursor-pointer"
-              >
-                ×
-              </button>
-            </div>
-            <form onSubmit={handleUpdateEvent} className="flex-1 flex flex-col p-4 space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] text-slate-500 uppercase font-bold">Title:</label>
-                <input 
-                  type="text" 
-                  value={editEventTitle}
-                  onChange={(e) => setEditEventTitle(e.target.value)}
-                  placeholder="Event Title"
-                  required
-                  className={`w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] text-slate-500 uppercase font-bold">Start Time:</label>
-                  <input 
-                    type="datetime-local" 
-                    value={editEventStart}
-                    onChange={(e) => setEditEventStart(e.target.value)}
-                    required
-                    className={`w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] text-slate-500 uppercase font-bold">End Time:</label>
-                  <input 
-                    type="datetime-local" 
-                    value={editEventEnd}
-                    onChange={(e) => setEditEventEnd(e.target.value)}
-                    required
-                    className={`w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
-                  />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] text-slate-500 uppercase font-bold">Location:</label>
-                <input 
-                  type="text" 
-                  value={editEventLocation}
-                  onChange={(e) => setEditEventLocation(e.target.value)}
-                  placeholder="Event Location (optional)"
-                  className={`w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
-                />
-              </div>
-              <div className="flex-1 flex flex-col space-y-1">
-                <label className="text-[10px] text-slate-500 uppercase font-bold">Description:</label>
-                <textarea 
-                  value={editEventDescription}
-                  onChange={(e) => setEditEventDescription(e.target.value)}
-                  placeholder="Event description (optional)"
-                  rows={4}
-                  className={`flex-1 text-xs p-3 outline-none rounded-xl border transition-all duration-300 ${inputBgClass} resize-none`}
-                />
-              </div>
-              <div className={`pt-3 border-t border-slate-900/10 dark:border-white/10 flex justify-end gap-2 shrink-0`}>
-                <button
-                  type="button"
-                  onClick={() => setShowEditEventModal(false)}
-                  className="px-3.5 py-2 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isUpdatingEvent || !editEventTitle.trim()}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-zinc-800 disabled:text-slate-400 dark:disabled:text-zinc-605 text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors"
-                >
-                  {isUpdatingEvent ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* Keyboard Shortcuts Modal */}
       {showShortcutsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setShowShortcutsModal(false)}>
           <div 
             className={`w-full max-w-2xl border ${
               isDark 
-                ? "bg-slate-950/90 border-cyan-500/30 shadow-[0_0_40px_rgba(6,182,212,0.2)] text-white" 
+                ? "bg-slate-955/90 border-cyan-500/30 shadow-[0_0_40px_rgba(6,182,212,0.2)] text-white" 
                 : "bg-white/95 border-cyan-500/20 shadow-[0_0_30px_rgba(6,182,212,0.1)] text-slate-900"
             } rounded-2xl overflow-hidden shadow-2xl p-6 space-y-5 transition-transform duration-300 transform scale-100`} 
             onClick={(e) => e.stopPropagation()}
@@ -2149,7 +369,7 @@ export default function DashboardPage() {
               </div>
               <button 
                 onClick={() => setShowShortcutsModal(false)} 
-                className="px-2.5 py-1 text-[9px] bg-slate-200/50 dark:bg-white/5 hover:bg-red-500/20 hover:text-red-400 border border-transparent rounded-lg text-slate-500 uppercase font-bold transition-all cursor-pointer"
+                className="px-2.5 py-1 text-[9px] bg-slate-200/50 dark:bg-white/5 hover:bg-red-500/20 hover:text-red-400 border border-transparent rounded-lg text-slate-505 uppercase font-bold transition-all cursor-pointer"
               >
                 Close (Esc)
               </button>
@@ -2167,7 +387,7 @@ export default function DashboardPage() {
                       <span className="font-semibold block">Global Command Palette</span>
                       <span className="text-[10px] text-slate-500">Search and navigate through Ciel</span>
                     </div>
-                    <kbd className="px-2 py-1 bg-slate-800 text-[10px] text-slate-355 rounded-lg border border-slate-700 font-mono font-bold shrink-0">⌘ K / Ctrl K</kbd>
+                    <kbd className="px-2 py-1 bg-slate-800 text-[10px] text-slate-300 rounded-lg border border-slate-700 font-mono font-bold shrink-0">⌘ K / Ctrl K</kbd>
                   </div>
                   <div className="flex items-start justify-between border-b border-slate-100 dark:border-white/5 pb-2 text-xs">
                     <div className="space-y-0.5">
@@ -2175,9 +395,9 @@ export default function DashboardPage() {
                       <span className="text-[10px] text-slate-500">Insert AI reply 1, 2, or 3 from expanded mail</span>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <kbd className="px-2 py-0.5 bg-slate-800 text-[10px] text-slate-355 rounded-lg border border-slate-700 font-mono font-bold">1</kbd>
-                      <kbd className="px-2 py-0.5 bg-slate-800 text-[10px] text-slate-355 rounded-lg border border-slate-700 font-mono font-bold">2</kbd>
-                      <kbd className="px-2 py-0.5 bg-slate-800 text-[10px] text-slate-355 rounded-lg border border-slate-700 font-mono font-bold">3</kbd>
+                      <kbd className="px-2 py-0.5 bg-slate-800 text-[10px] text-slate-300 rounded-lg border border-slate-700 font-mono font-bold">1</kbd>
+                      <kbd className="px-2 py-0.5 bg-slate-800 text-[10px] text-slate-300 rounded-lg border border-slate-700 font-mono font-bold">2</kbd>
+                      <kbd className="px-2 py-0.5 bg-slate-800 text-[10px] text-slate-300 rounded-lg border border-slate-700 font-mono font-bold">3</kbd>
                     </div>
                   </div>
                   <div className="flex items-start justify-between border-b border-slate-100 dark:border-white/5 pb-2 text-xs">
@@ -2185,7 +405,7 @@ export default function DashboardPage() {
                       <span className="font-semibold block">Close Panels / Modals</span>
                       <span className="text-[10px] text-slate-500">Instantly dismiss active popup or palette</span>
                     </div>
-                    <kbd className="px-2 py-1 bg-slate-800 text-[10px] text-slate-305 rounded-lg border border-slate-700 font-mono font-bold shrink-0">Esc</kbd>
+                    <kbd className="px-2 py-1 bg-slate-800 text-[10px] text-slate-300 rounded-lg border border-slate-700 font-mono font-bold shrink-0">Esc</kbd>
                   </div>
                 </div>
               </div>
@@ -2217,7 +437,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="border-t border-slate-200/20 dark:border-white/5 pt-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between text-[10px] text-slate-500 gap-2">
+            <div className="border-t border-slate-200/20 dark:border-white/5 pt-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between text-[10px] text-slate-550 gap-2">
               <span className="font-mono">
                 💡 Tip: Type command queries in natural English; Ciel parses your intent.
               </span>
@@ -2228,6 +448,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-    </div>
+    </DashboardLayout>
   );
 }

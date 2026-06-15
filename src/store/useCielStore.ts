@@ -20,7 +20,7 @@ export interface CalendarEvent {
   id: string;
   title: string;
   start: string; // ISO
-  end: string;   // ISO
+  end: string; // ISO
   location?: string;
   attendees?: string[];
   description?: string;
@@ -34,7 +34,12 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
-export type CielStatus = "idle" | "thinking" | "speaking" | "listening" | "error";
+export type CielStatus =
+  | "idle"
+  | "thinking"
+  | "speaking"
+  | "listening"
+  | "error";
 
 interface CielState {
   // auth state
@@ -50,7 +55,9 @@ interface CielState {
 
   // view state
   activeTab: "overview" | "inbox" | "calendar" | "chat" | "settings";
-  setActiveTab: (tab: "overview" | "inbox" | "calendar" | "chat" | "settings") => void;
+  setActiveTab: (
+    tab: "overview" | "inbox" | "calendar" | "chat" | "settings",
+  ) => void;
 
   // email data
   emails: Email[];
@@ -77,7 +84,7 @@ interface CielState {
   setCalendarEvents: (events: CalendarEvent[]) => void;
   addCalendarEvent: (event: CalendarEvent) => void;
 
-    // db synchronization actions
+  // db synchronization actions
   fetchEmails: (forceSync?: boolean, page?: number) => Promise<void>;
   fetchCalendarEvents: () => Promise<void>;
   performSearch: (query: string) => Promise<void>;
@@ -99,10 +106,21 @@ interface CielState {
   syncInterval: number;
   aiAutoPriority: boolean;
   fetchSettings: () => Promise<void>;
-  updateSettings: (settings: Partial<{ theme: "dark" | "light"; syncInterval: number; aiAutoPriority: boolean }>) => Promise<void>;
+  updateSettings: (
+    settings: Partial<{
+      theme: "dark" | "light";
+      syncInterval: number;
+      aiAutoPriority: boolean;
+    }>,
+  ) => Promise<void>;
 
   // local integrations list
-  localIntegrations: Array<{ id: number; provider: string; connected_email: string; status: string }>;
+  localIntegrations: Array<{
+    id: number;
+    provider: string;
+    connected_email: string;
+    status: string;
+  }>;
   fetchLocalIntegrations: () => Promise<void>;
 
   // grouped selectors
@@ -132,32 +150,35 @@ export const useCielStore = create<CielState>((set, get) => ({
   gmailConnected: false,
   calendarConnected: false,
   login: (name, email) => set({ user: { name, email } }),
-  updateUserName: (name) => set((state) => ({ user: state.user ? { ...state.user, name } : null })),
-  logout: () => set({
-    user: null,
-    activeTab: "overview",
-    gmailConnected: false,
-    calendarConnected: false,
-    emails: [],
-    emailsTotal: 0,
-    emailsPage: 1,
-    emailsHasMore: true,
-    calendarEvents: [],
-    selectedEmailIndex: null,
-    searchQuery: "",
-    activeFolder: "all",
-    chatMessages: [
-      {
-        id: "init",
-        role: "assistant",
-        content: "Hello, I am Ciel, your sentient AI workspace mind. I have established synchronization with your Gmail and Google Calendar. How may I assist you with your inbox or schedule today?",
-        timestamp: new Date(),
-      },
-    ],
-    cielStatus: "idle",
-    currentVolume: 0,
-    selectedDate: null,
-  }),
+  updateUserName: (name) =>
+    set((state) => ({ user: state.user ? { ...state.user, name } : null })),
+  logout: () =>
+    set({
+      user: null,
+      activeTab: "overview",
+      gmailConnected: false,
+      calendarConnected: false,
+      emails: [],
+      emailsTotal: 0,
+      emailsPage: 1,
+      emailsHasMore: true,
+      calendarEvents: [],
+      selectedEmailIndex: null,
+      searchQuery: "",
+      activeFolder: "all",
+      chatMessages: [
+        {
+          id: "init",
+          role: "assistant",
+          content:
+            "Hello, I am Ciel, your sentient AI workspace mind. I have established synchronization with your Gmail and Google Calendar. How may I assist you with your inbox or schedule today?",
+          timestamp: new Date(),
+        },
+      ],
+      cielStatus: "idle",
+      currentVolume: 0,
+      selectedDate: null,
+    }),
 
   // view state
   activeTab: "overview",
@@ -172,7 +193,8 @@ export const useCielStore = create<CielState>((set, get) => ({
   selectedEmailIndex: null,
   searchQuery: "",
   activeFolder: "all",
-  setEmails: (emails) => set({ emails, selectedEmailIndex: emails.length > 0 ? 0 : null }),
+  setEmails: (emails) =>
+    set({ emails, selectedEmailIndex: emails.length > 0 ? 0 : null }),
   setEmailsPage: (page) => set({ emailsPage: page }),
   setSelectedEmailIndex: (index) => set({ selectedEmailIndex: index }),
   setSearchQuery: (query) => set({ searchQuery: query }),
@@ -194,7 +216,7 @@ export const useCielStore = create<CielState>((set, get) => ({
     // Step B: Immediately update emails array in Zustand store
     set((state) => ({
       emails: state.emails.map((email) =>
-        email.id === id ? { ...email, ...updates } : email
+        email.id === id ? { ...email, ...updates } : email,
       ),
     }));
 
@@ -268,7 +290,7 @@ export const useCielStore = create<CielState>((set, get) => ({
   addCalendarEvent: (event) =>
     set((state) => ({
       calendarEvents: [...state.calendarEvents, event].sort(
-        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
       ),
     })),
 
@@ -303,7 +325,10 @@ export const useCielStore = create<CielState>((set, get) => ({
           if (targetPage === 1 && typeof window !== "undefined") {
             try {
               const recent200 = data.emails.slice(0, 200);
-              localStorage.setItem(`ciel_emails_cache_${state.activeFolder}`, JSON.stringify(recent200));
+              localStorage.setItem(
+                `ciel_emails_cache_${state.activeFolder}`,
+                JSON.stringify(recent200),
+              );
             } catch (cacheErr) {
               console.error("[Store] Failed to cache emails:", cacheErr);
             }
@@ -332,9 +357,11 @@ export const useCielStore = create<CielState>((set, get) => ({
               emailsTotal: parsed.length,
               emailsPage: 1,
               emailsHasMore: parsed.length > limit,
-              selectedEmailIndex: 0
+              selectedEmailIndex: 0,
             });
-            console.log(`[Store] Loaded ${initialEmails.length} emails from cache for folder ${folder}`);
+            console.log(
+              `[Store] Loaded ${initialEmails.length} emails from cache for folder ${folder}`,
+            );
           }
         }
       } catch (e) {
@@ -353,7 +380,10 @@ export const useCielStore = create<CielState>((set, get) => ({
         }
       }
     } catch (error) {
-      console.error("[Store] Failed to fetch calendar events from database:", error);
+      console.error(
+        "[Store] Failed to fetch calendar events from database:",
+        error,
+      );
     }
   },
 
@@ -383,7 +413,8 @@ export const useCielStore = create<CielState>((set, get) => ({
     {
       id: "init",
       role: "assistant",
-      content: "Hello, I am Ciel, your sentient AI workspace mind. I have established synchronization with your Gmail and Google Calendar. How may I assist you with your inbox or schedule today?",
+      content:
+        "Hello, I am Ciel, your sentient AI workspace mind. I have established synchronization with your Gmail and Google Calendar. How may I assist you with your inbox or schedule today?",
       timestamp: new Date(),
     },
   ],
@@ -431,7 +462,10 @@ export const useCielStore = create<CielState>((set, get) => ({
         set({
           theme: data.theme || "light",
           syncInterval: data.sync_interval_minutes || 60,
-          aiAutoPriority: data.ai_auto_priority !== undefined ? !!data.ai_auto_priority : true,
+          aiAutoPriority:
+            data.ai_auto_priority !== undefined
+              ? !!data.ai_auto_priority
+              : true,
         });
       }
     } catch (error) {
@@ -443,8 +477,14 @@ export const useCielStore = create<CielState>((set, get) => ({
     // update locally first
     set((state) => ({
       theme: settings.theme !== undefined ? settings.theme : state.theme,
-      syncInterval: settings.syncInterval !== undefined ? settings.syncInterval : state.syncInterval,
-      aiAutoPriority: settings.aiAutoPriority !== undefined ? settings.aiAutoPriority : state.aiAutoPriority,
+      syncInterval:
+        settings.syncInterval !== undefined
+          ? settings.syncInterval
+          : state.syncInterval,
+      aiAutoPriority:
+        settings.aiAutoPriority !== undefined
+          ? settings.aiAutoPriority
+          : state.aiAutoPriority,
     }));
 
     // push to API
@@ -455,8 +495,14 @@ export const useCielStore = create<CielState>((set, get) => ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           theme: settings.theme !== undefined ? settings.theme : state.theme,
-          sync_interval_minutes: settings.syncInterval !== undefined ? settings.syncInterval : state.syncInterval,
-          ai_auto_priority: settings.aiAutoPriority !== undefined ? settings.aiAutoPriority : state.aiAutoPriority,
+          sync_interval_minutes:
+            settings.syncInterval !== undefined
+              ? settings.syncInterval
+              : state.syncInterval,
+          ai_auto_priority:
+            settings.aiAutoPriority !== undefined
+              ? settings.aiAutoPriority
+              : state.aiAutoPriority,
         }),
       });
     } catch (error) {
