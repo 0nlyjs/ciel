@@ -8,6 +8,8 @@
 }
 
 :root {
+  --font-outfit: "Outfit", system-ui, sans-serif;
+  --font-jetbrains-mono: "JetBrains Mono", monospace;
   --background: #0a0b0d;
   --foreground: #d1d5db;
 }

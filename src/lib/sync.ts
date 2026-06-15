@@ -1,6 +1,6 @@
 import { CorsairClient } from "@/lib/corsair";
 import { db } from "@/lib/db";
-import { emails } from "@/lib/schema";
+import { emails, searchDocuments } from "@/lib/schema";
 import { getEmbeddingsBatch } from "@/lib/embeddings";
 import { activeClients } from "@/app/api/sync/stream/route";
 import { eq, and, desc, inArray, notInArray, sql, isNull } from "drizzle-orm";
@@ -49,14 +49,21 @@ async function generateAndSaveEmbeddings(parsedEmails: any[], userEmail: string)
         parsedEmails.map(async (email, i) => {
           const embedding = embeddings[i];
           if (embedding) {
-            await db.update(emails)
-              .set({ embedding })
-              .where(
-                and(
-                  eq(emails.id, email.id),
-                  eq(emails.userEmail, userEmail)
-                )
-              );
+            await db.insert(searchDocuments)
+              .values({
+                id: `email:${email.id}`,
+                sourceType: "email",
+                sourceId: email.id,
+                content: email.textToEmbed,
+                embedding,
+              })
+              .onConflictDoUpdate({
+                target: [searchDocuments.id],
+                set: {
+                  content: email.textToEmbed,
+                  embedding,
+                }
+              });
           }
         })
       );
@@ -173,7 +180,8 @@ async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
       const fromEmail = email.fromEmail || "unknown@domain.com";
       const subject = email.subject || "(No Subject)";
       const body = email.body || "";
-      const textToEmbed = `From: ${fromName} <${fromEmail}>\nSubject: ${subject}\nBody: ${body}`;
+      const cleanBodyForEmbedding = body.substring(0, 15000);
+      const textToEmbed = `From: ${fromName} <${fromEmail}>\nSubject: ${subject}\nBody: ${cleanBodyForEmbedding}`;
       
       parsedEmails.push({
         id: email.id,
@@ -202,7 +210,6 @@ async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
         read: email.read,
         priority,
         category,
-        embedding: null,
       };
     });
 
@@ -349,20 +356,24 @@ export async function syncUserEmails(userEmail: string, syncLimit: number = 200)
         body: emails.body,
       })
       .from(emails)
+      .leftJoin(searchDocuments, eq(emails.id, searchDocuments.sourceId))
       .where(
         and(
           eq(emails.userEmail, userEmail),
-          isNull(emails.embedding)
+          isNull(searchDocuments.id)
         )
       )
       .limit(100);
 
       if (missingEmbeddingsRes.length > 0) {
         console.log(`[Sync Service] Found ${missingEmbeddingsRes.length} existing emails missing embeddings. Generating in background...`);
-        const parsedEmailsForBackfill = missingEmbeddingsRes.map((e) => ({
-          id: e.id,
-          textToEmbed: `From: ${e.fromName || "Unknown"} <${e.fromEmail || "unknown@domain.com"}>\nSubject: ${e.subject || ""}\nBody: ${e.body || ""}`,
-        }));
+        const parsedEmailsForBackfill = missingEmbeddingsRes.map((e) => {
+          const bodySnippet = (e.body || "").substring(0, 15000);
+          return {
+            id: e.id,
+            textToEmbed: `From: ${e.fromName || "Unknown"} <${e.fromEmail || "unknown@domain.com"}>\nSubject: ${e.subject || ""}\nBody: ${bodySnippet}`,
+          };
+        });
 
         setTimeout(() => {
           generateAndSaveEmbeddings(parsedEmailsForBackfill, userEmail).catch((err) => {

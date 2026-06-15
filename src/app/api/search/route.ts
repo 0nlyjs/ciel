@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { emails, calendarEvents } from "@/lib/schema";
+import { emails, calendarEvents, searchDocuments } from "@/lib/schema";
 import { getEmbedding } from "@/lib/embeddings";
 import { getServerSession } from "@/lib/auth";
 import { eq, and, or, ilike, desc, asc, cosineDistance } from "drizzle-orm";
@@ -87,8 +87,14 @@ export async function GET(req: Request) {
               category: emails.category,
             })
             .from(emails)
-            .where(eq(emails.userEmail, session.user.email))
-            .orderBy(cosineDistance(emails.embedding, embedding))
+            .innerJoin(searchDocuments, eq(emails.id, searchDocuments.sourceId))
+            .where(
+              and(
+                eq(emails.userEmail, session.user.email),
+                eq(searchDocuments.sourceType, "email")
+              )
+            )
+            .orderBy(cosineDistance(searchDocuments.embedding, embedding))
             .limit(20);
 
       let calendarResult =
@@ -105,8 +111,14 @@ export async function GET(req: Request) {
                 description: calendarEvents.description,
               })
               .from(calendarEvents)
-              .where(eq(calendarEvents.userEmail, session.user.email))
-              .orderBy(cosineDistance(calendarEvents.embedding, embedding))
+              .innerJoin(searchDocuments, eq(calendarEvents.id, searchDocuments.sourceId))
+              .where(
+                and(
+                  eq(calendarEvents.userEmail, session.user.email),
+                  eq(searchDocuments.sourceType, "event")
+                )
+              )
+              .orderBy(cosineDistance(searchDocuments.embedding, embedding))
               .limit(20)
             ).map((row) => ({
               ...row,

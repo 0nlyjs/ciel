@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { db } from "@/lib/db";
-import { emails, calendarEvents } from "@/lib/schema";
+import { emails, calendarEvents, searchDocuments } from "@/lib/schema";
 import { getEmbedding } from "@/lib/embeddings";
 import { CorsairClient } from "@/lib/corsair";
 import { eq, and, sql } from "drizzle-orm";
@@ -133,7 +133,8 @@ export async function POST(req: Request) {
       const { priority, category } = await classifyEmail(subject, body);
 
       // Generate embedding vector
-      const textToEmbed = `From: ${fromName} <${fromEmail}>\nSubject: ${subject}\nBody: ${body}`;
+      const cleanBodyForEmbedding = (body || "").substring(0, 15000);
+      const textToEmbed = `From: ${fromName} <${fromEmail}>\nSubject: ${subject}\nBody: ${cleanBodyForEmbedding}`;
       const embedding = await getEmbedding(textToEmbed);
 
       // Save to database
@@ -149,7 +150,6 @@ export async function POST(req: Request) {
           read: parsed.read,
           priority,
           category,
-          embedding: embedding,
         })
         .onConflictDoUpdate({
           target: [emails.id],
@@ -163,9 +163,26 @@ export async function POST(req: Request) {
             read: sql`EXCLUDED.read`,
             priority: sql`EXCLUDED.priority`,
             category: sql`EXCLUDED.category`,
-            embedding: sql`EXCLUDED.embedding`,
           }
         });
+
+      if (embedding) {
+        await db.insert(searchDocuments)
+          .values({
+            id: `email:${emailId}`,
+            sourceType: "email",
+            sourceId: emailId,
+            content: textToEmbed,
+            embedding,
+          })
+          .onConflictDoUpdate({
+            target: [searchDocuments.id],
+            set: {
+              content: textToEmbed,
+              embedding,
+            }
+          });
+      }
 
       console.log(`[Corsair Webhook] Cached email "${subject}" for ${tenantId} [Priority: ${priority.toUpperCase()}]`);
 
@@ -231,7 +248,6 @@ export async function POST(req: Request) {
           location,
           attendees,
           description,
-          embedding: embedding,
         })
         .onConflictDoUpdate({
           target: [calendarEvents.id],
@@ -243,9 +259,26 @@ export async function POST(req: Request) {
             location: sql`EXCLUDED.location`,
             attendees: sql`EXCLUDED.attendees`,
             description: sql`EXCLUDED.description`,
-            embedding: sql`EXCLUDED.embedding`,
           }
         });
+
+      if (embedding) {
+        await db.insert(searchDocuments)
+          .values({
+            id: `event:${eventId}`,
+            sourceType: "event",
+            sourceId: eventId,
+            content: textToEmbed,
+            embedding,
+          })
+          .onConflictDoUpdate({
+            target: [searchDocuments.id],
+            set: {
+              content: textToEmbed,
+              embedding,
+            }
+          });
+      }
 
       console.log(`[Corsair Webhook] Cached calendar event "${title}" for ${tenantId}`);
 

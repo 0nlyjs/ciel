@@ -235,3 +235,81 @@ Do not write any markdown code block wrap, only raw JSON.`,
     );
   }
 }
+
+// PATCH /api/emails - Update an email's properties
+export async function PATCH(req: Request) {
+  try {
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id, updates } = await req.json();
+    if (!id || !updates) {
+      return NextResponse.json({ error: "Email ID and updates are required" }, { status: 400 });
+    }
+
+    const setFields: any = {};
+    if (updates.read !== undefined) setFields.read = updates.read;
+    if (updates.priority !== undefined) setFields.priority = updates.priority;
+    if (updates.category !== undefined) setFields.category = updates.category;
+
+    await db.update(emails)
+      .set(setFields)
+      .where(
+        and(
+          eq(emails.id, id),
+          eq(emails.userEmail, session.user.email)
+        )
+      );
+
+    if (updates.read !== undefined) {
+      try {
+        if (updates.read) {
+          await CorsairClient.markGmailMessageRead(id, session.user.email);
+        }
+      } catch (err) {
+        console.error("[Emails API PATCH] Failed to update status on Gmail:", err);
+      }
+    }
+
+    return NextResponse.json({ success: true, message: "Email updated successfully" });
+  } catch (error: any) {
+    console.error("[Emails API PATCH Error]", error);
+    return NextResponse.json(
+      { error: "Internal Server Error", message: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/emails - Delete/archive an email
+export async function DELETE(req: Request) {
+  try {
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await req.json();
+    if (!id) {
+      return NextResponse.json({ error: "Email ID is required" }, { status: 400 });
+    }
+
+    await db.delete(emails)
+      .where(
+        and(
+          eq(emails.id, id),
+          eq(emails.userEmail, session.user.email)
+        )
+      );
+
+    return NextResponse.json({ success: true, message: "Email deleted successfully" });
+  } catch (error: any) {
+    console.error("[Emails API DELETE Error]", error);
+    return NextResponse.json(
+      { error: "Internal Server Error", message: error.message },
+      { status: 500 }
+    );
+  }
+}

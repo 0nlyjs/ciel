@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import toast from "react-hot-toast";
 
 export interface Email {
   id: string;
@@ -62,6 +63,8 @@ interface CielState {
   markAsRead: (id: string) => Promise<void>;
   archiveEmail: (id: string) => Promise<void>;
   addEmail: (email: Email) => void;
+  updateEmail: (id: string, updates: Partial<Email>) => Promise<void>;
+  deleteEmail: (id: string) => Promise<void>;
 
   // calendar data
   calendarEvents: CalendarEvent[];
@@ -144,25 +147,50 @@ export const useCielStore = create<CielState>((set) => ({
   setSelectedEmailIndex: (index) => set({ selectedEmailIndex: index }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   markAsRead: async (id) => {
-    // update local state first
-    set((state) => ({
-      emails: state.emails.map((email) =>
-        email.id === id ? { ...email, read: true } : email
-      ),
-    }));
-    // push to database
-    try {
-      await fetch("/api/emails", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "mark_read", id }),
-      });
-    } catch (error) {
-      console.error("[Store] Error marking email read in DB:", error);
-    }
+    await useCielStore.getState().updateEmail(id, { read: true });
   },
   archiveEmail: async (id) => {
-    // update local state first
+    await useCielStore.getState().deleteEmail(id);
+  },
+  updateEmail: async (id, updates) => {
+    // Step A: Save current state to temporary variable
+    const currentEmails = useCielStore.getState().emails;
+    const targetEmail = currentEmails.find((email) => email.id === id);
+    if (!targetEmail) return;
+
+    // Step B: Immediately update emails array in Zustand store
+    set((state) => ({
+      emails: state.emails.map((email) =>
+        email.id === id ? { ...email, ...updates } : email
+      ),
+    }));
+
+    // Step C: Make the actual fetch call to PATCH /api/emails
+    try {
+      const res = await fetch("/api/emails", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, updates }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to update email status: ${res.statusText}`);
+      }
+    } catch (error: any) {
+      // Step D: Revert state using temporary variable and notify via toast
+      console.error("[Store] Error updating email, reverting...", error);
+      set({ emails: currentEmails });
+      toast.error(`Failed to update email: ${error.message || error}`);
+    }
+  },
+  deleteEmail: async (id) => {
+    // Step A: Save current state to temporary variables
+    const currentEmails = useCielStore.getState().emails;
+    const currentSelectedIndex = useCielStore.getState().selectedEmailIndex;
+    const targetEmail = currentEmails.find((email) => email.id === id);
+    if (!targetEmail) return;
+
+    // Step B: Immediately update emails array (trashing)
     set((state) => {
       const filtered = state.emails.filter((email) => email.id !== id);
       return {
@@ -173,15 +201,26 @@ export const useCielStore = create<CielState>((set) => ({
             : null,
       };
     });
-    // push delete to database
+
+    // Step C: Make the actual fetch call to DELETE /api/emails
     try {
-      await fetch("/api/emails", {
-        method: "POST",
+      const res = await fetch("/api/emails", {
+        method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "archive", id }),
+        body: JSON.stringify({ id }),
       });
-    } catch (error) {
-      console.error("[Store] Error archiving email in DB:", error);
+
+      if (!res.ok) {
+        throw new Error(`Failed to delete email: ${res.statusText}`);
+      }
+    } catch (error: any) {
+      // Step D: Revert state using temporary variables and notify via toast
+      console.error("[Store] Error deleting email, reverting...", error);
+      set({
+        emails: currentEmails,
+        selectedEmailIndex: currentSelectedIndex,
+      });
+      toast.error(`Failed to delete email: ${error.message || error}`);
     }
   },
   addEmail: (email) =>

@@ -1,7 +1,7 @@
 import { CorsairClient } from "@/lib/corsair";
 import { NextResponse, after } from "next/server";
 import { db, syncEventToGoogleCalendar, isMockId } from "@/lib/db";
-import { calendarEvents } from "@/lib/schema";
+import { calendarEvents, searchDocuments } from "@/lib/schema";
 import { getEmbedding, getEmbeddingsBatch } from "@/lib/embeddings";
 import { getServerSession } from "@/lib/auth";
 import { eq, and, inArray, asc, sql, isNull } from "drizzle-orm";
@@ -86,7 +86,6 @@ export async function GET() {
           const embeddings = await getEmbeddingsBatch(textsToEmbed);
 
           const toInsert = changedEvents.map((event, i) => {
-            const embedding = embeddings ? embeddings[i] : null;
             return {
               id: event.id,
               userEmail: session.user.email,
@@ -98,7 +97,6 @@ export async function GET() {
               location: event.location || "",
               attendees: event.attendees || [],
               description: event.description || "",
-              embedding: embedding,
             };
           });
 
@@ -116,11 +114,36 @@ export async function GET() {
                   location: sql`EXCLUDED.location`,
                   attendees: sql`EXCLUDED.attendees`,
                   description: sql`EXCLUDED.description`,
-                  embedding: sql`EXCLUDED.embedding`,
                 },
               });
+
+            const searchDocsToInsert = toInsert.map((event, i) => {
+              const embedding = embeddings ? embeddings[i] : null;
+              if (!embedding) return null;
+              const textToEmbed = textsToEmbed[i];
+              return {
+                id: `event:${event.id}`,
+                sourceType: "event",
+                sourceId: event.id,
+                content: textToEmbed,
+                embedding: embedding,
+              };
+            }).filter(Boolean) as any[];
+
+            if (searchDocsToInsert.length > 0) {
+              await db.insert(searchDocuments)
+                .values(searchDocsToInsert)
+                .onConflictDoUpdate({
+                  target: [searchDocuments.id],
+                  set: {
+                    content: sql`EXCLUDED.content`,
+                    embedding: sql`EXCLUDED.embedding`,
+                  }
+                });
+            }
+
             console.log(
-              `[Calendar API] Successfully batch upserted ${changedEvents.length} calendar events.`,
+              `[Calendar API] Successfully batch upserted ${changedEvents.length} calendar events and embeddings.`,
             );
           }
         } else {
@@ -162,10 +185,11 @@ export async function GET() {
           description: calendarEvents.description,
         })
         .from(calendarEvents)
+        .leftJoin(searchDocuments, eq(calendarEvents.id, searchDocuments.sourceId))
         .where(
           and(
             eq(calendarEvents.userEmail, session.user.email),
-            isNull(calendarEvents.embedding)
+            isNull(searchDocuments.id)
           )
         )
         .limit(100);
@@ -187,14 +211,21 @@ export async function GET() {
                   missingCalendarEmbeddings.map(async (event, i) => {
                     const embedding = embeddings[i];
                     if (embedding) {
-                      await db.update(calendarEvents)
-                        .set({ embedding })
-                        .where(
-                          and(
-                            eq(calendarEvents.id, event.id),
-                            eq(calendarEvents.userEmail, session.user.email)
-                          )
-                        );
+                      await db.insert(searchDocuments)
+                        .values({
+                          id: `event:${event.id}`,
+                          sourceType: "event",
+                          sourceId: event.id,
+                          content: textsToEmbed[i],
+                          embedding,
+                        })
+                        .onConflictDoUpdate({
+                          target: [searchDocuments.id],
+                          set: {
+                            content: textsToEmbed[i],
+                            embedding,
+                          }
+                        });
                     }
                   })
                 );
@@ -281,7 +312,6 @@ export async function POST(req: Request) {
         location: cleanLocation,
         attendees: cleanAttendees,
         description: cleanDescription,
-        embedding: embedding,
       })
       .onConflictDoUpdate({
         target: [calendarEvents.id],
@@ -293,9 +323,26 @@ export async function POST(req: Request) {
           location: sql`EXCLUDED.location`,
           attendees: sql`EXCLUDED.attendees`,
           description: sql`EXCLUDED.description`,
-          embedding: sql`EXCLUDED.embedding`,
         },
       });
+
+    if (embedding) {
+      await db.insert(searchDocuments)
+        .values({
+          id: `event:${eventId}`,
+          sourceType: "event",
+          sourceId: eventId,
+          content: textToEmbed,
+          embedding: embedding,
+        })
+        .onConflictDoUpdate({
+          target: [searchDocuments.id],
+          set: {
+            content: textToEmbed,
+            embedding: embedding,
+          }
+        });
+    }
 
     // Explicitly check and trigger sync to Google Calendar if it's a mock ID
     if (isMockId(eventId)) {

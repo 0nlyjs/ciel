@@ -1,17 +1,6 @@
 import type { Metadata } from "next";
-import { Outfit, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
-
-const fontSans = Outfit({
-  variable: "--font-outfit",
-  subsets: ["latin"],
-});
-
-const fontMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "Ciel Workspace // Sentient Analytical Interface",
@@ -29,7 +18,7 @@ export default function RootLayout({
       className="h-full"
       suppressHydrationWarning
     >
-      <body className={`${fontSans.variable} ${fontMono.variable} min-h-full flex flex-col antialiased`}>
+      <body className="min-h-full flex flex-col antialiased">
         {/* Global SVG Filters for Liquid Glass Refraction */}
         <svg xmlns="http://www.w3.org/2000/svg" style={{ position: "absolute", width: 0, height: 0, pointerEvents: "none" }}>
           <defs>

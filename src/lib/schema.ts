@@ -58,11 +58,9 @@ export const emails = pgTable("emails", {
   read: boolean("read").default(false),
   priority: varchar("priority", { length: 50 }).default("medium"),
   category: varchar("category", { length: 50 }).default("work"),
-  embedding: vector("embedding", { dimensions: 1536 }),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("idx_emails_user_email").on(table.userEmail),
-  index("idx_emails_embedding").using("hnsw", table.embedding.op("vector_cosine_ops")),
 ]);
 
 export const calendarEvents = pgTable("calendar_events", {
@@ -74,11 +72,21 @@ export const calendarEvents = pgTable("calendar_events", {
   location: varchar("location", { length: 255 }),
   attendees: jsonb("attendees"),
   description: text("description"),
-  embedding: vector("embedding", { dimensions: 1536 }),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("idx_calendar_events_user_email").on(table.userEmail),
-  index("idx_calendar_events_embedding").using("hnsw", table.embedding.op("vector_cosine_ops")),
+]);
+
+export const searchDocuments = pgTable("search_documents", {
+  id: varchar("id", { length: 255 }).primaryKey(),
+  sourceType: varchar("source_type", { length: 50 }).notNull(), // 'email' or 'event'
+  sourceId: varchar("source_id", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  embedding: vector("embedding", { dimensions: 1536 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_search_documents_source").on(table.sourceType, table.sourceId),
+  index("idx_search_documents_embedding").using("hnsw", table.embedding.op("vector_cosine_ops")),
 ]);
 
 export const verificationCodes = pgTable("verification_codes", {

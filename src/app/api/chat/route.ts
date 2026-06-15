@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { getEmbedding } from "@/lib/embeddings";
 import { CorsairClient } from "@/lib/corsair";
 import { getServerSession } from "@/lib/auth";
-import { emails, calendarEvents, conversations } from "@/lib/schema";
+import { emails, calendarEvents, conversations, searchDocuments } from "@/lib/schema";
 import { eq, and, desc, asc, or, ilike, sql, cosineDistance } from "drizzle-orm";
 
 // lazy load openai
@@ -46,12 +46,29 @@ const handleFallbackAI = async (prompt: string, tenantId: string, userName: stri
         location: "Online",
         attendees: [email],
         description: "Meeting scheduled via Ciel Console",
-        embedding: embedding,
       })
       .onConflictDoUpdate({
         target: [calendarEvents.id],
         set: { title },
       });
+
+    if (embedding) {
+      await db.insert(searchDocuments)
+        .values({
+          id: `event:${event.id}`,
+          sourceType: "event",
+          sourceId: event.id,
+          content: textToEmbed,
+          embedding: embedding,
+        })
+        .onConflictDoUpdate({
+          target: [searchDocuments.id],
+          set: {
+            content: textToEmbed,
+            embedding: embedding,
+          },
+        });
+    }
 
     return {
       text: `Understood. I have formulated a calendar invite for a meeting next Thursday at 9:00 AM, and added ${email} to the list of attendees. The event has been registered on your calendar.`,
@@ -296,8 +313,14 @@ The current system date and time is ${new Date().toString()} (ISO: ${currentDate
                   category: emails.category,
                 })
                 .from(emails)
-                .where(eq(emails.userEmail, tenantId))
-                .orderBy(cosineDistance(emails.embedding, embedding))
+                .innerJoin(searchDocuments, eq(emails.id, searchDocuments.sourceId))
+                .where(
+                  and(
+                    eq(emails.userEmail, tenantId),
+                    eq(searchDocuments.sourceType, "email")
+                  )
+                )
+                .orderBy(cosineDistance(searchDocuments.embedding, embedding))
                 .limit(5);
               } else {
                 rows = await db.select({
@@ -423,7 +446,6 @@ The current system date and time is ${new Date().toString()} (ISO: ${currentDate
                   location: location || "",
                   attendees: cleanAttendees,
                   description: description || "",
-                  embedding: null,
                 });
 
               return { success: true, event };
