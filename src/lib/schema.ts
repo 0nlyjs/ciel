@@ -130,3 +130,58 @@ export const conversations = pgTable("conversations", {
 }, (table) => [
   index("idx_conversations_user_email").on(table.userEmail),
 ]);
+
+export const corsairIntegrations = pgTable("corsair_integrations", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  config: jsonb("config").notNull().default({}),
+  dek: text("dek"),
+  createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
+});
+
+export const corsairAccounts = pgTable("corsair_accounts", {
+  id: text("id").primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  integrationId: text("integration_id").notNull(),
+  config: jsonb("config").notNull().default({}),
+  dek: text("dek"),
+  createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
+});
+
+export const corsairEntities = pgTable("corsair_entities", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  entityId: text("entity_id").notNull(),
+  entityType: text("entity_type").notNull(),
+  version: text("version").notNull(),
+  data: jsonb("data").notNull().default({}),
+  createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
+});
+
+export const corsairEvents = pgTable("corsair_events", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  eventType: text("event_type").notNull(),
+  payload: jsonb("payload").notNull().default({}),
+  status: text("status"),
+  createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
+});
+
+export const corsairPermissions = pgTable("corsair_permissions", {
+  id: text("id").primaryKey(),
+  token: text("token").notNull(),
+  plugin: text("plugin").notNull(),
+  endpoint: text("endpoint").notNull(),
+  args: text("args").notNull(),
+  tenantId: text("tenant_id").notNull(),
+  status: text("status").notNull().default("pending"),
+  expiresAt: text("expires_at").notNull(),
+  error: text("error"),
+  createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
+});
+

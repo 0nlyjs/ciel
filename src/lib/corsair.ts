@@ -3,13 +3,41 @@ import { createCorsair } from "corsair";
 import { gmail } from "@corsair-dev/gmail";
 import { googlecalendar } from "@corsair-dev/googlecalendar";
 import { pool } from "./db";
+import { setupCorsair } from "corsair/setup";
 
-export const corsair = createCorsair({
+export const corsair = createCorsair<readonly [
+  ReturnType<typeof gmail>,
+  ReturnType<typeof googlecalendar>
+]>({
   multiTenancy: true,
   plugins: [gmail(), googlecalendar()] as const,
+  integrations: [gmail(), googlecalendar()] as const,
   database: pool,
   kek: process.env.CORSAIR_DEV_KEY || process.env.CORSAIR_API_KEY || "ch_lMXup536Xjs1dZBzvEPkgU6s7aA6wdJHwGYn-GIiRk4",
-});
+} as any);
+
+let isSetupInitialized = false;
+export async function ensureCorsairSetup() {
+  if (isSetupInitialized) return;
+  try {
+    await setupCorsair(corsair, {
+      credentials: {
+        gmail: {
+          client_id: process.env.CORSAIR_GOOGLE_CLIENT_ID || "",
+          client_secret: process.env.CORSAIR_GOOGLE_CLIENT_SECRET || "",
+        },
+        googlecalendar: {
+          client_id: process.env.CORSAIR_GOOGLE_CLIENT_ID || "",
+          client_secret: process.env.CORSAIR_GOOGLE_CLIENT_SECRET || "",
+        },
+      },
+    });
+    isSetupInitialized = true;
+    console.log("[Corsair] setupCorsair completed successfully.");
+  } catch (error) {
+    console.error("[Corsair] setupCorsair failed:", error);
+  }
+}
 
 // handles connection to corsair API or MCP server
 // falls back to local zustand state if credentials are missing
