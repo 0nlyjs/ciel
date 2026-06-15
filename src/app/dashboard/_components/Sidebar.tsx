@@ -47,9 +47,7 @@ export function Sidebar({ onShowShortcuts }: SidebarProps) {
     : "text-slate-500 hover:text-slate-900 border-transparent hover:bg-black/5";
 
   return (
-    <aside className={`w-64 rounded-2xl flex flex-col backdrop-blur-2xl border p-4 transition-all duration-300 ${
-      isDark ? "bg-transparent border-white/10" : "bg-transparent border-white/50"
-    }`}>
+    <aside className="w-64 flex flex-col p-4 transition-all duration-300 bg-white/5 dark:bg-black/10 backdrop-blur-xl border border-white/10 dark:border-white/5 shadow-2xl rounded-2xl">
       {/* Brand Header */}
       <div className="flex items-center gap-3 px-2 py-3 mb-6">
         <div className="w-8 h-8 rounded-full bg-gradient-to-b from-cyan-400 to-blue-600 flex items-center justify-center font-bold text-white tracking-tighter shadow-sm shrink-0">

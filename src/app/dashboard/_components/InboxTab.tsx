@@ -17,7 +17,6 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
   const emailsPerPage = useCielStore((s) => s.emailsPerPage);
   const emailsHasMore = useCielStore((s) => s.emailsHasMore);
   const fetchEmails = useCielStore((s) => s.fetchEmails);
-  const isSyncing = useCielStore((s) => s.isSyncing);
   const loadEmailsFromCache = useCielStore((s) => s.loadEmailsFromCache);
   const activeFolder = useCielStore((s) => s.activeFolder);
   const setActiveFolder = useCielStore((s) => s.setActiveFolder);
@@ -25,13 +24,17 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
   const searchQuery = useCielStore((s) => s.searchQuery);
   const setSearchQuery = useCielStore((s) => s.setSearchQuery);
   const performSearch = useCielStore((s) => s.performSearch);
+  
+  // Selected email state (Zustand coordinates)
+  const selectedEmailIndex = useCielStore((s) => s.selectedEmailIndex);
+  const setSelectedEmailIndex = useCielStore((s) => s.setSelectedEmailIndex);
 
   const theme = useCielStore((s) => s.theme);
   const isDark = theme === "dark";
 
   // Local state
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
+  const [isPageSyncing, setIsPageSyncing] = useState(false);
   const [selectedContextTag, setSelectedContextTag] = useState<string | null>(null);
   const [isTabLoading, setIsTabLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -50,7 +53,7 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
   const handleFolderSwitch = (folder: "all" | "sent") => {
     setIsTabLoading(true);
     setActiveFolder(folder);
-    setExpandedEmailId(null);
+    setSelectedEmailIndex(null);
     setTimeout(() => {
       loadEmailsFromCache();
       setIsTabLoading(false);
@@ -125,6 +128,7 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
         setAiSuggestions([]);
         setSelectedReplyIndex(null);
         fetchEmails(true, 1);
+        toast.success("AI smart reply sent!");
       } else {
         const data = await res.json();
         alert("Failed to send reply: " + (data.error || "Unknown error"));
@@ -137,16 +141,41 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
     }
   };
 
-  const startRange = emailsTotal > 0 ? (emailsPage === 1 ? 1 : (emailsPage - 1) * emailsPerPage) : 0;
+  const handleNextPage = async () => {
+    if (isPageSyncing) return;
+    const nextPage = emailsPage + 1;
+    
+    // Move immediately in the UI to range 51-100 (etc) and show sync skeleton
+    setIsPageSyncing(true);
+    
+    try {
+      // Trigger sync for the next batch
+      await fetchEmails(true, nextPage);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to sync next page of emails");
+    } finally {
+      setIsPageSyncing(false);
+    }
+  };
+
+  const handlePrevPage = async () => {
+    if (emailsPage > 1) {
+      // Allow going back immediately loading from cached DB entries without blocking sync
+      fetchEmails(false, emailsPage - 1);
+    }
+  };
+
+  const startRange = emailsTotal > 0 ? (emailsPage === 1 ? 1 : (emailsPage - 1) * emailsPerPage + 1) : 0;
   const endRange = Math.min(emailsPage * emailsPerPage, emailsTotal);
 
   const textWhiteClass = isDark ? "text-white" : "text-slate-900";
   const textMutedClass = isDark ? "text-slate-400" : "text-slate-500";
   const borderClass = isDark ? "border-white/5" : "border-white/20";
   const border900Class = isDark ? "border-white/10" : "border-white/30";
-  const cardBgClass = isDark 
-    ? "bg-transparent backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.15)]"
-    : "bg-transparent backdrop-blur-2xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.04)]";
+  
+  // Custom Glass classes for Split-Pane panels
+  const panelBgClass = "bg-white/5 dark:bg-black/10 backdrop-blur-xl border border-white/10 dark:border-white/5 shadow-2xl rounded-2xl";
   const innerCardBgClass = isDark ? "bg-black/15" : "bg-white/20";
   const accordionHeaderBgClass = isDark ? "bg-black/15" : "bg-white/20";
   const buttonBgClass = isDark 
@@ -156,45 +185,56 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
     ? "bg-black/20 focus:bg-black/35 border-white/10 focus:border-purple-500/50 text-white" 
     : "bg-white/35 focus:bg-white/55 border-white/40 focus:border-cyan-500/50 text-slate-900";
 
-  const expandedEmail = emails.find((e) => e.id === expandedEmailId);
+  // Filtered emails list
+  const filteredEmails = selectedContextTag
+    ? emails.filter(email => email.contextTag === selectedContextTag)
+    : emails;
+
+  // Selected Email matching
+  const activeEmail = selectedEmailIndex !== null && filteredEmails[selectedEmailIndex] 
+    ? filteredEmails[selectedEmailIndex] 
+    : null;
 
   useHotkeys("1", () => {
-    if (expandedEmail && expandedEmail.quickReplies?.[0]) {
-      onInitiateCompose(expandedEmail.fromEmail || "", `Re: ${expandedEmail.subject || ""}`, expandedEmail.quickReplies[0]);
+    if (activeEmail && activeEmail.quickReplies?.[0]) {
+      onInitiateCompose(activeEmail.fromEmail || "", `Re: ${activeEmail.subject || ""}`, activeEmail.quickReplies[0]);
     }
-  }, { enableOnFormTags: false }, [expandedEmail]);
+  }, { enableOnFormTags: false }, [activeEmail]);
 
   useHotkeys("2", () => {
-    if (expandedEmail && expandedEmail.quickReplies?.[1]) {
-      onInitiateCompose(expandedEmail.fromEmail || "", `Re: ${expandedEmail.subject || ""}`, expandedEmail.quickReplies[1]);
+    if (activeEmail && activeEmail.quickReplies?.[1]) {
+      onInitiateCompose(activeEmail.fromEmail || "", `Re: ${activeEmail.subject || ""}`, activeEmail.quickReplies[1]);
     }
-  }, { enableOnFormTags: false }, [expandedEmail]);
+  }, { enableOnFormTags: false }, [activeEmail]);
 
   useHotkeys("3", () => {
-    if (expandedEmail && expandedEmail.quickReplies?.[2]) {
-      onInitiateCompose(expandedEmail.fromEmail || "", `Re: ${expandedEmail.subject || ""}`, expandedEmail.quickReplies[2]);
+    if (activeEmail && activeEmail.quickReplies?.[2]) {
+      onInitiateCompose(activeEmail.fromEmail || "", `Re: ${activeEmail.subject || ""}`, activeEmail.quickReplies[2]);
     }
-  }, { enableOnFormTags: false }, [expandedEmail]);
+  }, { enableOnFormTags: false }, [activeEmail]);
 
   return (
-    <div className={`rounded-2xl flex flex-col ${cardBgClass} overflow-hidden h-full min-h-0 w-full`}>
-      <div className="h-[72px] px-5 flex items-center justify-between shrink-0 border-b border-white/5">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-1">
-            <h2 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Gmail Integration</h2>
-            <div className="flex items-center gap-2">
-              <span className={`inline-block w-2.5 h-2.5 rounded-full ${gmailConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
-              <span className={`text-[10px] font-semibold uppercase ${gmailConnected ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>{gmailConnected ? "CONNECTED" : "DISCONNECTED"}</span>
+    <div className="flex gap-6 h-full min-h-0 w-full">
+      
+      {/* LEFT PANE: Email List */}
+      <div className={`flex-1 flex flex-col min-h-0 ${panelBgClass} overflow-hidden`}>
+        {/* Header with connection indicators */}
+        <div className="h-[72px] px-5 flex items-center justify-between shrink-0 border-b border-white/5">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal`}>Gmail Inbox</h2>
+              <div className="flex items-center gap-2">
+                <span className={`inline-block w-2.5 h-2.5 rounded-full ${gmailConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
+                <span className={`text-[10px] font-semibold uppercase ${gmailConnected ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>{gmailConnected ? "CONNECTED" : "DISCONNECTED"}</span>
+              </div>
             </div>
+            <p className={`text-[11px] ${textMutedClass} truncate`}>Syncing and classifying messages with local AI.</p>
           </div>
-          <p className={`text-[11px] ${textMutedClass} truncate`}>Corsair synchronization status for user emails.</p>
         </div>
-      </div>
 
-      <div className="flex-1 flex flex-col min-h-0 mt-3">
         {gmailConnected ? (
-          <div className="flex-1 flex flex-col min-h-0">
-            {/* Email Action Bar */}
+          <div className="flex-1 flex flex-col min-h-0 mt-3">
+            {/* Search and Compose bar */}
             <div className="px-5 pb-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <form onSubmit={handleSearchSubmit} className="flex-1 flex gap-2">
                 <input
@@ -219,25 +259,23 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
                 </button>
                 <button
                   onClick={() => onInitiateCompose()}
-                  className="px-3 py-2 bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20 rounded-xl text-xs font-bold cursor-pointer hover:bg-purple-500/25 transition-colors uppercase shrink-0"
+                  className="px-3 py-2 bg-purple-500/10 text-purple-650 dark:text-purple-300 border border-purple-500/20 rounded-xl text-xs font-bold cursor-pointer hover:bg-purple-500/25 transition-colors uppercase shrink-0"
                 >
                   + Compose
                 </button>
               </div>
             </div>
 
-            {/* Pagination Header */}
+            {/* Folder Switching / Pagination */}
             <div className={`px-5 py-2.5 flex justify-between items-center border-t border-b ${borderClass} shrink-0`}>
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => handleFolderSwitch("all")}
                   className={`relative py-1 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all duration-200 ${
-                    activeFolder === "all"
-                      ? "text-purple-600 dark:text-purple-400"
-                      : "text-slate-400 hover:text-slate-655 dark:text-slate-500"
+                    activeFolder === "all" ? "text-purple-600 dark:text-purple-400" : "text-slate-400 hover:text-slate-600"
                   }`}
                 >
-                  Received Mails
+                  Inbox
                   {activeFolder === "all" && (
                     <span className="absolute bottom-[-10px] left-0 right-0 h-[2px] bg-purple-500 rounded-full" />
                   )}
@@ -245,9 +283,7 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
                 <button
                   onClick={() => handleFolderSwitch("sent")}
                   className={`relative py-1 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all duration-200 ${
-                    activeFolder === "sent"
-                      ? "text-purple-600 dark:text-purple-400"
-                      : "text-slate-400 hover:text-slate-655 dark:text-slate-500"
+                    activeFolder === "sent" ? "text-purple-600 dark:text-purple-400" : "text-slate-400 hover:text-slate-650"
                   }`}
                 >
                   Sent Mails
@@ -256,9 +292,11 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
                   )}
                 </button>
               </div>
+              
+              {/* Pagination controls with the requested syncing rules */}
               <div className="flex items-center gap-1.5">
                 <button
-                  onClick={(e) => { e.stopPropagation(); if (emailsPage > 1) fetchEmails(false, emailsPage - 1); }}
+                  onClick={handlePrevPage}
                   disabled={emailsPage <= 1}
                   className={`px-2.5 py-1 border border-slate-900/10 dark:border-white/5 rounded-lg text-[9px] font-bold cursor-pointer disabled:opacity-30 uppercase ${buttonBgClass}`}
                 >
@@ -266,12 +304,8 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
                 </button>
                 <span className="text-[10px] text-slate-500 font-mono font-bold px-1.5">{startRange}-{endRange}</span>
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const nextPage = emailsPage + 1;
-                    if (nextPage * emailsPerPage <= emailsTotal) { fetchEmails(false, nextPage); } else { fetchEmails(true, nextPage); }
-                  }}
-                  disabled={!emailsHasMore && emailsPage >= Math.ceil(emailsTotal / emailsPerPage)}
+                  onClick={handleNextPage}
+                  disabled={isPageSyncing || (!emailsHasMore && emailsPage >= Math.ceil(emailsTotal / emailsPerPage))}
                   className={`px-2.5 py-1 border border-slate-900/10 dark:border-white/5 rounded-lg text-[9px] font-bold cursor-pointer disabled:opacity-30 uppercase ${buttonBgClass}`}
                 >
                   Next
@@ -279,15 +313,13 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
               </div>
             </div>
 
-            {/* Context Streams Filter Bar */}
+            {/* Context streams */}
             <div className={`px-5 py-2 flex items-center gap-1.5 overflow-x-auto border-b ${borderClass} shrink-0 bg-slate-500/5`}>
               <span className={`text-[9px] uppercase font-bold ${textMutedClass} mr-1 shrink-0`}>Streams:</span>
               <button
                 onClick={() => setSelectedContextTag(null)}
                 className={`text-[9px] px-2.5 py-1 rounded-xl font-bold uppercase cursor-pointer transition-all ${
-                  selectedContextTag === null
-                    ? "bg-purple-500 text-white"
-                    : `${isDark ? "bg-white/5 text-slate-400 hover:text-white" : "bg-slate-900/5 text-slate-600"}`
+                  selectedContextTag === null ? "bg-purple-500 text-white" : `${isDark ? "bg-white/5 text-slate-400" : "bg-slate-900/5 text-slate-600"}`
                 }`}
               >
                 All
@@ -297,9 +329,7 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
                   key={tag}
                   onClick={() => setSelectedContextTag(tag)}
                   className={`text-[9px] px-2.5 py-1 rounded-xl font-bold uppercase cursor-pointer transition-all ${
-                    selectedContextTag === tag
-                      ? "bg-purple-500 text-white"
-                      : `${isDark ? "bg-white/5 text-slate-400 hover:text-white" : "bg-slate-900/5 text-slate-600"}`
+                    selectedContextTag === tag ? "bg-purple-500 text-white" : `${isDark ? "bg-white/5 text-slate-400" : "bg-slate-900/5 text-slate-655"}`
                   }`}
                 >
                   {tag}
@@ -307,9 +337,10 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
               ))}
             </div>
 
-            {/* Email List */}
+            {/* List Panel Content */}
             <div className="flex-1 overflow-y-auto min-h-0">
-              {isTabLoading ? (
+              {isTabLoading || isPageSyncing ? (
+                /* Loading Skeleton or Syncing Animation */
                 <div className="divide-y divide-slate-100 dark:divide-white/5 animate-pulse">
                   {[1, 2, 3, 4, 5].map((i) => (
                     <div key={i} className="p-4 space-y-3 border-b border-slate-900/5 dark:border-white/5 opacity-65">
@@ -318,176 +349,54 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
                         <div className="h-2.5 bg-slate-350 dark:bg-white/10 rounded w-16"></div>
                       </div>
                       <div className="h-3.5 bg-slate-350 dark:bg-white/10 rounded w-2/3"></div>
-                      <div className="h-2.5 bg-slate-350 dark:bg-white/10 rounded w-1/2"></div>
                     </div>
                   ))}
-                </div>
-              ) : emails.length === 0 ? (
-                isSyncing ? (
-                  <div className="p-12 flex flex-col items-center justify-center space-y-4">
-                    <div className="relative w-12 h-12 flex items-center justify-center">
-                      <div className="absolute inset-0 border-4 border-purple-500/20 rounded-full"></div>
-                      <div className="absolute inset-0 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-                      <svg className="w-5 h-5 text-purple-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 19v-8.93a2 2 0 01.89-1.664l8-5.333a2 2 0 012.22 0l8 5.333A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-2.25-1.5a2 2 0 00-2.22 0l-2.25 1.5" />
-                      </svg>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider animate-pulse">Syncing Ciel Inbox...</p>
-                      <p className={`text-[10px] ${textMutedClass} mt-1 max-w-[240px]`}>Securely retrieving and classifying your messages with local AI.</p>
-                    </div>
+                  <div className="p-4 text-center text-xs text-slate-500 italic animate-pulse">
+                    Synchronizing Next Batch ({startRange}-{endRange})...
                   </div>
-                ) : (
-                  <p className={`text-xs ${textMutedClass} p-5`}>No emails cached in database. Click Refresh or check your credentials.</p>
-                )
+                </div>
+              ) : filteredEmails.length === 0 ? (
+                <p className={`text-xs ${textMutedClass} p-5`}>No emails found in this cache view.</p>
               ) : (
-                <div>
-                  {(() => {
-                    const filteredEmails = selectedContextTag
-                      ? emails.filter(email => email.contextTag === selectedContextTag)
-                      : emails;
-
-                    if (filteredEmails.length === 0) {
-                      return <p className={`text-xs ${textMutedClass} p-5`}>No emails in this stream. Try checking other streams.</p>;
-                    }
-
-                    return filteredEmails.map((email) => {
-                      const isExpanded = expandedEmailId === email.id;
-                      const displayDate = (() => {
-                        if (!mounted) return "";
-                        try { return new Date(email.date).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
-                        catch { return email.date; }
-                      })();
-                      const emailBgClass = email.read
-                        ? (isDark ? "bg-black/15 text-slate-400 opacity-80" : "bg-slate-900/5 text-slate-500 opacity-80")
-                        : (isDark ? "bg-white/5 border-l-2 border-l-purple-500" : "bg-white/70 border-l-2 border-l-cyan-500 shadow-sm");
-                      const senderTextClass = email.read ? "text-slate-500 font-normal" : (isDark ? "text-white font-bold" : "text-slate-900 font-bold");
-                      const subjectTextClass = email.read ? (isDark ? "text-slate-400 font-normal" : "text-slate-500 font-normal") : (isDark ? "text-white font-bold" : "text-slate-900 font-bold");
-                      const dateTextClass = email.read ? "text-slate-500 font-normal" : (isDark ? "text-purple-400 font-bold" : "text-cyan-600 font-bold");
-
-                      return (
-                        <div
-                          key={email.id}
-                          onClick={() => { setExpandedEmailId(isExpanded ? null : email.id); if (!email.read) markAsRead(email.id); }}
-                          className={`border-b ${borderClass} ${emailBgClass} text-xs cursor-pointer hover:bg-slate-500/10 transition-all duration-200 overflow-hidden`}
-                        >
-                          {isExpanded ? (
-                            <div className={`p-4 space-y-3 ${accordionHeaderBgClass}`}>
-                              <div className={`flex flex-col sm:flex-row justify-between pb-2 border-b ${border900Class}`}>
-                                <div>
-                                  <span className={`font-bold ${textWhiteClass}`}>FROM: {email.from}</span>
-                                  <span className="text-slate-500 ml-2">&lt;{email.fromEmail}&gt;</span>
-                                </div>
-                                <span className="text-slate-500 text-[10px] font-mono">{displayDate}</span>
-                              </div>
-                              <div><h3 className={`text-sm font-bold ${textWhiteClass} tracking-normal leading-tight`}>{email.subject}</h3></div>
-                              <p className={`${isDark ? "text-slate-300" : "text-slate-700"} font-sans font-normal leading-relaxed whitespace-pre-wrap ${innerCardBgClass} p-4 border border-slate-900/5 dark:border-white/5 rounded-xl select-text`}>{email.body}</p>
-                              <div className="flex gap-4 text-[10px] text-slate-500 uppercase font-semibold pt-1">
-                                <span>Category: <span className={isDark ? "text-slate-400" : "text-slate-600"}>{email.category}</span></span>
-                                <span>Priority: <span className={isDark ? "text-slate-400" : "text-slate-600"}>{email.priority}</span></span>
-                                <span>Read: <span className={isDark ? "text-slate-400" : "text-slate-600"}>{email.read ? "yes" : "no"}</span></span>
-                                {email.contextTag && (
-                                  <span>Stream: <span className="text-purple-500 dark:text-purple-400 font-bold">{email.contextTag}</span></span>
-                                )}
-                              </div>
-                              <div className="mt-4 pt-3 border-t border-slate-900/10 dark:border-white/10 space-y-3" onClick={(e) => e.stopPropagation()}>
-                                {activeReplyEmailId !== email.id ? (
-                                  <div className="space-y-3">
-                                    <div className="flex items-center gap-2">
-                                      <button onClick={() => handleInitiateSmartReply(email)} className="px-3.5 py-1.5 bg-purple-500/10 text-purple-600 dark:text-purple-300 hover:bg-purple-500/20 border border-purple-500/20 rounded-xl font-bold uppercase text-[10px] cursor-pointer flex items-center gap-1.5 transition-colors">
-                                        <span>✨</span> Reply with AI
-                                      </button>
-                                      <button onClick={() => onInitiateCompose(email.fromEmail, `Re: ${email.subject}`)} className="px-3.5 py-1.5 border border-slate-900/10 dark:border-white/5 bg-slate-900/5 dark:bg-white/5 text-slate-800 dark:text-slate-200 hover:bg-slate-900/10 dark:hover:bg-white/10 rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors">
-                                        Reply
-                                      </button>
-                                    </div>
-                                    {email.quickReplies && email.quickReplies.length > 0 && (
-                                      <div className="space-y-1.5">
-                                        <span className="text-[9px] uppercase font-bold text-slate-400">Quick Replies:</span>
-                                        <div className="flex flex-wrap gap-2">
-                                          {email.quickReplies.map((replyText: string, idx: number) => (
-                                            <button
-                                              key={idx}
-                                              onClick={() => onInitiateCompose(email.fromEmail, `Re: ${email.subject}`, replyText)}
-                                              className="text-[9px] px-3 py-1.5 border rounded-xl font-medium cursor-pointer transition-all border-slate-900/10 dark:border-white/5 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-900/5 dark:bg-white/5 hover:bg-purple-500/10 dark:hover:bg-purple-500/10"
-                                            >
-                                              <span className="text-purple-500 font-bold mr-1">[{idx + 1}]</span> {replyText}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-[10px] uppercase font-bold text-slate-505">Draft reply using AI:</span>
-                                      <button onClick={() => setActiveReplyEmailId(null)} className="text-[10px] font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white uppercase">Cancel</button>
-                                    </div>
-                                    {isGeneratingReplies ? (
-                                      <div className="text-[11px] text-slate-505 animate-pulse">Drafting alternative replies...</div>
-                                    ) : (
-                                      <div className="flex flex-wrap gap-2">
-                                        {aiSuggestions.map((sug, idx) => (
-                                          <button
-                                            key={idx}
-                                            onClick={() => { setSelectedReplyIndex(idx); setReplyBody(sug.body); }}
-                                            className={`text-[9px] px-3 py-1.5 border rounded-xl font-bold uppercase cursor-pointer transition-all ${
-                                              selectedReplyIndex === idx
-                                                ? "bg-purple-600 border-purple-600 text-white"
-                                                : `border-slate-900/10 dark:border-white/5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white ${isDark ? "bg-white/5" : "bg-slate-900/5"}`
-                                            }`}
-                                          >
-                                            {sug.label}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    )}
-                                    {(!isGeneratingReplies || replyBody) && (
-                                      <div className="space-y-2">
-                                        <textarea
-                                          value={replyBody}
-                                          onChange={(e) => setReplyBody(e.target.value)}
-                                          rows={5}
-                                          className="w-full text-xs p-3 border border-slate-200 dark:border-slate-800 bg-white/5 outline-none rounded-xl resize-none text-slate-900 dark:text-white"
-                                        />
-                                        <div className="flex items-center justify-end gap-2">
-                                          <button
-                                            onClick={() => handleSendSmartReply(email.fromEmail, email.subject)}
-                                            disabled={isSendingReply || !replyBody.trim()}
-                                            className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold uppercase rounded-xl disabled:opacity-50 transition-colors cursor-pointer"
-                                          >
-                                            {isSendingReply ? "Sending..." : "Send Reply"}
-                                          </button>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="px-5 py-3 flex items-center justify-between gap-4 hover:bg-slate-500/5 transition-colors">
-                              <div className="flex-1 min-w-0 pr-4">
-                                <div className="flex items-baseline justify-between mb-0.5">
-                                  <span className={`${senderTextClass} truncate mr-2`}>{email.from}</span>
-                                  <span className={`${dateTextClass} text-[10px] font-mono shrink-0`}>{displayDate}</span>
-                                </div>
-                                <p className={`${subjectTextClass} truncate text-[11px]`}>{email.subject}</p>
-                              </div>
-                              <div className="shrink-0 flex items-center gap-2">
-                                <span className={`text-[9px] px-1.5 py-0.5 rounded-lg border font-mono font-bold uppercase shrink-0 ${
-                                  email.priority === "high"
-                                    ? (isDark ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-red-50 border-red-200 text-red-700")
-                                    : (isDark ? "bg-slate-800 border-slate-700 text-slate-400" : "bg-slate-100 border-slate-200 text-slate-650")
-                                }`}>{email.priority}</span>
-                              </div>
-                            </div>
-                          )}
+                <div className="divide-y divide-slate-100 dark:divide-white/5">
+                  {filteredEmails.map((email, idx) => {
+                    const isSelected = selectedEmailIndex === idx;
+                    const displayDate = (() => {
+                      if (!mounted) return "";
+                      try { return new Date(email.date).toLocaleDateString([], { month: "short", day: "numeric" }); }
+                      catch { return email.date; }
+                    })();
+                    
+                    return (
+                      <div
+                        key={email.id}
+                        onClick={() => {
+                          setSelectedEmailIndex(idx);
+                          if (!email.read) markAsRead(email.id);
+                        }}
+                        className={`px-5 py-3.5 flex items-center justify-between gap-4 cursor-pointer transition-colors duration-200 border-l-2 ${
+                          isSelected
+                            ? "bg-white/10 dark:bg-white/5 border-l-purple-500" 
+                            : email.read 
+                              ? "border-l-transparent text-slate-400 opacity-70 hover:bg-white/5" 
+                              : "border-l-cyan-500 hover:bg-white/10"
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0 pr-2">
+                          <div className="flex items-baseline justify-between mb-0.5">
+                            <span className={`text-xs truncate mr-2 ${email.read ? "font-normal" : "font-bold text-slate-900 dark:text-white"}`}>{email.from}</span>
+                            <span className="text-[10px] font-mono text-slate-500 shrink-0">{displayDate}</span>
+                          </div>
+                          <p className={`text-[11px] truncate ${email.read ? "text-slate-500" : "font-bold text-slate-800 dark:text-slate-205"}`}>{email.subject}</p>
                         </div>
-                      );
-                    });
-                  })()}
+                        <span className={`text-[8px] px-1.5 py-0.5 rounded-lg border font-mono font-bold uppercase shrink-0 ${
+                          email.priority === "high"
+                            ? "bg-red-500/10 border-red-500/30 text-red-500"
+                            : "bg-slate-800 border-slate-700 text-slate-400"
+                        }`}>{email.priority}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -509,6 +418,144 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
           </div>
         )}
       </div>
+
+      {/* RIGHT PANE: Email Detail View */}
+      <div className={`flex-[1.5] flex flex-col min-h-0 ${panelBgClass} overflow-hidden p-6`}>
+        {activeEmail ? (
+          <div className="flex-1 flex flex-col min-h-0 overflow-y-auto space-y-4">
+            
+            {/* Header info */}
+            <div className={`pb-4 border-b ${border900Class} flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2`}>
+              <div>
+                <span className={`font-bold ${textWhiteClass}`}>FROM: {activeEmail.from}</span>
+                <span className="text-slate-500 text-xs ml-2">&lt;{activeEmail.fromEmail}&gt;</span>
+              </div>
+              <span className="text-slate-500 text-xs font-mono">
+                {mounted && new Date(activeEmail.date).toLocaleString()}
+              </span>
+            </div>
+
+            {/* Subject */}
+            <div>
+              <h2 className={`text-base font-bold tracking-tight ${textWhiteClass}`}>{activeEmail.subject}</h2>
+              <div className="flex gap-4 text-[10px] text-slate-500 uppercase font-semibold mt-2">
+                <span>Category: <span className="text-cyan-500">{activeEmail.category}</span></span>
+                <span>Priority: <span className={activeEmail.priority === "high" ? "text-red-400" : "text-slate-400"}>{activeEmail.priority}</span></span>
+                {activeEmail.contextTag && (
+                  <span>Stream: <span className="text-purple-450 font-bold">{activeEmail.contextTag}</span></span>
+                )}
+              </div>
+            </div>
+
+            {/* Content Body */}
+            {(() => {
+              const isHtml = activeEmail.body.includes("<html") || activeEmail.body.includes("<div") || activeEmail.body.includes("<p>") || activeEmail.body.includes("<br") || activeEmail.body.includes("<table") || activeEmail.body.includes("<style");
+              const iframeSrcDoc = isHtml
+                ? activeEmail.body
+                : `<html><head><style>body { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13.5px; line-height: 1.6; color: ${isDark ? '#e4e4e7' : '#1f2937'}; background: ${isDark ? '#0b0c14' : '#ffffff'}; white-space: pre-wrap; word-break: break-word; padding: 16px; margin: 0; }</style></head><body>${activeEmail.body}</body></html>`;
+              
+              const containerBg = isDark ? "bg-[#0b0c14]" : "bg-white";
+              const iframeFilter = isDark && isHtml ? "dark-email-filter" : "";
+              
+              return (
+                <div className={`w-full flex-1 min-h-[250px] border border-slate-200 dark:border-white/5 rounded-2xl overflow-hidden ${containerBg}`}>
+                  <iframe
+                    title="Email Body"
+                    srcDoc={iframeSrcDoc}
+                    className={`w-full h-full border-none ${containerBg} ${iframeFilter}`}
+                    sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+                  />
+                </div>
+              );
+            })()}
+
+            {/* AI Reply Controls */}
+            <div className="pt-4 border-t border-white/5 space-y-3">
+              {activeReplyEmailId !== activeEmail.id ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handleInitiateSmartReply(activeEmail)} className="px-3.5 py-2 bg-purple-500/10 text-purple-600 dark:text-purple-300 hover:bg-purple-500/20 border border-purple-500/20 rounded-xl font-bold uppercase text-[10px] cursor-pointer flex items-center gap-1.5 transition-colors">
+                      <span>✨</span> Reply with AI
+                    </button>
+                    <button onClick={() => onInitiateCompose(activeEmail.fromEmail, `Re: ${activeEmail.subject}`)} className="px-3.5 py-2 border border-slate-900/10 dark:border-white/5 bg-slate-900/5 dark:bg-white/5 text-slate-800 dark:text-slate-200 hover:bg-slate-900/10 dark:hover:bg-white/10 rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors">
+                      Reply
+                    </button>
+                  </div>
+                  {activeEmail.quickReplies && activeEmail.quickReplies.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="text-[9px] uppercase font-bold text-slate-400">Quick Replies:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {activeEmail.quickReplies.map((replyText: string, idx: number) => (
+                          <button
+                            key={idx}
+                            onClick={() => onInitiateCompose(activeEmail.fromEmail, `Re: ${activeEmail.subject}`, replyText)}
+                            className="text-[9px] px-3 py-1.5 border rounded-xl font-medium cursor-pointer transition-all border-slate-900/10 dark:border-white/5 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-900/5 dark:bg-white/5 hover:bg-purple-500/10 dark:hover:bg-purple-500/10"
+                          >
+                            <span className="text-purple-500 font-bold mr-1">[{idx + 1}]</span> {replyText}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-slate-500">Draft reply using AI:</span>
+                    <button onClick={() => setActiveReplyEmailId(null)} className="text-[10px] font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white uppercase">Cancel</button>
+                  </div>
+                  {isGeneratingReplies ? (
+                    <div className="text-[11px] text-slate-500 animate-pulse">Drafting alternative replies...</div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {aiSuggestions.map((sug, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => { setSelectedReplyIndex(idx); setReplyBody(sug.body); }}
+                          className={`text-[9px] px-3 py-1.5 border rounded-xl font-bold uppercase cursor-pointer transition-all ${
+                            selectedReplyIndex === idx
+                              ? "bg-purple-650 border-purple-600 text-white"
+                              : `border-slate-900/10 dark:border-white/5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white ${isDark ? "bg-white/5" : "bg-slate-900/5"}`
+                          }`}
+                        >
+                          {sug.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {(!isGeneratingReplies || replyBody) && (
+                    <div className="space-y-2">
+                      <textarea
+                        value={replyBody}
+                        onChange={(e) => setReplyBody(e.target.value)}
+                        rows={5}
+                        className="w-full text-xs p-3 border border-slate-200 dark:border-slate-800 bg-white/5 outline-none rounded-xl resize-none text-slate-900 dark:text-white"
+                      />
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleSendSmartReply(activeEmail.fromEmail, activeEmail.subject)}
+                          disabled={isSendingReply || !replyBody.trim()}
+                          className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold uppercase rounded-xl disabled:opacity-50 transition-colors cursor-pointer"
+                        >
+                          {isSendingReply ? "Sending..." : "Send Reply"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col justify-center items-center text-center">
+            <span className="text-3xl mb-3">📥</span>
+            <h3 className={`text-sm font-bold ${textWhiteClass}`}>No Email Selected</h3>
+            <p className={`text-xs ${textMutedClass} max-w-[200px] mt-1`}>Select an email from the left inbox stream to load detailed view and AI quick reply controls.</p>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }

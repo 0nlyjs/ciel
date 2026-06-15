@@ -61,18 +61,26 @@ export class CorsairClient {
   }
 
   private static extractBody(part: any): string {
-    let body = "";
-    if (part.mimeType === "text/plain" && part.body?.data) {
-      body = this.base64urlDecode(part.body.data);
-    } else if (part.parts && part.parts.length > 0) {
-      for (const subPart of part.parts) {
-        const subBody = this.extractBody(subPart);
-        if (subBody) {
-          body += (body ? "\n" : "") + subBody;
+    const findPart = (p: any, mimeType: string): string => {
+      if (p.mimeType === mimeType && p.body?.data) {
+        return this.base64urlDecode(p.body.data);
+      }
+      if (p.parts && p.parts.length > 0) {
+        for (const subPart of p.parts) {
+          const content = findPart(subPart, mimeType);
+          if (content) return content;
         }
       }
-    }
-    return body;
+      return "";
+    };
+
+    const htmlBody = findPart(part, "text/html");
+    if (htmlBody) return htmlBody;
+
+    const plainBody = findPart(part, "text/plain");
+    if (plainBody) return plainBody;
+
+    return "";
   }
 
   static parseGmailMessage(msg: any): Email | null {

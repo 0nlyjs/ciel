@@ -88,13 +88,13 @@ function MorphingParticles() {
 
 export function PerformanceCanvas() {
   return (
-    <div className="w-20 h-20 relative overflow-hidden bg-slate-900/40 border border-white/5 rounded-2xl flex items-center justify-center backdrop-blur-md shadow-inner select-none pointer-events-none">
+    <div className="w-20 h-20 relative overflow-hidden bg-transparent flex items-center justify-center select-none pointer-events-none">
       <Canvas camera={{ position: [0, 0, 3.5], fov: 55 }}>
         <ambientLight intensity={0.6} />
         <MorphingParticles />
       </Canvas>
       <div className="absolute bottom-1.5 left-0 right-0 text-center pointer-events-none select-none">
-        <span className="text-[7px] uppercase tracking-widest text-slate-400 font-bold font-mono">Telemetry</span>
+        <span className="text-[7px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold font-mono">Telemetry</span>
       </div>
     </div>
   );
