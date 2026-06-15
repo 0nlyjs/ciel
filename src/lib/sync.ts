@@ -4,6 +4,9 @@ import { emails, searchDocuments } from "@/lib/schema";
 import { getEmbeddingsBatch } from "@/lib/embeddings";
 import { activeClients } from "@/app/api/sync/stream/route";
 import { eq, and, desc, inArray, notInArray, sql, isNull } from "drizzle-orm";
+import { generateText } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
+
 
 function runKeywordFallback(subject: string, body: string) {
   const content = `${subject} ${body}`.toLowerCase();
@@ -37,6 +40,91 @@ function runKeywordFallback(subject: string, body: string) {
 
   return { priority, category };
 }
+
+const getOpenAIClient = () => {
+  const apiKey = process.env.OPENAI_KEY || process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  return createOpenAI({ apiKey });
+};
+
+async function classifyEmail(
+  subject: string,
+  body: string
+): Promise<{
+  priority: "high" | "medium" | "low";
+  category: "work" | "personal" | "updates" | "promotions";
+  sentiment: string;
+  quickReplies: string[];
+  contextTag: string;
+}> {
+  const client = getOpenAIClient();
+  if (!client) {
+    const fallback = runKeywordFallback(subject, body);
+    return {
+      priority: fallback.priority,
+      category: fallback.category,
+      sentiment: "neutral",
+      quickReplies: [
+        "Sounds good, approved.",
+        "I need more details.",
+        "Let's discuss on a call."
+      ],
+      contextTag: fallback.category === "work" ? "Work" : "General"
+    };
+  }
+
+  try {
+    const prompt = `Classify the following email by priority ("high", "medium", or "low") and category ("work", "personal", "updates", or "promotions").
+Also analyze the sentiment and generate 3 quick reply options and a context grouping tag.
+
+Subject: ${subject}
+Body: ${body}
+
+Respond with a raw JSON object containing exactly these keys:
+- "priority": "high" | "medium" | "low"
+- "category": "work" | "personal" | "updates" | "promotions"
+- "sentiment": string (e.g. "positive", "neutral", "negative", "urgent")
+- "quickReplies": array of 3 distinct, short response strings (e.g. ["Sounds good, approved.", "I need more details.", "Let's discuss on a call."])
+- "contextTag": a 1-to-3 word string grouping the email into a logical project or client stream (e.g. "Design Contract", "Personal", "Investor Updates")
+
+Do not wrap in markdown code blocks.`;
+
+    const { text } = await generateText({
+      model: client("gpt-4o-mini"),
+      prompt,
+    });
+
+    const cleanText = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+    const parsed = JSON.parse(cleanText);
+
+    return {
+      priority: parsed.priority || "medium",
+      category: parsed.category || "work",
+      sentiment: parsed.sentiment || "neutral",
+      quickReplies: Array.isArray(parsed.quickReplies) ? parsed.quickReplies : [
+        "Sounds good, approved.",
+        "I need more details.",
+        "Let's discuss on a call."
+      ],
+      contextTag: parsed.contextTag || "General",
+    };
+  } catch (error) {
+    console.error("[Sync Classifier] Error during OpenAI classification, falling back:", error);
+    const fallback = runKeywordFallback(subject, body);
+    return {
+      priority: fallback.priority,
+      category: fallback.category,
+      sentiment: "neutral",
+      quickReplies: [
+        "Sounds good, approved.",
+        "I need more details.",
+        "Let's discuss on a call."
+      ],
+      contextTag: fallback.category === "work" ? "Work" : "General"
+    };
+  }
+}
+
 
 async function generateAndSaveEmbeddings(parsedEmails: any[], userEmail: string) {
   const textsToEmbed = parsedEmails.map(e => e.textToEmbed);
@@ -197,21 +285,25 @@ async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
   }
 
   if (parsedEmails.length > 0) {
-    const toInsert = parsedEmails.map((email) => {
-      const { priority, category } = runKeywordFallback(email.subject, email.body);
-      return {
-        id: email.id,
-        userEmail,
-        fromName: email.fromName,
-        fromEmail: email.fromEmail,
-        subject: email.subject,
-        body: email.body,
-        date: email.date,
-        read: email.read,
-        priority,
-        category,
-      };
-    });
+    const toInsert = await Promise.all(
+      parsedEmails.map(async (email) => {
+        const aiResult = await classifyEmail(email.subject, email.body);
+        return {
+          id: email.id,
+          userEmail,
+          fromName: email.fromName,
+          fromEmail: email.fromEmail,
+          subject: email.subject,
+          body: email.body,
+          date: email.date,
+          read: email.read,
+          priority: aiResult.priority,
+          category: aiResult.category,
+          quickReplies: aiResult.quickReplies,
+          contextTag: aiResult.contextTag,
+        };
+      })
+    );
 
     try {
       await db.insert(emails)
@@ -222,6 +314,8 @@ async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
             read: sql`EXCLUDED.read`,
             priority: sql`EXCLUDED.priority`,
             category: sql`EXCLUDED.category`,
+            quickReplies: sql`EXCLUDED.quick_replies`,
+            contextTag: sql`EXCLUDED.context_tag`,
           }
         });
       console.log(`[Sync] Successfully batch inserted/updated ${parsedEmails.length} emails in a single query.`);

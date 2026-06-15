@@ -251,6 +251,7 @@ export async function GET() {
         location: calendarEvents.location,
         attendees: calendarEvents.attendees,
         description: calendarEvents.description,
+        contextTag: calendarEvents.contextTag,
       })
       .from(calendarEvents)
       .where(eq(calendarEvents.userEmail, session.user.email))

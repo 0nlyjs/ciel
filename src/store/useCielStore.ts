@@ -11,6 +11,8 @@ export interface Email {
   read: boolean;
   priority: "high" | "medium" | "low";
   category: "work" | "personal" | "updates" | "promotions";
+  quickReplies?: string[] | null;
+  contextTag?: string | null;
 }
 
 export interface CalendarEvent {
@@ -21,6 +23,7 @@ export interface CalendarEvent {
   location?: string;
   attendees?: string[];
   description?: string;
+  contextTag?: string | null;
 }
 
 export interface ChatMessage {
@@ -97,9 +100,29 @@ interface CielState {
   // local integrations list
   localIntegrations: Array<{ id: number; provider: string; connected_email: string; status: string }>;
   fetchLocalIntegrations: () => Promise<void>;
+
+  // grouped selectors
+  getEmailsByContext: () => Record<string, Email[]>;
+  getEventsByContext: () => Record<string, CalendarEvent[]>;
+
+  // 3D Canvas states
+  isSyncing: boolean;
+  isSearching: boolean;
+
+  // calendar date state
+  selectedDate: Date | null;
+  initializeClientDate: () => void;
 }
 
-export const useCielStore = create<CielState>((set) => ({
+export const useCielStore = create<CielState>((set, get) => ({
+  // 3D Canvas states initial values
+  isSyncing: false,
+  isSearching: false,
+
+  // calendar date state initial values
+  selectedDate: null,
+  initializeClientDate: () => set({ selectedDate: new Date() }),
+
   // auth state
   user: null,
   gmailConnected: false,
@@ -128,6 +151,7 @@ export const useCielStore = create<CielState>((set) => ({
     ],
     cielStatus: "idle",
     currentVolume: 0,
+    selectedDate: null,
   }),
 
   // view state
@@ -241,6 +265,7 @@ export const useCielStore = create<CielState>((set) => ({
 
   // db synchronization actions
   fetchEmails: async (forceSync?: boolean, page?: number) => {
+    if (forceSync) set({ isSyncing: true });
     try {
       const state = useCielStore.getState();
       const targetPage = page !== undefined ? page : state.emailsPage;
@@ -268,6 +293,8 @@ export const useCielStore = create<CielState>((set) => ({
       }
     } catch (error) {
       console.error("[Store] Failed to fetch emails from database:", error);
+    } finally {
+      if (forceSync) set({ isSyncing: false });
     }
   },
 
@@ -286,6 +313,7 @@ export const useCielStore = create<CielState>((set) => ({
   },
 
   performSearch: async (queryStr) => {
+    set({ isSearching: true });
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(queryStr)}`);
       if (res.ok) {
@@ -300,6 +328,8 @@ export const useCielStore = create<CielState>((set) => ({
       }
     } catch (error) {
       console.error("[Store] Vector/ILIKE Search failed:", error);
+    } finally {
+      set({ isSearching: false });
     }
   },
 
@@ -406,4 +436,26 @@ export const useCielStore = create<CielState>((set) => ({
   setCielStatus: (status) => set({ cielStatus: status }),
   currentVolume: 0,
   setCurrentVolume: (vol) => set({ currentVolume: vol }),
+
+  getEmailsByContext: () => {
+    const emailsList = get().emails;
+    const grouped: Record<string, Email[]> = {};
+    emailsList.forEach((email) => {
+      const tag = email.contextTag || "General";
+      if (!grouped[tag]) grouped[tag] = [];
+      grouped[tag].push(email);
+    });
+    return grouped;
+  },
+
+  getEventsByContext: () => {
+    const eventsList = get().calendarEvents;
+    const grouped: Record<string, CalendarEvent[]> = {};
+    eventsList.forEach((event) => {
+      const tag = event.contextTag || "General";
+      if (!grouped[tag]) grouped[tag] = [];
+      grouped[tag].push(event);
+    });
+    return grouped;
+  },
 }));

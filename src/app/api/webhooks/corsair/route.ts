@@ -58,18 +58,44 @@ function runKeywordFallback(subject: string, body: string) {
 async function classifyEmail(
   subject: string,
   body: string
-): Promise<{ priority: "high" | "medium" | "low"; category: "work" | "personal" | "updates" | "promotions" }> {
+): Promise<{
+  priority: "high" | "medium" | "low";
+  category: "work" | "personal" | "updates" | "promotions";
+  sentiment: string;
+  quickReplies: string[];
+  contextTag: string;
+}> {
   const client = getOpenAIClient();
   if (!client) {
-    return runKeywordFallback(subject, body);
+    const fallback = runKeywordFallback(subject, body);
+    return {
+      priority: fallback.priority,
+      category: fallback.category,
+      sentiment: "neutral",
+      quickReplies: [
+        "Sounds good, approved.",
+        "I need more details.",
+        "Let's discuss on a call."
+      ],
+      contextTag: fallback.category === "work" ? "Work" : "General"
+    };
   }
 
   try {
     const prompt = `Classify the following email by priority ("high", "medium", or "low") and category ("work", "personal", "updates", or "promotions").
+Also analyze the sentiment and generate 3 quick reply options and a context grouping tag.
+
 Subject: ${subject}
 Body: ${body}
 
-Respond with a raw JSON object containing exactly two keys: "priority" and "category". Do not wrap in markdown code blocks.`;
+Respond with a raw JSON object containing exactly these keys:
+- "priority": "high" | "medium" | "low"
+- "category": "work" | "personal" | "updates" | "promotions"
+- "sentiment": string (e.g. "positive", "neutral", "negative", "urgent")
+- "quickReplies": array of 3 distinct, short response strings (e.g. ["Sounds good, approved.", "I need more details.", "Let's discuss on a call."])
+- "contextTag": a 1-to-3 word string grouping the email into a logical project or client stream (e.g. "Design Contract", "Personal", "Investor Updates")
+
+Do not wrap in markdown code blocks.`;
 
     const { text } = await generateText({
       model: client("gpt-4o-mini"),
@@ -82,12 +108,59 @@ Respond with a raw JSON object containing exactly two keys: "priority" and "cate
     return {
       priority: parsed.priority || "medium",
       category: parsed.category || "work",
+      sentiment: parsed.sentiment || "neutral",
+      quickReplies: Array.isArray(parsed.quickReplies) ? parsed.quickReplies : [
+        "Sounds good, approved.",
+        "I need more details.",
+        "Let's discuss on a call."
+      ],
+      contextTag: parsed.contextTag || "General",
     };
   } catch (error) {
     console.error("[Webhook Classifier] Error during OpenAI classification, falling back:", error);
-    return runKeywordFallback(subject, body);
+    const fallback = runKeywordFallback(subject, body);
+    return {
+      priority: fallback.priority,
+      category: fallback.category,
+      sentiment: "neutral",
+      quickReplies: [
+        "Sounds good, approved.",
+        "I need more details.",
+        "Let's discuss on a call."
+      ],
+      contextTag: fallback.category === "work" ? "Work" : "General"
+    };
   }
 }
+
+async function classifyEvent(
+  title: string,
+  description: string
+): Promise<{ contextTag: string }> {
+  const client = getOpenAIClient();
+  if (!client) {
+    return { contextTag: "General" };
+  }
+  try {
+    const prompt = `Based on the calendar event title and description, output a 1-to-3 word context tagging stream (e.g. "Work", "Meeting", "Design Contract", "Personal", "Investor Updates").
+Title: ${title}
+Description: ${description}
+
+Respond with a raw JSON object containing exactly one key: "contextTag". Do not wrap in markdown code blocks.`;
+
+    const { text } = await generateText({
+      model: client("gpt-4o-mini"),
+      prompt,
+    });
+    const cleanText = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+    const parsed = JSON.parse(cleanText);
+    return { contextTag: parsed.contextTag || "General" };
+  } catch (error) {
+    console.error("[Webhook Event Classifier] Error during OpenAI classification:", error);
+    return { contextTag: "General" };
+  }
+}
+
 
 export async function POST(req: Request) {
   try {
@@ -130,7 +203,7 @@ export async function POST(req: Request) {
       const dateStr = parsed.date;
 
       // Run AI categorization
-      const { priority, category } = await classifyEmail(subject, body);
+      const { priority, category, quickReplies, contextTag } = await classifyEmail(subject, body);
 
       // Generate embedding vector
       const cleanBodyForEmbedding = (body || "").substring(0, 15000);
@@ -150,6 +223,8 @@ export async function POST(req: Request) {
           read: parsed.read,
           priority,
           category,
+          quickReplies,
+          contextTag,
         })
         .onConflictDoUpdate({
           target: [emails.id],
@@ -163,6 +238,8 @@ export async function POST(req: Request) {
             read: sql`EXCLUDED.read`,
             priority: sql`EXCLUDED.priority`,
             category: sql`EXCLUDED.category`,
+            quickReplies: sql`EXCLUDED.quick_replies`,
+            contextTag: sql`EXCLUDED.context_tag`,
           }
         });
 
@@ -233,6 +310,9 @@ export async function POST(req: Request) {
       const attendees = (item.attendees || []).map((a: any) => a.email || a.displayName || "");
       const description = item.description || "";
 
+      // Run AI categorization
+      const { contextTag } = await classifyEvent(title, description);
+
       // Generate embedding vector
       const textToEmbed = `Title: ${title}\nLocation: ${location}\nDescription: ${description}`;
       const embedding = await getEmbedding(textToEmbed);
@@ -248,6 +328,7 @@ export async function POST(req: Request) {
           location,
           attendees,
           description,
+          contextTag,
         })
         .onConflictDoUpdate({
           target: [calendarEvents.id],
@@ -259,6 +340,7 @@ export async function POST(req: Request) {
             location: sql`EXCLUDED.location`,
             attendees: sql`EXCLUDED.attendees`,
             description: sql`EXCLUDED.description`,
+            contextTag: sql`EXCLUDED.context_tag`,
           }
         });
 

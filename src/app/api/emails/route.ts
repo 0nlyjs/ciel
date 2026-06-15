@@ -91,6 +91,8 @@ export async function GET(req: Request) {
         read: emails.read,
         priority: emails.priority,
         category: emails.category,
+        quickReplies: emails.quickReplies,
+        contextTag: emails.contextTag,
       })
       .from(emails)
       .where(eq(emails.userEmail, session.user.email))

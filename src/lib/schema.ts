@@ -58,6 +58,8 @@ export const emails = pgTable("emails", {
   read: boolean("read").default(false),
   priority: varchar("priority", { length: 50 }).default("medium"),
   category: varchar("category", { length: 50 }).default("work"),
+  quickReplies: jsonb("quick_replies"),
+  contextTag: text("context_tag"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("idx_emails_user_email").on(table.userEmail),
@@ -72,6 +74,7 @@ export const calendarEvents = pgTable("calendar_events", {
   location: varchar("location", { length: 255 }),
   attendees: jsonb("attendees"),
   description: text("description"),
+  contextTag: text("context_tag"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("idx_calendar_events_user_email").on(table.userEmail),

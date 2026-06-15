@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
+import { CommandPalette } from "@/components/CommandPalette";
 
 export const metadata: Metadata = {
   title: "Ciel Workspace // Sentient Analytical Interface",
@@ -71,7 +72,10 @@ export default function RootLayout({
 
           </defs>
         </svg>
-        <Providers>{children}</Providers>
+        <Providers>
+          <CommandPalette />
+          {children}
+        </Providers>
       </body>
     </html>
   );
