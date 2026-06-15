@@ -14,6 +14,7 @@
     "@better-auth/drizzle-adapter": "^1.6.18",
     "@corsair-dev/gmail": "^0.1.4",
     "@corsair-dev/googlecalendar": "^0.1.4",
+    "@google-cloud/text-to-speech": "^6.4.1",
     "@neondatabase/serverless": "^1.1.0",
     "@react-three/fiber": "^9.6.1",
     "@types/three": "^0.184.1",

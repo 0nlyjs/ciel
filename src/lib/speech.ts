@@ -53,7 +53,7 @@ export function useSpeechToText(onTranscriptComplete?: (text: string) => void) {
     if (typeof window === "undefined") return false;
     return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
   });
-  
+
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -85,7 +85,10 @@ export function useSpeechToText(onTranscriptComplete?: (text: string) => void) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       micStreamRef.current = stream;
 
-      const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as typeof window & { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
       if (!AudioContextClass) return;
 
       const audioCtx = new AudioContextClass();
@@ -125,7 +128,8 @@ export function useSpeechToText(onTranscriptComplete?: (text: string) => void) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognitionClass =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognitionClass) {
       const recognition = new SpeechRecognitionClass();
       recognition.continuous = false;
@@ -198,26 +202,105 @@ export function useSpeechToText(onTranscriptComplete?: (text: string) => void) {
 }
 
 // text-to-speech hook for ciel's voice replies
+// Uses Google Cloud TTS via /api/tts when configured, falls back to browser SpeechSynthesis
 export function useTextToSpeech() {
   const setCielStatus = useCielStore((s) => s.setCielStatus);
   const setCurrentVolume = useCielStore((s) => s.setCurrentVolume);
   const animationFrameRef = useRef<number | null>(null);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
 
-  const speak = (text: string) => {
+  // Strip markdown/html for clean speech text
+  const stripFormatting = (text: string): string => {
+    return text
+      .replace(/<[^>]*>/g, "")
+      .replace(/\*\*\*(.*?)\*\*\*/g, "$1")
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/\*(.*?)\*/g, "$1")
+      .replace(/`(.*?)`/g, "$1")
+      .replace(/^#{1,6}\s+/gm, "")
+      .replace(/^\s*[-*+]\s+/gm, "")
+      .replace(/^\s*\d+\.\s+/gm, "")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/[^a-zA-Z0-9\s.,;:!?'"()\-/]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
+  // Speak using Google Cloud TTS API (server-side), falls back to browser TTS
+  const speak = async (text: string) => {
+    // Stop any existing audio playback
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current = null;
+    }
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    stopSpeechSimulation();
+
+    const clean = stripFormatting(text);
+    if (!clean) return;
+
+    // Try Google Cloud TTS first
+    try {
+      const response = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: clean, voice: "default" }),
+      });
+
+      // If response is not audio, fall back to browser TTS
+      const contentType = response.headers.get("content-type") || "";
+      if (!response.ok || !contentType.includes("audio")) {
+        speakBrowser(clean);
+        return;
+      }
+
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      const audio = new Audio(audioUrl);
+      audioElementRef.current = audio;
+
+      audio.addEventListener("play", () => {
+        setCielStatus("speaking");
+        simulateSpeakingPulses();
+      });
+
+      audio.addEventListener("ended", () => {
+        setCielStatus("idle");
+        stopSpeechSimulation();
+        URL.revokeObjectURL(audioUrl);
+        audioElementRef.current = null;
+      });
+
+      audio.addEventListener("error", () => {
+        setCielStatus("error");
+        stopSpeechSimulation();
+        URL.revokeObjectURL(audioUrl);
+        audioElementRef.current = null;
+        setTimeout(() => setCielStatus("idle"), 2000);
+      });
+
+      await audio.play();
+    } catch {
+      // Fallback to browser TTS on any error
+      speakBrowser(clean);
+    }
+  };
+
+  // Browser SpeechSynthesis fallback
+  const speakBrowser = (text: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
 
-    // stop any currently playing speech
-    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
 
-    // strip markdown/html tags
-    const cleanText = text.replace(/<[^>]*>/g, "").replace(/\*+/g, "");
-
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-
-    // try to pick a premium natural sounding voice
     const voices = window.speechSynthesis.getVoices();
     const englishVoice =
-      voices.find((v) => v.name.includes("Google US English") || v.name.includes("Natural")) ||
+      voices.find(
+        (v) =>
+          v.name.includes("Google US English") || v.name.includes("Natural"),
+      ) ||
       voices.find((v) => v.lang.startsWith("en")) ||
       voices[0];
 
@@ -225,8 +308,8 @@ export function useTextToSpeech() {
       utterance.voice = englishVoice;
     }
 
-    utterance.rate = 1.05; // slightly faster feel
-    utterance.pitch = 1.05; // slightly higher pitch
+    utterance.rate = 1.05;
+    utterance.pitch = 1.05;
 
     utterance.onstart = () => {
       setCielStatus("speaking");
@@ -251,7 +334,10 @@ export function useTextToSpeech() {
   const simulateSpeakingPulses = () => {
     const speakLoop = () => {
       // pattern mimicking verbal cadence
-      const pulse = 0.3 + Math.sin(Date.now() * 0.012) * 0.2 + Math.cos(Date.now() * 0.03) * 0.15;
+      const pulse =
+        0.3 +
+        Math.sin(Date.now() * 0.012) * 0.2 +
+        Math.cos(Date.now() * 0.03) * 0.15;
       // random gaps to simulate spacing between words
       const wordGap = Math.random() > 0.85 ? 0 : pulse;
       setCurrentVolume(wordGap);
@@ -268,11 +354,19 @@ export function useTextToSpeech() {
   };
 
   const stop = () => {
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      const src = audioElementRef.current.src;
+      if (src.startsWith("blob:")) {
+        URL.revokeObjectURL(src);
+      }
+      audioElementRef.current = null;
+    }
     if (typeof window !== "undefined" && window.speechSynthesis) {
       window.speechSynthesis.cancel();
-      setCielStatus("idle");
-      stopSpeechSimulation();
     }
+    setCielStatus("idle");
+    stopSpeechSimulation();
   };
 
   return { speak, stop };
