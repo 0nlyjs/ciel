@@ -525,8 +525,61 @@ export class CorsairClient {
     return newEvent;
   }
 
-  static async listGmailMessagesDirectly(tenantId?: string, maxResults: number = 100): Promise<any[]> {
-    console.log(`[Corsair] Listing Gmail messages directly for tenant: ${tenantId}`);
+  static async deleteCalendarEvent(eventId: string, tenantId?: string): Promise<boolean> {
+    console.log(`[Corsair] Deleting calendar event: ${eventId} (tenant: ${tenantId})`);
+    const tenant = await this.getTenant(tenantId);
+    if (tenant) {
+      try {
+        const res = await tenant.run("googlecalendar.api.events.delete", {
+          calendarId: "primary",
+          eventId: eventId,
+        });
+        if (res.success) {
+          return true;
+        }
+      } catch (error) {
+        console.error("[Corsair API] deleteCalendarEvent error:", error);
+      }
+    }
+    return false;
+  }
+
+  static async updateCalendarEvent(
+    eventId: string,
+    title: string,
+    start: string,
+    end: string,
+    location?: string,
+    description?: string,
+    tenantId?: string
+  ): Promise<boolean> {
+    console.log(`[Corsair] Updating calendar event: ${eventId} (tenant: ${tenantId})`);
+    const tenant = await this.getTenant(tenantId);
+    if (tenant) {
+      try {
+        const res = await tenant.run("googlecalendar.api.events.patch", {
+          calendarId: "primary",
+          eventId: eventId,
+          event: {
+            summary: title,
+            start: { dateTime: start },
+            end: { dateTime: end },
+            location: location || "",
+            description: description || "",
+          }
+        });
+        if (res.success) {
+          return true;
+        }
+      } catch (error) {
+        console.error("[Corsair API] updateCalendarEvent error:", error);
+      }
+    }
+    return false;
+  }
+
+  static async listGmailMessagesDirectly(tenantId?: string, maxResults: number = 100, q: string = "label:INBOX"): Promise<any[]> {
+    console.log(`[Corsair] Listing Gmail messages directly for tenant: ${tenantId} (query: ${q})`);
     const tenant = await this.getTenant(tenantId);
     if (!tenant) return [];
     try {
@@ -534,7 +587,7 @@ export class CorsairClient {
         userId: "me",
         maxResults: maxResults,
         includeSpamTrash: false,
-        q: "label:INBOX"
+        q: q
       })) as any;
       if (res.success && res.data && res.data.messages) {
         return res.data.messages;

@@ -83,6 +83,25 @@ const handleFallbackAI = async (prompt: string, tenantId: string, userName: stri
     const body = `Hi there, confirming our scheduled coordinates. Let's sync up as planned.\n\nBest regards,\n${userName}`;
 
     await CorsairClient.sendEmail(email, subject, body, tenantId);
+    if (tenantId) {
+      try {
+        await db.insert(emails).values({
+          id: `sent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+          userEmail: tenantId,
+          fromName: userName || "You",
+          fromEmail: tenantId,
+          subject: subject,
+          body: body,
+          date: new Date().toISOString(),
+          read: true,
+          priority: "medium",
+          category: "work",
+          labelIds: "SENT",
+        });
+      } catch (dbErr) {
+        console.error("[Fallback AI sendEmail] Failed to write sent email to database:", dbErr);
+      }
+    }
 
     return {
       text: `Acknowledged. I have drafted and sent the email to ${email} confirming our synchronization and schedule.`,
@@ -380,6 +399,25 @@ The current system date and time is ${new Date().toString()} (ISO: ${currentDate
             console.log("[Tool] Sending email to:", to, "(user:", tenantId, ")");
             try {
               const sent = await CorsairClient.sendEmail(to, subject, body, tenantId);
+              if (sent && tenantId) {
+                try {
+                  await db.insert(emails).values({
+                    id: `sent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+                    userEmail: tenantId,
+                    fromName: "You",
+                    fromEmail: tenantId,
+                    subject: subject,
+                    body: body,
+                    date: new Date().toISOString(),
+                    read: true,
+                    priority: "medium",
+                    category: "work",
+                    labelIds: "SENT",
+                  });
+                } catch (dbErr) {
+                  console.error("[Tool send_email] Failed to write sent email to database:", dbErr);
+                }
+              }
               return { success: sent, message: "Email sent successfully." };
             } catch (err: any) {
               console.error("[Tool send_email error]", err);

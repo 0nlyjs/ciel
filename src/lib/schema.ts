@@ -60,6 +60,7 @@ export const emails = pgTable("emails", {
   category: varchar("category", { length: 50 }).default("work"),
   quickReplies: jsonb("quick_replies"),
   contextTag: text("context_tag"),
+  labelIds: text("label_ids"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("idx_emails_user_email").on(table.userEmail),

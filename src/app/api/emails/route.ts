@@ -6,7 +6,7 @@ import { getServerSession } from "@/lib/auth";
 import { syncUserEmails } from "@/lib/sync";
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, or, desc, sql, ilike, not, isNull } from "drizzle-orm";
 
 // lazy load openai
 const getOpenAIClient = () => {
@@ -45,6 +45,10 @@ export async function GET(req: Request) {
     const limit = parseInt(url.searchParams.get("limit") || "50", 10);
     const offset = parseInt(url.searchParams.get("offset") || "0", 10);
     const syncLimit = parseInt(url.searchParams.get("sync_limit") || "150", 10);
+    const folder = url.searchParams.get("folder") || "all";
+    const priority = url.searchParams.get("priority");
+    const category = url.searchParams.get("category");
+    const q = url.searchParams.get("q") || url.searchParams.get("search");
 
     // Check if Gmail integration is connected
     let gmailConnected = false;
@@ -74,13 +78,46 @@ export async function GET(req: Request) {
       }
     }
 
+    const conditions = [];
+
+    if (folder === "sent") {
+      conditions.push(ilike(emails.labelIds, "%SENT%"));
+    } else {
+      conditions.push(
+        or(
+          isNull(emails.labelIds),
+          not(ilike(emails.labelIds, "%SENT%"))
+        )
+      );
+    }
+
+    if (priority) {
+      conditions.push(eq(emails.priority, priority));
+    }
+    if (category) {
+      conditions.push(eq(emails.category, category));
+    }
+    if (q) {
+      const searchPattern = `%${q}%`;
+      conditions.push(
+        or(
+          ilike(emails.subject, searchPattern),
+          ilike(emails.body, searchPattern),
+          ilike(emails.fromName, searchPattern),
+          ilike(emails.fromEmail, searchPattern)
+        )
+      );
+    }
+
+    const whereClause = and(eq(emails.userEmail, session.user.email), ...conditions);
+
     // Get total count and fetch paginated emails concurrently
     const [countTotalRes, fetchRes] = await Promise.all([
       db.select({
         count: sql<number>`count(*)::int`,
       })
       .from(emails)
-      .where(eq(emails.userEmail, session.user.email)),
+      .where(whereClause),
       db.select({
         id: emails.id,
         from: emails.fromName,
@@ -93,9 +130,10 @@ export async function GET(req: Request) {
         category: emails.category,
         quickReplies: emails.quickReplies,
         contextTag: emails.contextTag,
+        labelIds: emails.labelIds,
       })
       .from(emails)
-      .where(eq(emails.userEmail, session.user.email))
+      .where(whereClause)
       .orderBy(desc(emails.date))
       .limit(limit)
       .offset(offset)
@@ -224,6 +262,25 @@ Do not write any markdown code block wrap, only raw JSON.`,
 
       // 1. Send via Corsair Gmail Client
       await CorsairClient.sendEmail(to, subject, emailBody, session.user.email);
+
+      // 2. Reflect in local database
+      try {
+        await db.insert(emails).values({
+          id: `sent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+          userEmail: session.user.email,
+          fromName: session.user.name || "You",
+          fromEmail: session.user.email,
+          subject: subject,
+          body: emailBody,
+          date: new Date().toISOString(),
+          read: true,
+          priority: "medium",
+          category: "work",
+          labelIds: "SENT",
+        });
+      } catch (dbErr) {
+        console.error("[Emails API POST send] Failed to write sent email to database:", dbErr);
+      }
 
       return NextResponse.json({ success: true, message: "Email sent successfully." });
     }

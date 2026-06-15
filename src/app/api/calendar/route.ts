@@ -395,3 +395,144 @@ export async function POST(req: Request) {
     );
   }
 }
+
+// DELETE /api/calendar - Delete calendar event
+export async function DELETE(req: Request) {
+  try {
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await req.json();
+    if (!id) {
+      return NextResponse.json({ error: "Event ID is required" }, { status: 400 });
+    }
+
+    // 1. Delete from local database
+    await db.delete(calendarEvents).where(
+      and(
+        eq(calendarEvents.id, id),
+        eq(calendarEvents.userEmail, session.user.email)
+      )
+    );
+
+    // 2. Delete from search embedding documents
+    await db.delete(searchDocuments).where(eq(searchDocuments.id, `event:${id}`));
+
+    // 3. Delete from Google Calendar if it's a real calendar ID (not mock ID)
+    if (!isMockId(id)) {
+      try {
+        await CorsairClient.deleteCalendarEvent(id, session.user.email);
+      } catch (err) {
+        console.error("[Calendar API DELETE] Failed to delete event on Google Calendar:", err);
+      }
+    }
+
+    return NextResponse.json({ success: true, message: "Calendar event deleted successfully." });
+  } catch (error: any) {
+    console.error("[Calendar API DELETE Error]", error);
+    return NextResponse.json(
+      { error: "Internal Server Error", message: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH /api/calendar - Edit calendar event
+export async function PATCH(req: Request) {
+  try {
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id, title, start, end, location, description } = await req.json();
+    if (!id) {
+      return NextResponse.json({ error: "Event ID is required" }, { status: 400 });
+    }
+
+    const updateFields: any = {};
+    if (title !== undefined) updateFields.title = title;
+    if (start !== undefined) updateFields.startTime = new Date(start);
+    if (end !== undefined) updateFields.endTime = new Date(end);
+    if (location !== undefined) updateFields.location = location;
+    if (description !== undefined) updateFields.description = description;
+
+    // 1. Update in local database
+    await db.update(calendarEvents)
+      .set(updateFields)
+      .where(
+        and(
+          eq(calendarEvents.id, id),
+          eq(calendarEvents.userEmail, session.user.email)
+        )
+      );
+
+    // 2. Update search embedding document if content fields changed
+    if (title !== undefined || location !== undefined || description !== undefined) {
+      const dbEvent = await db.select({
+        title: calendarEvents.title,
+        location: calendarEvents.location,
+        description: calendarEvents.description,
+      })
+      .from(calendarEvents)
+      .where(eq(calendarEvents.id, id))
+      .limit(1);
+
+      if (dbEvent[0]) {
+        const textToEmbed = `Title: ${dbEvent[0].title || "Meeting Invite"}\nLocation: ${dbEvent[0].location || ""}\nDescription: ${dbEvent[0].description || ""}`;
+        try {
+          const embedding = await getEmbedding(textToEmbed);
+          if (embedding) {
+            await db.insert(searchDocuments)
+              .values({
+                id: `event:${id}`,
+                sourceType: "event",
+                sourceId: id,
+                content: textToEmbed,
+                embedding: embedding,
+              })
+              .onConflictDoUpdate({
+                target: [searchDocuments.id],
+                set: {
+                  content: textToEmbed,
+                  embedding: embedding,
+                }
+              });
+          }
+        } catch (embedErr) {
+          console.error("[Calendar API PATCH] Failed to generate embedding on update:", embedErr);
+        }
+      }
+    }
+
+    // 3. Sync to Google Calendar if it's a real Google Calendar ID
+    if (!isMockId(id)) {
+      try {
+        const dbEvent = await db.select().from(calendarEvents).where(eq(calendarEvents.id, id)).limit(1);
+        if (dbEvent[0]) {
+          await CorsairClient.updateCalendarEvent(
+            id,
+            dbEvent[0].title || "Meeting Invite",
+            dbEvent[0].startTime ? dbEvent[0].startTime.toISOString() : new Date().toISOString(),
+            dbEvent[0].endTime ? dbEvent[0].endTime.toISOString() : new Date().toISOString(),
+            dbEvent[0].location || "",
+            dbEvent[0].description || "",
+            session.user.email
+          );
+        }
+      } catch (err) {
+        console.error("[Calendar API PATCH] Failed to update event on Google Calendar:", err);
+      }
+    }
+
+    return NextResponse.json({ success: true, message: "Calendar event updated successfully." });
+  } catch (error: any) {
+    console.error("[Calendar API PATCH Error]", error);
+    return NextResponse.json(
+      { error: "Internal Server Error", message: error.message },
+      { status: 500 }
+    );
+  }
+}

@@ -13,6 +13,7 @@ export interface Email {
   category: "work" | "personal" | "updates" | "promotions";
   quickReplies?: string[] | null;
   contextTag?: string | null;
+  labelIds?: string | null;
 }
 
 export interface CalendarEvent {
@@ -59,10 +60,12 @@ interface CielState {
   emailsHasMore: boolean;
   selectedEmailIndex: number | null;
   searchQuery: string;
+  activeFolder: "all" | "sent";
   setEmails: (emails: Email[]) => void;
   setEmailsPage: (page: number) => void;
   setSelectedEmailIndex: (index: number | null) => void;
   setSearchQuery: (query: string) => void;
+  setActiveFolder: (folder: "all" | "sent") => void;
   markAsRead: (id: string) => Promise<void>;
   archiveEmail: (id: string) => Promise<void>;
   addEmail: (email: Email) => void;
@@ -141,6 +144,7 @@ export const useCielStore = create<CielState>((set, get) => ({
     calendarEvents: [],
     selectedEmailIndex: null,
     searchQuery: "",
+    activeFolder: "all",
     chatMessages: [
       {
         id: "init",
@@ -166,10 +170,12 @@ export const useCielStore = create<CielState>((set, get) => ({
   emailsHasMore: true,
   selectedEmailIndex: null,
   searchQuery: "",
+  activeFolder: "all",
   setEmails: (emails) => set({ emails, selectedEmailIndex: emails.length > 0 ? 0 : null }),
   setEmailsPage: (page) => set({ emailsPage: page }),
   setSelectedEmailIndex: (index) => set({ selectedEmailIndex: index }),
   setSearchQuery: (query) => set({ searchQuery: query }),
+  setActiveFolder: (folder) => set({ activeFolder: folder }),
   markAsRead: async (id) => {
     await useCielStore.getState().updateEmail(id, { read: true });
   },
@@ -277,6 +283,7 @@ export const useCielStore = create<CielState>((set, get) => ({
       queryParams.set("limit", limit.toString());
       queryParams.set("offset", offset.toString());
       queryParams.set("sync_limit", ((targetPage * limit) + 150).toString());
+      queryParams.set("folder", state.activeFolder);
 
       const res = await fetch(`/api/emails?${queryParams.toString()}`);
       if (res.ok) {

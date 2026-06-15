@@ -7,6 +7,7 @@ import { useSession, signOut } from "@/lib/auth-client";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { useHotkeys } from "react-hotkeys-hook";
 import { PerformanceCanvas } from "@/components/PerformanceCanvas";
+import toast from "react-hot-toast";
 
 const getDaysInMonth = (date: Date) => {
   const year = date.getFullYear();
@@ -74,6 +75,8 @@ export default function DashboardPage() {
   const emailsPerPage = useCielStore((s) => s.emailsPerPage);
   const emailsHasMore = useCielStore((s) => s.emailsHasMore);
   const fetchEmails = useCielStore((s) => s.fetchEmails);
+  const activeFolder = useCielStore((s) => s.activeFolder);
+  const setActiveFolder = useCielStore((s) => s.setActiveFolder);
   const calendarEvents = useCielStore((s) => s.calendarEvents);
   const fetchCalendarEvents = useCielStore((s) => s.fetchCalendarEvents);
   const selectedDate = useCielStore((s) => s.selectedDate);
@@ -149,6 +152,7 @@ export default function DashboardPage() {
   const [chatExpanded, setChatExpanded] = useState(false);
   const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
   const [selectedContextTag, setSelectedContextTag] = useState<string | null>(null);
+  const [isTabLoading, setIsTabLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   // Compose Mail & AI Smart Reply States
@@ -174,6 +178,16 @@ export default function DashboardPage() {
   const [calendarPanelExpanded, setCalendarPanelExpanded] = useState(false);
   const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("day");
   const [calendarAnchorDate, setCalendarAnchorDate] = useState<Date | null>(null);
+
+  // Edit Calendar Event States
+  const [showEditEventModal, setShowEditEventModal] = useState(false);
+  const [editingEventId, setEditingEventId] = useState("");
+  const [editEventTitle, setEditEventTitle] = useState("");
+  const [editEventStart, setEditEventStart] = useState("");
+  const [editEventEnd, setEditEventEnd] = useState("");
+  const [editEventLocation, setEditEventLocation] = useState("");
+  const [editEventDescription, setEditEventDescription] = useState("");
+  const [isUpdatingEvent, setIsUpdatingEvent] = useState(false);
 
   const fetchConversations = async () => {
     try {
@@ -480,6 +494,100 @@ export default function DashboardPage() {
     setComposeTo(to);
     setComposeSubject(subject);
     setComposeBody("");
+    setShowComposeModal(true);
+  };
+
+  const handleInitiateEditEvent = (evt: any) => {
+    setEditingEventId(evt.id);
+    setEditEventTitle(evt.title || "");
+    
+    const startLocal = new Date(evt.start);
+    const endLocal = new Date(evt.end);
+    
+    const formatLocalDateForInput = (d: Date) => {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    setEditEventStart(formatLocalDateForInput(startLocal));
+    setEditEventEnd(formatLocalDateForInput(endLocal));
+    setEditEventLocation(evt.location || "");
+    setEditEventDescription(evt.description || "");
+    setShowEditEventModal(true);
+  };
+
+  const handleUpdateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEventId || !editEventTitle.trim() || isUpdatingEvent) return;
+
+    setIsUpdatingEvent(true);
+    try {
+      const res = await fetch("/api/calendar", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingEventId,
+          title: editEventTitle,
+          start: new Date(editEventStart).toISOString(),
+          end: new Date(editEventEnd).toISOString(),
+          location: editEventLocation,
+          description: editEventDescription,
+        })
+      });
+
+      if (res.ok) {
+        setShowEditEventModal(false);
+        fetchCalendarEvents();
+        toast.success("Event updated successfully!");
+      } else {
+        const data = await res.json();
+        alert("Failed to update event: " + (data.error || "Unknown error"));
+      }
+    } catch (err) {
+      console.error("Failed to update event", err);
+      alert("Error updating event.");
+    } finally {
+      setIsUpdatingEvent(false);
+    }
+  };
+
+  const handleDeleteEvent = async (eventId: string, title: string) => {
+    if (!confirm(`Are you sure you want to delete the event "${title}"?`)) return;
+
+    try {
+      const res = await fetch("/api/calendar", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: eventId })
+      });
+
+      if (res.ok) {
+        fetchCalendarEvents();
+        toast.success("Event deleted successfully!");
+      } else {
+        const data = await res.json();
+        alert("Failed to delete event: " + (data.error || "Unknown error"));
+      }
+    } catch (err) {
+      console.error("Failed to delete event", err);
+      alert("Error deleting event.");
+    }
+  };
+
+  const handleEmailEventDetails = (evt: any) => {
+    const startStr = new Date(evt.start).toLocaleString();
+    const endStr = new Date(evt.end).toLocaleString();
+    const subject = `Event Details: ${evt.title}`;
+    const body = `Here are the event details:\n\n` +
+      `Title: ${evt.title}\n` +
+      `Time: ${startStr} - ${endStr}\n` +
+      (evt.location ? `Location: ${evt.location}\n` : "") +
+      (evt.attendees && evt.attendees.length > 0 ? `Attendees: ${evt.attendees.join(", ")}\n` : "") +
+      (evt.description ? `Description:\n${evt.description}\n` : "");
+
+    setComposeTo("");
+    setComposeSubject(subject);
+    setComposeBody(body);
     setShowComposeModal(true);
   };
 
@@ -791,9 +899,44 @@ export default function DashboardPage() {
 
                 {/* Pagination Header (static, out of scroll view) */}
                 <div className={`px-5 py-2.5 flex justify-between items-center border-t border-b ${borderClass} shrink-0`}>
-                  <span className={`text-[10px] uppercase tracking-wider ${textMutedClass}`}>
-                    Inbox
-                  </span>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={async () => {
+                        setIsTabLoading(true);
+                        setActiveFolder("all");
+                        await fetchEmails(false, 1);
+                        setIsTabLoading(false);
+                      }}
+                      className={`relative py-1 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all duration-200 ${
+                        activeFolder === "all"
+                          ? "text-purple-600 dark:text-purple-400"
+                          : "text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-400"
+                      }`}
+                    >
+                      Received Mails
+                      {activeFolder === "all" && (
+                        <span className="absolute bottom-[-10px] left-0 right-0 h-[2px] bg-purple-500 rounded-full" />
+                      )}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setIsTabLoading(true);
+                        setActiveFolder("sent");
+                        await fetchEmails(false, 1);
+                        setIsTabLoading(false);
+                      }}
+                      className={`relative py-1 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all duration-200 ${
+                        activeFolder === "sent"
+                          ? "text-purple-600 dark:text-purple-400"
+                          : "text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-400"
+                      }`}
+                    >
+                      Sent Mails
+                      {activeFolder === "sent" && (
+                        <span className="absolute bottom-[-10px] left-0 right-0 h-[2px] bg-purple-500 rounded-full" />
+                      )}
+                    </button>
+                  </div>
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={(e) => { e.stopPropagation(); if (emailsPage > 1) fetchEmails(false, emailsPage - 1); }}
@@ -847,7 +990,20 @@ export default function DashboardPage() {
 
                 {/* Email List (scrollable) */}
                 <div className="flex-1 overflow-y-auto">
-                  {emails.length === 0 ? (
+                  {isTabLoading ? (
+                    <div className="divide-y divide-slate-100 dark:divide-white/5 animate-pulse">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <div key={i} className="p-4 space-y-3 border-b border-slate-900/5 dark:border-white/5 opacity-65">
+                          <div className="flex justify-between items-center">
+                            <div className="h-3.5 bg-slate-350 dark:bg-white/10 rounded w-1/4"></div>
+                            <div className="h-2.5 bg-slate-350 dark:bg-white/10 rounded w-16"></div>
+                          </div>
+                          <div className="h-3.5 bg-slate-350 dark:bg-white/10 rounded w-2/3"></div>
+                          <div className="h-2.5 bg-slate-350 dark:bg-white/10 rounded w-1/2"></div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : emails.length === 0 ? (
                     <p className={`text-xs ${textMutedClass} p-5`}>No emails cached in database. Click Refresh or check your credentials.</p>
                   ) : (
                     <div>
@@ -1183,6 +1339,29 @@ export default function DashboardPage() {
                             {evt.description && (
                               <p className={`${isDark ? "text-slate-350" : "text-slate-700"} font-sans font-normal leading-relaxed whitespace-pre-wrap bg-slate-900/5 dark:bg-black/20 p-3 border border-slate-900/5 dark:border-white/5 rounded-xl mt-2`}>{evt.description}</p>
                             )}
+                            
+                            {/* Event Actions */}
+                            <div className="flex flex-wrap gap-2 mt-3.5 pt-2.5 border-t border-slate-900/5 dark:border-white/5 justify-end">
+                              <button
+                                onClick={() => handleEmailEventDetails(evt)}
+                                className="px-2 py-1 text-[9px] font-bold uppercase cursor-pointer rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 border border-cyan-500/20 hover:bg-cyan-500/20 transition-all flex items-center"
+                                title="Compose email with event details"
+                              >
+                                Email Event Details
+                              </button>
+                              <button
+                                onClick={() => handleInitiateEditEvent(evt)}
+                                className="px-2 py-1 text-[9px] font-bold uppercase cursor-pointer rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20 hover:bg-purple-500/20 transition-all flex items-center"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteEvent(evt.id, evt.title)}
+                                className="px-2 py-1 text-[9px] font-bold uppercase cursor-pointer rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 transition-all flex items-center"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </div>
                         ));
                       })()}
@@ -1804,6 +1983,97 @@ export default function DashboardPage() {
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-zinc-800 disabled:text-slate-400 dark:disabled:text-zinc-605 text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors"
                 >
                   {isSendingCompose ? "Sending..." : "Send Email"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Calendar Event Modal */}
+      {showEditEventModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowEditEventModal(false)}>
+          <div 
+            className={`w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[400px] ${cardBgClass} transition-transform duration-300 transform scale-100`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`p-4 border-b ${borderClass} flex items-center justify-between ${accordionHeaderBgClass}`}>
+              <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Edit Event Details</h3>
+              <button 
+                onClick={() => setShowEditEventModal(false)}
+                className="text-slate-500 hover:text-slate-900 dark:hover:text-white font-bold text-lg cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleUpdateEvent} className="flex-1 flex flex-col p-4 space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-500 uppercase font-bold">Title:</label>
+                <input 
+                  type="text" 
+                  value={editEventTitle}
+                  onChange={(e) => setEditEventTitle(e.target.value)}
+                  placeholder="Event Title"
+                  required
+                  className={`w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-500 uppercase font-bold">Start Time:</label>
+                  <input 
+                    type="datetime-local" 
+                    value={editEventStart}
+                    onChange={(e) => setEditEventStart(e.target.value)}
+                    required
+                    className={`w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-500 uppercase font-bold">End Time:</label>
+                  <input 
+                    type="datetime-local" 
+                    value={editEventEnd}
+                    onChange={(e) => setEditEventEnd(e.target.value)}
+                    required
+                    className={`w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-500 uppercase font-bold">Location:</label>
+                <input 
+                  type="text" 
+                  value={editEventLocation}
+                  onChange={(e) => setEditEventLocation(e.target.value)}
+                  placeholder="Event Location (optional)"
+                  className={`w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
+                />
+              </div>
+              <div className="flex-1 flex flex-col space-y-1">
+                <label className="text-[10px] text-slate-500 uppercase font-bold">Description:</label>
+                <textarea 
+                  value={editEventDescription}
+                  onChange={(e) => setEditEventDescription(e.target.value)}
+                  placeholder="Event description (optional)"
+                  rows={4}
+                  className={`flex-1 text-xs p-3 outline-none rounded-xl border transition-all duration-300 ${inputBgClass} resize-none`}
+                />
+              </div>
+              <div className={`pt-3 border-t border-slate-900/10 dark:border-white/10 flex justify-end gap-2 shrink-0`}>
+                <button
+                  type="button"
+                  onClick={() => setShowEditEventModal(false)}
+                  className="px-3.5 py-2 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingEvent || !editEventTitle.trim()}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-zinc-800 disabled:text-slate-400 dark:disabled:text-zinc-605 text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors"
+                >
+                  {isUpdatingEvent ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </form>

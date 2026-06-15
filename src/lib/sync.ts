@@ -245,7 +245,7 @@ async function cleanDeletedEmails(skeletons: any[], userEmail: string) {
   }
 }
 
-async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
+async function syncBatchOfSkeletons(skeletons: any[], userEmail: string, sentIds?: Set<string>) {
   if (skeletons.length === 0) return;
 
   const rawMessages = await Promise.all(
@@ -271,6 +271,12 @@ async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
       const cleanBodyForEmbedding = body.substring(0, 15000);
       const textToEmbed = `From: ${fromName} <${fromEmail}>\nSubject: ${subject}\nBody: ${cleanBodyForEmbedding}`;
       
+      let labelIdsArr = rawMsg.labelIds || [];
+      if (sentIds?.has(email.id) && !labelIdsArr.includes("SENT")) {
+        labelIdsArr = [...labelIdsArr, "SENT"];
+      }
+      const labelIdsStr = labelIdsArr.length > 0 ? labelIdsArr.join(",") : null;
+
       parsedEmails.push({
         id: email.id,
         fromName,
@@ -280,6 +286,7 @@ async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
         date: email.date || new Date().toISOString(),
         read: email.read ?? false,
         textToEmbed,
+        labelIds: labelIdsStr,
       });
     }
   }
@@ -301,6 +308,7 @@ async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
           category: aiResult.category,
           quickReplies: aiResult.quickReplies,
           contextTag: aiResult.contextTag,
+          labelIds: email.labelIds,
         };
       })
     );
@@ -316,6 +324,7 @@ async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
             category: sql`EXCLUDED.category`,
             quickReplies: sql`EXCLUDED.quick_replies`,
             contextTag: sql`EXCLUDED.context_tag`,
+            labelIds: sql`EXCLUDED.label_ids`,
           }
         });
       console.log(`[Sync] Successfully batch inserted/updated ${parsedEmails.length} emails in a single query.`);
@@ -334,6 +343,7 @@ async function syncBatchOfSkeletons(skeletons: any[], userEmail: string) {
 async function runBackgroundSyncForRemaining(
   skeletons: any[],
   userEmail: string,
+  sentIds?: Set<string>,
 ) {
   console.log(
     `[Background Sync] Starting background fetch for ${skeletons.length} remaining emails for ${userEmail}`,
@@ -341,7 +351,7 @@ async function runBackgroundSyncForRemaining(
   try {
     for (let i = 0; i < skeletons.length; i += 50) {
       const batch = skeletons.slice(i, i + 50);
-      await syncBatchOfSkeletons(batch, userEmail);
+      await syncBatchOfSkeletons(batch, userEmail, sentIds);
     }
     console.log(
       `[Background Sync] Completed background fetch for ${userEmail}`,
@@ -392,9 +402,18 @@ export async function syncUserEmails(userEmail: string, syncLimit: number = 200)
   console.log(`[Sync Service] Starting background sync pipeline for ${userEmail} (limit: ${syncLimit})...`);
   broadcastSyncStart(userEmail);
   try {
-    const messageSkeletons = await CorsairClient.listGmailMessagesDirectly(userEmail, syncLimit);
+    const [inboxSkeletons, sentSkeletons] = await Promise.all([
+      CorsairClient.listGmailMessagesDirectly(userEmail, syncLimit),
+      CorsairClient.listGmailMessagesDirectly(userEmail, 200, "in:sent")
+    ]);
+
+    const sentIds = new Set(sentSkeletons.map((s: any) => s.id));
+    const mergedSkeletonsMap = new Map<string, any>();
+    inboxSkeletons.forEach((s) => mergedSkeletonsMap.set(s.id, s));
+    sentSkeletons.forEach((s) => mergedSkeletonsMap.set(s.id, s));
+    const messageSkeletons = Array.from(mergedSkeletonsMap.values());
     const messageSkeletonsLength = messageSkeletons.length;
-    console.log(`[Sync Service] Corsair returned ${messageSkeletonsLength} message skeletons.`);
+    console.log(`[Sync Service] Corsair returned ${inboxSkeletons.length} inbox skeletons and ${sentSkeletons.length} sent skeletons. Merged into ${messageSkeletonsLength} unique skeletons.`);
 
     if (messageSkeletonsLength > 0) {
       const localUnreadRes = await db.select({
@@ -438,7 +457,7 @@ export async function syncUserEmails(userEmail: string, syncLimit: number = 200)
 
       if (missingSkeletons.length > 0) {
         console.log(`[Sync Service] Fetching and inserting ${missingSkeletons.length} missing emails...`);
-        await runBackgroundSyncForRemaining(missingSkeletons, userEmail);
+        await runBackgroundSyncForRemaining(missingSkeletons, userEmail, sentIds);
       }
 
       // Check for cached emails missing embeddings to backfill them
