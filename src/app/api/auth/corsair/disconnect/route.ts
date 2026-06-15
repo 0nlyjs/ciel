@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth";
-import { createClient } from "@corsair-dev/app";
-import { db } from "@/lib/db";
+import { pool, db } from "@/lib/db";
+import { createCorsairDatabase } from "corsair/db";
+import { createCorsairOrm } from "corsair/orm";
 import { userIntegrations } from "@/lib/schema";
 import { and, eq } from "drizzle-orm";
 
@@ -17,24 +18,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid plugin. Must be 'gmail' or 'googlecalendar'" }, { status: 400 });
     }
 
-    const apiKey = process.env.CORSAIR_DEV_KEY || process.env.CORSAIR_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "Corsair key is not configured" }, { status: 500 });
-    }
-
-    const corsair = createClient({ apiKey });
-    const { instances } = await corsair.instances.list();
-    const activeInstance = instances.find(inst => inst.status === "active") || instances[0];
-    if (!activeInstance) {
-      return NextResponse.json({ error: "No active Corsair instances found" }, { status: 500 });
-    }
-
     const tenantId = session.user.email;
-    const t = corsair.instance(activeInstance.id).tenant(tenantId);
+    const orm = createCorsairOrm(createCorsairDatabase(pool));
 
-    // Clear access_token and refresh_token
-    await t.plugins.credentials.clear(plugin, "access_token");
-    await t.plugins.credentials.clear(plugin, "refresh_token");
+
+    // Clear access_token and refresh_token by deleting account records
+    const integration = await orm.integrations.findByName(plugin);
+    if (integration) {
+      await orm.accounts.deleteMany({
+        tenant_id: tenantId,
+        integration_id: integration.id
+      });
+    }
 
     // Sync with local user_integrations table
     try {
@@ -56,3 +51,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Internal Server Error", message: error.message }, { status: 500 });
   }
 }
+

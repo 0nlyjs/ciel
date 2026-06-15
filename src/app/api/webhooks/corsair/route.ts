@@ -4,24 +4,15 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { db } from "@/lib/db";
 import { emails, calendarEvents, searchDocuments } from "@/lib/schema";
 import { getEmbedding } from "@/lib/embeddings";
-import { CorsairClient } from "@/lib/corsair";
+import { CorsairClient, corsair } from "@/lib/corsair";
 import { eq, and, sql } from "drizzle-orm";
+import { processWebhook } from "corsair";
 
 // lazy load openai
 const getOpenAIClient = () => {
   const apiKey = process.env.OPENAI_KEY || process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
   return createOpenAI({ apiKey });
-};
-
-// webhook signature verification
-const verifyWebhookSignature = (req: Request) => {
-  const signature = req.headers.get("x-corsair-signature");
-  if (!signature) {
-    return true; // Skip in local testing/sandbox if header is missing
-  }
-  // Optional: Add crypto signature check here if signature is provided
-  return true;
 };
 
 // Keyword fallback classifier if OpenAI key is missing
@@ -161,38 +152,43 @@ Respond with a raw JSON object containing exactly one key: "contextTag". Do not 
   }
 }
 
-
 export async function POST(req: Request) {
   try {
-    // 1. Verify signature
-    if (!verifyWebhookSignature(req)) {
-      return NextResponse.json({ error: "Invalid Signature" }, { status: 401 });
+    const rawBody = await req.text();
+    const headers = Object.fromEntries(req.headers.entries());
+    const query = Object.fromEntries(new URL(req.url).searchParams.entries());
+
+    // Process webhook using new SDK (this handles signature verification and parsing)
+    const result = await processWebhook(corsair, headers, rawBody, query);
+
+    if (!result.plugin) {
+      return NextResponse.json({ error: "No matching plugin found" }, { status: 400 });
     }
 
-    const payload = await req.json();
-    console.log("[Corsair Webhook] Received payload:", payload);
+    const { plugin, action, body: data, responseHeaders } = result;
 
-    const { event, data } = payload;
     if (!data) {
-      return NextResponse.json({ error: "Data payload is missing" }, { status: 400 });
+      return NextResponse.json({ error: "Data payload is missing" }, { status: 400, headers: responseHeaders });
     }
 
-    const tenantId = payload.tenantId || data.tenantId || data.emailAddress || "unknown@domain.com";
+    console.log("[Corsair Webhook] Processed payload:", data);
+
+    const tenantId = query.tenantId || (data as any).tenantId || (data as any).emailAddress || "unknown@domain.com";
 
     // 3. Process Event
-    if (event === "gmail.webhooks.messageChanged") {
-      if (data.type !== "messageReceived") {
-        return NextResponse.json({ success: true, message: `Gmail event ignored: ${data.type}` });
+    if (plugin === "gmail" && action === "messageChanged") {
+      if ((data as any).type !== "messageReceived") {
+        return NextResponse.json({ success: true, message: `Gmail event ignored: ${(data as any).type}` }, { headers: responseHeaders });
       }
 
-      const rawMsg = data.message;
+      const rawMsg = (data as any).message;
       if (!rawMsg) {
-        return NextResponse.json({ error: "Message details missing in payload" }, { status: 400 });
+        return NextResponse.json({ error: "Message details missing in payload" }, { status: 400, headers: responseHeaders });
       }
 
       const parsed = CorsairClient.parseGmailMessage(rawMsg);
       if (!parsed) {
-        return NextResponse.json({ error: "Failed to parse Gmail message" }, { status: 400 });
+        return NextResponse.json({ error: "Failed to parse Gmail message" }, { status: 400, headers: responseHeaders });
       }
 
       const emailId = parsed.id;
@@ -267,14 +263,14 @@ export async function POST(req: Request) {
         success: true,
         message: "Email received, classified, embedded, and stored.",
         email: { id: emailId, user_email: tenantId, from: fromName, fromEmail, subject, body, date: dateStr, read: parsed.read, priority, category },
-      });
+      }, { headers: responseHeaders });
     }
 
-    if (event === "googlecalendar.webhooks.onEventChanged") {
-      if (data.type === "eventDeleted") {
-        const eventId = data.eventId;
+    if (plugin === "googlecalendar" && action === "onEventChanged") {
+      if ((data as any).type === "eventDeleted") {
+        const eventId = (data as any).eventId;
         if (!eventId) {
-          return NextResponse.json({ error: "Event ID is missing for deletion" }, { status: 400 });
+          return NextResponse.json({ error: "Event ID is missing for deletion" }, { status: 400, headers: responseHeaders });
         }
 
         await db.delete(calendarEvents)
@@ -290,16 +286,16 @@ export async function POST(req: Request) {
           success: true,
           message: "Calendar event deleted.",
           eventDeleted: eventId
-        });
+        }, { headers: responseHeaders });
       }
 
-      if (data.type !== "eventCreated" && data.type !== "eventUpdated") {
-        return NextResponse.json({ success: true, message: `Calendar event ignored: ${data.type}` });
+      if ((data as any).type !== "eventCreated" && (data as any).type !== "eventUpdated") {
+        return NextResponse.json({ success: true, message: `Calendar event ignored: ${(data as any).type}` }, { headers: responseHeaders });
       }
 
-      const item = data.event;
+      const item = (data as any).event;
       if (!item) {
-        return NextResponse.json({ error: "Event details missing in payload" }, { status: 400 });
+        return NextResponse.json({ error: "Event details missing in payload" }, { status: 400, headers: responseHeaders });
       }
 
       const eventId = item.id || Math.random().toString();
@@ -368,12 +364,13 @@ export async function POST(req: Request) {
         success: true,
         message: "Calendar event registered, embedded, and stored.",
         event: { id: eventId, user_email: tenantId, title, start, end, location, attendees, description }
-      });
+      }, { headers: responseHeaders });
     }
 
-    return NextResponse.json({ error: "Unknown event type" }, { status: 400 });
+    return NextResponse.json({ error: "Unknown event type" }, { status: 400, headers: responseHeaders });
   } catch (error: any) {
     console.error("[Corsair Webhook POST Error]", error);
     return NextResponse.json({ error: "Internal Server Error", message: error.message }, { status: 500 });
   }
 }
+

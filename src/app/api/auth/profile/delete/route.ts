@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { pool, db } from "@/lib/db";
 import { emails, calendarEvents, users } from "@/lib/schema";
 import { eq } from "drizzle-orm";
-import { createClient } from "@corsair-dev/app";
+import { createCorsairDatabase } from "corsair/db";
+import { createCorsairOrm } from "corsair/orm";
 
 export async function POST() {
   try {
@@ -15,18 +16,11 @@ export async function POST() {
     const userEmail = session.user.email;
 
     // 1. Delete integrations from Corsair
-    const apiKey = process.env.CORSAIR_DEV_KEY || process.env.CORSAIR_API_KEY;
-    if (apiKey) {
-      try {
-        const corsair = createClient({ apiKey });
-        const { instances } = await corsair.instances.list();
-        const activeInstance = instances.find(inst => inst.status === "active") || instances[0];
-        if (activeInstance) {
-          await corsair.instance(activeInstance.id).tenant(userEmail).delete();
-        }
-      } catch (e) {
-        console.warn("Failed to delete tenant on Corsair:", e);
-      }
+    try {
+      const orm = createCorsairOrm(createCorsairDatabase(pool));
+      await orm.accounts.deleteMany({ tenant_id: userEmail });
+    } catch (e) {
+      console.warn("Failed to delete tenant on Corsair:", e);
     }
 
     // 2. Delete data from local Neon Database using Drizzle ORM
@@ -40,3 +34,4 @@ export async function POST() {
     return NextResponse.json({ error: "Internal Server Error", message: error.message }, { status: 500 });
   }
 }
+

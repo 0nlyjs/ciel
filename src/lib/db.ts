@@ -1,8 +1,8 @@
 import { Pool } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import * as schema from "./schema";
-import { CorsairClient } from "@/lib/corsair";
 import { eq } from "drizzle-orm";
+
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -66,7 +66,8 @@ export async function syncEventToGoogleCalendar(
 
     console.log(`[DB Calendar Sync] Syncing event to Google Calendar via Corsair: "${title}" for ${userEmail}`);
 
-    // 3. Call CorsairClient.createCalendarInvite
+    // 3. Call CorsairClient.createCalendarInvite dynamically
+    const { CorsairClient } = await import("@/lib/corsair");
     const event = await CorsairClient.createCalendarInvite(
       title,
       cleanAttendees,

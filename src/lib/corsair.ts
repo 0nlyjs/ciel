@@ -1,80 +1,22 @@
 import { useCielStore, Email, CalendarEvent } from "@/store/useCielStore";
-import { createClient } from "@corsair-dev/app";
+import { createCorsair } from "corsair";
+import { gmail } from "@corsair-dev/gmail";
+import { googlecalendar } from "@corsair-dev/googlecalendar";
+import { pool } from "./db";
+
+export const corsair = createCorsair({
+  multiTenancy: true,
+  plugins: [gmail(), googlecalendar()] as const,
+  database: pool,
+  kek: process.env.CORSAIR_DEV_KEY || process.env.CORSAIR_API_KEY || "ch_lMXup536Xjs1dZBzvEPkgU6s7aA6wdJHwGYn-GIiRk4",
+});
 
 // handles connection to corsair API or MCP server
 // falls back to local zustand state if credentials are missing
 export class CorsairClient {
-  private static get apiKey() {
-    return typeof process !== "undefined"
-      ? (process.env.CORSAIR_API_KEY || process.env.CORSAIR_DEV_KEY)
-      : null;
-  }
-
-  private static getClient() {
-    const key = this.apiKey;
-    if (!key) return null;
-    return createClient({ apiKey: key });
-  }
-
-  private static cachedTenant: any = null;
-  private static cachedTenantId: string = "";
-  private static cachedInstanceId: string = "";
-
-  private static async getTenant(tenantId?: string) {
+  private static getTenant(tenantId?: string) {
     const resolvedTenantId = tenantId || "guest@ciel.app";
-    if (this.cachedTenant && this.cachedTenantId === resolvedTenantId) {
-      return this.cachedTenant;
-    }
-
-    const client = this.getClient();
-    if (!client) return null;
-    try {
-      const targetId = process.env.CORSAIR_INSTANCE_ID;
-      
-      console.log(`[Corsair getTenant] Resolving tenant. targetId=${targetId}, cachedInstanceId=${this.cachedInstanceId}`);
-      
-      // If we have a cached UUID, use it directly!
-      if (this.cachedInstanceId) {
-        console.log(`[Corsair getTenant] Using cached instance UUID: ${this.cachedInstanceId}`);
-        const tenant = client.instance(this.cachedInstanceId).tenant(resolvedTenantId);
-        this.cachedTenant = tenant;
-        this.cachedTenantId = resolvedTenantId;
-        return tenant;
-      }
-
-      // Otherwise, list instances to resolve it (only happens once)
-      console.log("[Corsair getTenant] Listing instances to resolve name...");
-      const { instances } = await client.instances.list();
-      let targetInstance = null;
-      if (targetId) {
-        targetInstance = instances.find(
-          (inst) => inst.id === targetId || inst.name === targetId
-        );
-      }
-
-      // Fallback: look for active instance, then default to first
-      if (!targetInstance) {
-        targetInstance = instances.find(inst => inst.status === "active") || instances[0];
-      }
-
-      if (!targetInstance) {
-        console.warn("[Corsair getTenant] No instances found!");
-        return null;
-      }
-
-      console.log(`[Corsair getTenant] Resolved instance to ID: ${targetInstance.id} (Name: ${targetInstance.name})`);
-
-      // Cache the resolved UUID for subsequent calls
-      this.cachedInstanceId = targetInstance.id;
-
-      const tenant = client.instance(targetInstance.id).tenant(resolvedTenantId);
-      this.cachedTenant = tenant;
-      this.cachedTenantId = resolvedTenantId;
-      return tenant;
-    } catch (e) {
-      console.error("[Corsair SDK] Failed to get tenant:", e);
-      return null;
-    }
+    return corsair.withTenant(resolvedTenantId);
   }
 
   private static base64urlDecode(str: string): string {
@@ -247,55 +189,65 @@ export class CorsairClient {
   static async searchEmails(query: string, tenantId?: string): Promise<Email[]> {
     console.log(`[Corsair] Searching emails for query: "${query}" (tenant: ${tenantId})`);
     
-    const tenant = await this.getTenant(tenantId);
-    if (tenant) {
-      try {
-        const filter = query ? {
-          or: [
-            { subject: { contains: query } },
-            { body: { contains: query } },
-            { from: { contains: query } }
-          ]
-        } : undefined;
-
-        const res = (await tenant.run("gmail.db.messages.search", {
-          data: filter,
+    try {
+      const client = this.getTenant(tenantId);
+      let list: any[] = [];
+      if (query) {
+        const subjectList = await client.gmail.db.messages.search({
+          data: { subject: { contains: query } },
           limit: 100
-        })) as any;
+        });
+        const bodyList = await client.gmail.db.messages.search({
+          data: { body: { contains: query } },
+          limit: 100
+        });
+        const fromList = await client.gmail.db.messages.search({
+          data: { from: { contains: query } },
+          limit: 100
+        });
+        const map = new Map();
+        for (const item of [...subjectList, ...bodyList, ...fromList]) {
+          map.set(item.id, item);
+        }
+        list = Array.from(map.values());
+      } else {
+        list = await client.gmail.db.messages.list({
+          limit: 100
+        });
+      }
 
-        if (res.success && res.data) {
-          const emails: Email[] = [];
-          for (const msg of res.data) {
-            const data = msg.data || msg;
-            let fullMsg = data;
-            
-            // If it's a skeleton record (missing body, payload, subject, etc.), fetch details live
-            if (!data.payload && !data.from && !data.subject) {
-              try {
-                const liveMsgRes = await tenant.run("gmail.api.messages.get", {
-                  userId: "me",
-                  id: msg.entity_id || msg.id || data.id
-                });
-                if (liveMsgRes.success && liveMsgRes.data) {
-                  fullMsg = liveMsgRes.data;
-                }
-              } catch (getErr: any) {
-                console.error(`[Corsair API] Failed to fetch full message for ${msg.id}:`, getErr.message);
+      if (list) {
+        const emails: Email[] = [];
+        for (const msg of list) {
+          const data = msg.data || msg;
+          let fullMsg: any = data;
+          
+          // If it's a skeleton record (missing body, payload, subject, etc.), fetch details live
+          if (!data.payload && !data.from && !data.subject) {
+            try {
+              const liveMsg = await client.gmail.api.messages.get({
+                userId: "me",
+                id: msg.entity_id || msg.id || data.id
+              });
+              if (liveMsg) {
+                fullMsg = liveMsg;
               }
-            }
-            
-            const parsed = this.parseGmailMessageFromDb(fullMsg);
-            if (parsed) {
-              // Override ID to Corsair DB record ID to ensure sync state matches
-              parsed.id = msg.id || parsed.id;
-              emails.push(parsed);
+            } catch (getErr: any) {
+              console.error(`[Corsair API] Failed to fetch full message for ${msg.id}:`, getErr.message);
             }
           }
-          return emails;
+          
+          const parsed = this.parseGmailMessageFromDb(fullMsg);
+          if (parsed) {
+            // Override ID to Corsair DB record ID to ensure sync state matches
+            parsed.id = msg.id || parsed.id;
+            emails.push(parsed);
+          }
         }
-      } catch (error) {
-        console.error("[Corsair API] searchEmails error, falling back:", error);
+        return emails;
       }
+    } catch (error) {
+      console.error("[Corsair API] searchEmails error, falling back:", error);
     }
 
     // local fallback search
@@ -315,34 +267,32 @@ export class CorsairClient {
   static async sendEmail(to: string, subject: string, body: string, tenantId?: string): Promise<boolean> {
     console.log(`[Corsair] Sending email to: ${to}, subject: "${subject}" (tenant: ${tenantId})`);
 
-    const tenant = await this.getTenant(tenantId);
-    if (tenant) {
-      try {
-        const emailParts = [
-          `To: ${to}`,
-          `Subject: ${subject}`,
-          `Content-Type: text/plain; charset=utf-8`,
-          `MIME-Version: 1.0`,
-          "",
-          body
-        ];
-        const emailString = emailParts.join("\r\n");
-        const raw = Buffer.from(emailString, "utf8")
-          .toString("base64")
-          .replace(/\+/g, "-")
-          .replace(/\//g, "_")
-          .replace(/=+$/, "");
+    try {
+      const client = this.getTenant(tenantId);
+      const emailParts = [
+        `To: ${to}`,
+        `Subject: ${subject}`,
+        `Content-Type: text/plain; charset=utf-8`,
+        `MIME-Version: 1.0`,
+        "",
+        body
+      ];
+      const emailString = emailParts.join("\r\n");
+      const raw = Buffer.from(emailString, "utf8")
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
 
-        const res = await tenant.run("gmail.api.messages.send", {
-          userId: "me",
-          raw: raw
-        });
-        if (res.success) {
-          return true;
-        }
-      } catch (error) {
-        console.error("[Corsair API] sendEmail error, falling back:", error);
+      const res = await client.gmail.api.messages.send({
+        userId: "me",
+        raw: raw
+      });
+      if (res) {
+        return true;
       }
+    } catch (error) {
+      console.error("[Corsair API] sendEmail error, falling back:", error);
     }
 
     // append to local emails list
@@ -366,47 +316,45 @@ export class CorsairClient {
   static async createDraft(to: string, subject: string, body: string, tenantId?: string): Promise<Email> {
     console.log(`[Corsair] Creating draft for: ${to} (tenant: ${tenantId})`);
 
-    const tenant = await this.getTenant(tenantId);
-    if (tenant) {
-      try {
-        const emailParts = [
-          `To: ${to}`,
-          `Subject: ${subject}`,
-          `Content-Type: text/plain; charset=utf-8`,
-          `MIME-Version: 1.0`,
-          "",
-          body
-        ];
-        const emailString = emailParts.join("\r\n");
-        const raw = Buffer.from(emailString, "utf8")
-          .toString("base64")
-          .replace(/\+/g, "-")
-          .replace(/\//g, "_")
-          .replace(/=+$/, "");
+    try {
+      const client = this.getTenant(tenantId);
+      const emailParts = [
+        `To: ${to}`,
+        `Subject: ${subject}`,
+        `Content-Type: text/plain; charset=utf-8`,
+        `MIME-Version: 1.0`,
+        "",
+        body
+      ];
+      const emailString = emailParts.join("\r\n");
+      const raw = Buffer.from(emailString, "utf8")
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
 
-        const res = await tenant.run("gmail.api.drafts.create", {
-          userId: "me",
-          draft: {
-            message: { raw }
-          }
-        });
-        if (res.success && res.data) {
-          const draftId = (res.data as any).id || Math.random().toString();
-          return {
-            id: draftId,
-            from: "Draft",
-            fromEmail: to || "receiver@ciel.app",
-            subject: subject || "(Draft Subject)",
-            body: body,
-            date: "Draft",
-            read: true,
-            priority: "medium",
-            category: "work",
-          };
+      const res = await client.gmail.api.drafts.create({
+        userId: "me",
+        draft: {
+          message: { raw }
         }
-      } catch (error) {
-        console.error("[Corsair API] createDraft error, falling back:", error);
+      });
+      if (res) {
+        const draftId = res.id || Math.random().toString();
+        return {
+          id: draftId,
+          from: "Draft",
+          fromEmail: to || "receiver@ciel.app",
+          subject: subject || "(Draft Subject)",
+          body: body,
+          date: "Draft",
+          read: true,
+          priority: "medium",
+          category: "work",
+        };
       }
+    } catch (error) {
+      console.error("[Corsair API] createDraft error, falling back:", error);
     }
 
     const draftEmail: Email = {
@@ -429,35 +377,33 @@ export class CorsairClient {
   static async listCalendarEvents(tenantId?: string): Promise<CalendarEvent[]> {
     console.log(`[Corsair] Listing calendar events (tenant: ${tenantId})`);
     
-    const tenant = await this.getTenant(tenantId);
-    if (tenant) {
-      try {
-        const timeMin = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(); // 90 days ago
-        const res = (await tenant.run("googlecalendar.api.events.getMany", {
-          calendarId: "primary",
-          timeMin: timeMin,
-          singleEvents: true,
-          orderBy: "startTime",
-          maxResults: 100
-        })) as any;
-        if (res.success && res.data && res.data.items) {
-          const events: CalendarEvent[] = res.data.items.map((item: any) => {
-            const attendees = (item.attendees || []).map((a: any) => a.email || a.displayName || "");
-            return {
-              id: item.id || Math.random().toString(),
-              title: item.summary || "No Title",
-              start: item.start?.dateTime || item.start?.date || new Date().toISOString(),
-              end: item.end?.dateTime || item.end?.date || new Date().toISOString(),
-              location: item.location || "",
-              attendees: attendees,
-              description: item.description || "",
-            };
-          });
-          return events;
-        }
-      } catch (error) {
-        console.error("[Corsair API] listCalendarEvents error, falling back:", error);
+    try {
+      const client = this.getTenant(tenantId);
+      const timeMin = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(); // 90 days ago
+      const res = await client.googlecalendar.api.events.getMany({
+        calendarId: "primary",
+        timeMin: timeMin,
+        singleEvents: true,
+        orderBy: "startTime",
+        maxResults: 100
+      });
+      if (res && res.items) {
+        const events: CalendarEvent[] = res.items.map((item: any) => {
+          const attendees = (item.attendees || []).map((a: any) => a.email || a.displayName || "");
+          return {
+            id: item.id || Math.random().toString(),
+            title: item.summary || "No Title",
+            start: item.start?.dateTime || item.start?.date || new Date().toISOString(),
+            end: item.end?.dateTime || item.end?.date || new Date().toISOString(),
+            location: item.location || "",
+            attendees: attendees,
+            description: item.description || "",
+          };
+        });
+        return events;
       }
+    } catch (error) {
+      console.error("[Corsair API] listCalendarEvents error, falling back:", error);
     }
 
     return useCielStore.getState().calendarEvents;
@@ -474,41 +420,38 @@ export class CorsairClient {
   ): Promise<CalendarEvent> {
     console.log(`[Corsair] Creating invite: "${title}" on ${start} - ${end} (tenant: ${tenantId})`);
 
-    const tenant = await this.getTenant(tenantId);
-    if (tenant) {
-      try {
-        const attendeesList = attendees.map(email => ({ email }));
-        const res = await tenant.run("googlecalendar.api.events.create", {
-          calendarId: "primary",
-          event: {
-            summary: title,
-            description: description || "",
-            location: location || "",
-            start: {
-              dateTime: start,
-            },
-            end: {
-              dateTime: end,
-            },
-            attendees: attendeesList,
-          }
-        });
-        if (res.success && res.data) {
-          const item = res.data as any;
-          const returnedAttendees = (item.attendees || []).map((a: any) => a.email || "");
-          return {
-            id: item.id || Math.random().toString(),
-            title: item.summary || title,
-            start: item.start?.dateTime || item.start?.date || start,
-            end: item.end?.dateTime || item.end?.date || end,
-            location: item.location || location || "",
-            attendees: returnedAttendees,
-            description: item.description || description || "",
-          };
+    try {
+      const client = this.getTenant(tenantId);
+      const attendeesList = attendees.map(email => ({ email }));
+      const item = await client.googlecalendar.api.events.create({
+        calendarId: "primary",
+        event: {
+          summary: title,
+          description: description || "",
+          location: location || "",
+          start: {
+            dateTime: start,
+          },
+          end: {
+            dateTime: end,
+          },
+          attendees: attendeesList,
         }
-      } catch (error) {
-        console.error("[Corsair API] createCalendarInvite error, falling back:", error);
+      });
+      if (item) {
+        const returnedAttendees = (item.attendees || []).map((a: any) => a.email || "");
+        return {
+          id: item.id || Math.random().toString(),
+          title: item.summary || title,
+          start: item.start?.dateTime || item.start?.date || start,
+          end: item.end?.dateTime || item.end?.date || end,
+          location: item.location || location || "",
+          attendees: returnedAttendees,
+          description: item.description || description || "",
+        };
       }
+    } catch (error) {
+      console.error("[Corsair API] createCalendarInvite error, falling back:", error);
     }
 
     const newEvent: CalendarEvent = {
@@ -527,19 +470,15 @@ export class CorsairClient {
 
   static async deleteCalendarEvent(eventId: string, tenantId?: string): Promise<boolean> {
     console.log(`[Corsair] Deleting calendar event: ${eventId} (tenant: ${tenantId})`);
-    const tenant = await this.getTenant(tenantId);
-    if (tenant) {
-      try {
-        const res = await tenant.run("googlecalendar.api.events.delete", {
-          calendarId: "primary",
-          eventId: eventId,
-        });
-        if (res.success) {
-          return true;
-        }
-      } catch (error) {
-        console.error("[Corsair API] deleteCalendarEvent error:", error);
-      }
+    try {
+      const client = this.getTenant(tenantId);
+      await client.googlecalendar.api.events.delete({
+        calendarId: "primary",
+        id: eventId,
+      });
+      return true;
+    } catch (error) {
+      console.error("[Corsair API] deleteCalendarEvent error:", error);
     }
     return false;
   }
@@ -554,43 +493,40 @@ export class CorsairClient {
     tenantId?: string
   ): Promise<boolean> {
     console.log(`[Corsair] Updating calendar event: ${eventId} (tenant: ${tenantId})`);
-    const tenant = await this.getTenant(tenantId);
-    if (tenant) {
-      try {
-        const res = await tenant.run("googlecalendar.api.events.patch", {
-          calendarId: "primary",
-          eventId: eventId,
-          event: {
-            summary: title,
-            start: { dateTime: start },
-            end: { dateTime: end },
-            location: location || "",
-            description: description || "",
-          }
-        });
-        if (res.success) {
-          return true;
+    try {
+      const client = this.getTenant(tenantId);
+      const res = await client.googlecalendar.api.events.update({
+        calendarId: "primary",
+        id: eventId,
+        event: {
+          summary: title,
+          start: { dateTime: start },
+          end: { dateTime: end },
+          location: location || "",
+          description: description || "",
         }
-      } catch (error) {
-        console.error("[Corsair API] updateCalendarEvent error:", error);
+      });
+      if (res) {
+        return true;
       }
+    } catch (error) {
+      console.error("[Corsair API] updateCalendarEvent error:", error);
     }
     return false;
   }
 
   static async listGmailMessagesDirectly(tenantId?: string, maxResults: number = 100, q: string = "label:INBOX"): Promise<any[]> {
     console.log(`[Corsair] Listing Gmail messages directly for tenant: ${tenantId} (query: ${q})`);
-    const tenant = await this.getTenant(tenantId);
-    if (!tenant) return [];
     try {
-      const res = (await tenant.run("gmail.api.messages.list", {
+      const client = this.getTenant(tenantId);
+      const res = await client.gmail.api.messages.list({
         userId: "me",
         maxResults: maxResults,
         includeSpamTrash: false,
         q: q
-      })) as any;
-      if (res.success && res.data && res.data.messages) {
-        return res.data.messages;
+      });
+      if (res && res.messages) {
+        return res.messages;
       }
     } catch (error) {
       console.error("[Corsair API] listGmailMessagesDirectly error:", error);
@@ -599,15 +535,14 @@ export class CorsairClient {
   }
 
   static async getGmailMessageDirectly(messageId: string, tenantId?: string): Promise<any> {
-    const tenant = await this.getTenant(tenantId);
-    if (!tenant) return null;
     try {
-      const res = await tenant.run("gmail.api.messages.get", {
+      const client = this.getTenant(tenantId);
+      const res = await client.gmail.api.messages.get({
         userId: "me",
         id: messageId
       });
-      if (res.success && res.data) {
-        return res.data;
+      if (res) {
+        return res;
       }
     } catch (error) {
       console.error(`[Corsair API] getGmailMessageDirectly error for ${messageId}:`, error);
@@ -617,18 +552,18 @@ export class CorsairClient {
 
   static async markGmailMessageRead(messageId: string, tenantId?: string): Promise<boolean> {
     console.log(`[Corsair] Marking message read on Gmail: ${messageId} (tenant: ${tenantId})`);
-    const tenant = await this.getTenant(tenantId);
-    if (!tenant) return false;
     try {
-      const res = await tenant.run("gmail.api.messages.modify", {
+      const client = this.getTenant(tenantId);
+      const res = await client.gmail.api.messages.modify({
         userId: "me",
         id: messageId,
         removeLabelIds: ["UNREAD"]
       });
-      return !!res.success;
+      return !!res;
     } catch (error) {
       console.error(`[Corsair API] markGmailMessageRead error for ${messageId}:`, error);
       return false;
     }
   }
 }
+
