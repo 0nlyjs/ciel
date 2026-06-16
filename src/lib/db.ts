@@ -87,11 +87,14 @@ export async function syncEventToGoogleCalendar(
         .set({ id: event.id })
         .where(eq(schema.calendarEvents.id, mockId));
       console.log(`[DB Calendar Sync] Database event ID updated from ${mockId} to ${event.id}`);
+      return event;
     } else {
       console.warn(`[DB Calendar Sync] Did not get a real Google Calendar ID. Leaving event ${mockId} as local-only.`);
+      return event;
     }
   } catch (error) {
     console.error(`[DB Calendar Sync] Error syncing local event ${mockId} to Google Calendar:`, error);
+    throw error;
   }
 }
 

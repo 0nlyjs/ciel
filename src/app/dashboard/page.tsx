@@ -33,6 +33,7 @@ export default function DashboardPage() {
   const initializeClientDate = useCielStore((s) => s.initializeClientDate);
   const fetchSettings = useCielStore((s) => s.fetchSettings);
   const fetchLocalIntegrations = useCielStore((s) => s.fetchLocalIntegrations);
+  const syncInterval = useCielStore((s) => s.syncInterval);
   const isDark = true;
 
   // Modals / global states
@@ -176,6 +177,34 @@ export default function DashboardPage() {
       eventSource.close();
     };
   }, [session, user?.email, fetchEmails, fetchCalendarEvents]);
+
+  // Periodic Background Hard Sync Timer based on syncInterval setting
+  useEffect(() => {
+    if (!session || !user?.email || !syncInterval) return;
+
+    const intervalMs = syncInterval * 60 * 1000;
+    console.log(`[Sync Timer] Starting periodic hard sync every ${syncInterval} minutes (${intervalMs}ms)`);
+
+    const performHardSync = async () => {
+      console.log(`[Sync Timer] Hard sync triggered for ${user.email}...`);
+      try {
+        // Hard sync Gmail
+        await fetchEmails(true);
+        // Hard sync Calendar
+        await fetchCalendarEvents();
+        console.log("[Sync Timer] Hard sync completed successfully.");
+      } catch (err) {
+        console.error("[Sync Timer] Hard sync failed:", err);
+      }
+    };
+
+    const timer = setInterval(performHardSync, intervalMs);
+
+    return () => {
+      console.log(`[Sync Timer] Clearing periodic sync timer for ${user.email}`);
+      clearInterval(timer);
+    };
+  }, [session, user?.email, syncInterval, fetchEmails, fetchCalendarEvents]);
 
   // Listen for global custom event trigger
   useEffect(() => {

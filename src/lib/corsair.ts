@@ -364,26 +364,11 @@ export class CorsairClient {
       if (res) {
         return true;
       }
-    } catch (error) {
-      console.error("[Corsair API] sendEmail error, falling back:", error);
+      throw new Error("Empty response from Gmail API");
+    } catch (error: any) {
+      console.error("[Corsair API] sendEmail error:", error);
+      throw new Error(`Gmail API call failed: ${error.message || error}`);
     }
-
-    // append to local emails list
-    const store = useCielStore.getState();
-    const newEmail: Email = {
-      id: Math.random().toString(),
-      from: store.user?.name || "You",
-      fromEmail: store.user?.email || "user@ciel.app",
-      subject: subject || "(No Subject)",
-      body: body,
-      date: "Just now",
-      read: true,
-      priority: "medium",
-      category: "work",
-    };
-    
-    store.addEmail(newEmail);
-    return true;
   }
 
   static async createDraft(to: string, subject: string, body: string, tenantId?: string): Promise<Email> {
@@ -426,24 +411,11 @@ export class CorsairClient {
           category: "work",
         };
       }
-    } catch (error) {
-      console.error("[Corsair API] createDraft error, falling back:", error);
+      throw new Error("Empty response from Gmail drafts API");
+    } catch (error: any) {
+      console.error("[Corsair API] createDraft error:", error);
+      throw new Error(`Gmail Drafts API call failed: ${error.message || error}`);
     }
-
-    const draftEmail: Email = {
-      id: Math.random().toString(),
-      from: "Draft",
-      fromEmail: to || "receiver@ciel.app",
-      subject: subject || "(Draft Subject)",
-      body: body,
-      date: "Draft",
-      read: true,
-      priority: "medium",
-      category: "work",
-    };
-
-    useCielStore.getState().addEmail(draftEmail);
-    return draftEmail;
   }
 
   // calendar operations
@@ -523,22 +495,11 @@ export class CorsairClient {
           description: item.description || description || "",
         };
       }
-    } catch (error) {
-      console.error("[Corsair API] createCalendarInvite error, falling back:", error);
+      throw new Error("Empty response from Google Calendar API");
+    } catch (error: any) {
+      console.error("[Corsair API] createCalendarInvite error:", error);
+      throw new Error(`Google Calendar API call failed: ${error.message || error}`);
     }
-
-    const newEvent: CalendarEvent = {
-      id: Math.random().toString(),
-      title,
-      start,
-      end,
-      location,
-      attendees,
-      description,
-    };
-
-    useCielStore.getState().addCalendarEvent(newEvent);
-    return newEvent;
   }
 
   static async deleteCalendarEvent(eventId: string, tenantId?: string): Promise<boolean> {
@@ -550,10 +511,10 @@ export class CorsairClient {
         id: eventId,
       });
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error("[Corsair API] deleteCalendarEvent error:", error);
+      throw new Error(`Google Calendar API delete failed: ${error.message || error}`);
     }
-    return false;
   }
 
   static async updateCalendarEvent(
@@ -582,10 +543,11 @@ export class CorsairClient {
       if (res) {
         return true;
       }
-    } catch (error) {
+      throw new Error("Empty response from Google Calendar API");
+    } catch (error: any) {
       console.error("[Corsair API] updateCalendarEvent error:", error);
+      throw new Error(`Google Calendar API update failed: ${error.message || error}`);
     }
-    return false;
   }
 
   static async listGmailMessagesDirectly(tenantId?: string, maxResults: number = 100, q: string = "label:INBOX"): Promise<any[]> {

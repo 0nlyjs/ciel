@@ -346,39 +346,41 @@ export async function POST(req: Request) {
     }
 
     // Explicitly check and trigger sync to Google Calendar if it's a mock ID
+    let finalEventId = eventId;
     if (isMockId(eventId)) {
       console.log(
         `[Calendar API POST] Mock calendar event detected. Syncing to Google Calendar...`,
         { eventId, userEmail: session.user.email, title: cleanTitle },
       );
-      after(async () => {
-        try {
-          await syncEventToGoogleCalendar(
-            eventId,
-            session.user.email,
-            cleanTitle,
-            cleanStart,
-            cleanEnd,
-            cleanLocation,
-            cleanAttendees,
-            cleanDescription,
-          );
-          console.log(
-            `[Calendar API POST] Google Calendar sync successful for event: ${eventId}`,
-          );
-        } catch (err) {
-          console.error(
-            "[Calendar API POST] Error in background calendar sync:",
-            err,
-          );
+      try {
+        const syncedEvent = await syncEventToGoogleCalendar(
+          eventId,
+          session.user.email,
+          cleanTitle,
+          cleanStart,
+          cleanEnd,
+          cleanLocation,
+          cleanAttendees,
+          cleanDescription,
+        );
+        if (syncedEvent && syncedEvent.id) {
+          finalEventId = syncedEvent.id;
         }
-      });
+        console.log(
+          `[Calendar API POST] Google Calendar sync successful for event: ${finalEventId}`,
+        );
+      } catch (err) {
+        console.error(
+          "[Calendar API POST] Error in calendar sync:",
+          err,
+        );
+      }
     }
 
     return NextResponse.json({
       success: true,
       event: {
-        id: eventId,
+        id: finalEventId,
         title: cleanTitle,
         start: cleanStart,
         end: cleanEnd,

@@ -49,11 +49,10 @@ export function SettingsTab() {
               onChange={(e) => updateSettings({ syncInterval: parseInt(e.target.value, 10) })}
               className={`w-full text-xs px-3 py-2 border ${border900Class} rounded-xl outline-none transition-all duration-300 ${inputBgClass}`}
             >
-              <option value={15}>Every 15 minutes</option>
+              <option value={5}>Every 5 minutes</option>
+              <option value={10}>Every 10 minutes</option>
               <option value={30}>Every 30 minutes</option>
               <option value={60}>Every 1 hour (Default)</option>
-              <option value={720}>Every 12 hours</option>
-              <option value={1440}>Every 24 hours</option>
             </select>
           </div>
 

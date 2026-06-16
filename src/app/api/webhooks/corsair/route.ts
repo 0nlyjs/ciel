@@ -8,6 +8,23 @@ import { CorsairClient, corsair } from "@/lib/corsair";
 import { eq, and, sql } from "drizzle-orm";
 import { processWebhook } from "corsair";
 
+import { activeClients } from "@/app/api/sync/stream/route";
+
+function broadcastSSE(userEmail: string, eventType: "new_email" | "new_calendar" | "sync_complete") {
+  const clientControllers = activeClients.get(userEmail);
+  if (clientControllers && clientControllers.length > 0) {
+    console.log(`[Webhook Broadcast] Sending ${eventType} to ${clientControllers.length} active streams for ${userEmail}`);
+    const eventData = new TextEncoder().encode(`data: ${eventType}\n\n`);
+    clientControllers.forEach((controller) => {
+      try {
+        controller.enqueue(eventData);
+      } catch (err) {
+        console.error(`[Webhook Broadcast] Failed to send to SSE controller:`, err);
+      }
+    });
+  }
+}
+
 // lazy load openai
 const getOpenAIClient = () => {
   const apiKey = process.env.OPENAI_KEY || process.env.OPENAI_API_KEY;
@@ -259,6 +276,9 @@ export async function POST(req: Request) {
 
       console.log(`[Corsair Webhook] Cached email "${subject}" for ${tenantId} [Priority: ${priority.toUpperCase()}]`);
 
+      // Broadcast to active client streams
+      broadcastSSE(tenantId, "new_email");
+
       return NextResponse.json({
         success: true,
         message: "Email received, classified, embedded, and stored.",
@@ -282,6 +302,10 @@ export async function POST(req: Request) {
           );
 
         console.log(`[Corsair Webhook] Deleted calendar event "${eventId}" for ${tenantId}`);
+
+        // Broadcast to active client streams
+        broadcastSSE(tenantId, "new_calendar");
+
         return NextResponse.json({
           success: true,
           message: "Calendar event deleted.",
@@ -359,6 +383,9 @@ export async function POST(req: Request) {
       }
 
       console.log(`[Corsair Webhook] Cached calendar event "${title}" for ${tenantId}`);
+
+      // Broadcast to active client streams
+      broadcastSSE(tenantId, "new_calendar");
 
       return NextResponse.json({
         success: true,
