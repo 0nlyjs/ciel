@@ -8,30 +8,32 @@ import { eq } from "drizzle-orm";
 export async function GET() {
   try {
     const session = await getServerSession();
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const email = session.user.email;
-    const rows = await db.select({
-      user_email: userSettings.userEmail,
-      sync_interval_minutes: userSettings.syncIntervalMinutes,
-      ai_auto_priority: userSettings.aiAutoPriority,
-      created_at: userSettings.createdAt,
-    })
-    .from(userSettings)
-    .where(eq(userSettings.userEmail, email));
+    const userId = session.user.id;
+    const rows = await db
+      .select({
+        user_id: userSettings.userId,
+        sync_interval_minutes: userSettings.syncIntervalMinutes,
+        ai_auto_priority: userSettings.aiAutoPriority,
+        created_at: userSettings.createdAt,
+      })
+      .from(userSettings)
+      .where(eq(userSettings.userId, userId));
 
     if (rows.length === 0) {
       // Create defaults
-      const defaultSettings = await db.insert(userSettings)
+      const defaultSettings = await db
+        .insert(userSettings)
         .values({
-          userEmail: email,
+          userId,
           syncIntervalMinutes: 60,
           aiAutoPriority: true,
         })
         .returning({
-          user_email: userSettings.userEmail,
+          user_id: userSettings.userId,
           sync_interval_minutes: userSettings.syncIntervalMinutes,
           ai_auto_priority: userSettings.aiAutoPriority,
           created_at: userSettings.createdAt,
@@ -42,7 +44,10 @@ export async function GET() {
     return NextResponse.json(rows[0]);
   } catch (error: any) {
     console.error("[Settings GET Error]", error);
-    return NextResponse.json({ error: "Internal Server Error", message: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error", message: error.message },
+      { status: 500 },
+    );
   }
 }
 
@@ -50,29 +55,38 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const session = await getServerSession();
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const email = session.user.email;
+    const userId = session.user.id;
     const { sync_interval_minutes, ai_auto_priority } = await req.json();
 
     // Validate parameters
-    const updated = await db.insert(userSettings)
+    const updated = await db
+      .insert(userSettings)
       .values({
-        userEmail: email,
-        syncIntervalMinutes: sync_interval_minutes !== undefined ? parseInt(sync_interval_minutes, 10) : 60,
-        aiAutoPriority: ai_auto_priority !== undefined ? !!ai_auto_priority : true
+        userId,
+        syncIntervalMinutes:
+          sync_interval_minutes !== undefined
+            ? parseInt(sync_interval_minutes, 10)
+            : 60,
+        aiAutoPriority:
+          ai_auto_priority !== undefined ? !!ai_auto_priority : true,
       })
       .onConflictDoUpdate({
-        target: [userSettings.userEmail],
+        target: [userSettings.userId],
         set: {
-          syncIntervalMinutes: sync_interval_minutes !== undefined ? parseInt(sync_interval_minutes, 10) : 60,
-          aiAutoPriority: ai_auto_priority !== undefined ? !!ai_auto_priority : true
-        }
+          syncIntervalMinutes:
+            sync_interval_minutes !== undefined
+              ? parseInt(sync_interval_minutes, 10)
+              : 60,
+          aiAutoPriority:
+            ai_auto_priority !== undefined ? !!ai_auto_priority : true,
+        },
       })
       .returning({
-        user_email: userSettings.userEmail,
+        user_id: userSettings.userId,
         sync_interval_minutes: userSettings.syncIntervalMinutes,
         ai_auto_priority: userSettings.aiAutoPriority,
         created_at: userSettings.createdAt,
@@ -81,6 +95,9 @@ export async function POST(req: Request) {
     return NextResponse.json(updated[0]);
   } catch (error: any) {
     console.error("[Settings POST Error]", error);
-    return NextResponse.json({ error: "Internal Server Error", message: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error", message: error.message },
+      { status: 500 },
+    );
   }
 }

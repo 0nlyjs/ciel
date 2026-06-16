@@ -13,6 +13,7 @@ export async function POST() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const userId = session.user.id;
     const userEmail = session.user.email;
 
     // 1. Delete integrations from Corsair
@@ -24,14 +25,19 @@ export async function POST() {
     }
 
     // 2. Delete data from local Neon Database using Drizzle ORM
-    await db.delete(emails).where(eq(emails.userEmail, userEmail));
-    await db.delete(calendarEvents).where(eq(calendarEvents.userEmail, userEmail));
-    await db.delete(users).where(eq(users.email, userEmail));
+    await db.delete(emails).where(eq(emails.userId, userId));
+    await db.delete(calendarEvents).where(eq(calendarEvents.userId, userId));
+    await db.delete(users).where(eq(users.id, userId));
 
-    return NextResponse.json({ success: true, message: "Account deleted successfully." });
+    return NextResponse.json({
+      success: true,
+      message: "Account deleted successfully.",
+    });
   } catch (error: any) {
     console.error("[Profile Delete Error]", error);
-    return NextResponse.json({ error: "Internal Server Error", message: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error", message: error.message },
+      { status: 500 },
+    );
   }
 }
-

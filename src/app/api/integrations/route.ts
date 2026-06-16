@@ -8,24 +8,28 @@ import { eq } from "drizzle-orm";
 export async function GET() {
   try {
     const session = await getServerSession();
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const email = session.user.email;
-    const rows = await db.select({
-      id: userIntegrations.id,
-      provider: userIntegrations.provider,
-      connected_email: userIntegrations.connectedEmail,
-      status: userIntegrations.status,
-      created_at: userIntegrations.createdAt,
-    })
-    .from(userIntegrations)
-    .where(eq(userIntegrations.userEmail, email));
+    const userId = session.user.id;
+    const rows = await db
+      .select({
+        id: userIntegrations.id,
+        provider: userIntegrations.provider,
+        connected_email: userIntegrations.connectedEmail,
+        status: userIntegrations.status,
+        created_at: userIntegrations.createdAt,
+      })
+      .from(userIntegrations)
+      .where(eq(userIntegrations.userId, userId));
 
     return NextResponse.json({ integrations: rows });
   } catch (error: any) {
     console.error("[Integrations GET Error]", error);
-    return NextResponse.json({ error: "Internal Server Error", message: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error", message: error.message },
+      { status: 500 },
+    );
   }
 }

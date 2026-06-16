@@ -9,7 +9,13 @@ import { eq, and, lt } from "drizzle-orm";
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
-    schema,
+    schema: {
+      ...schema,
+      user: schema.users,
+      session: schema.sessions,
+      account: schema.accounts,
+      verification: schema.verification,
+    },
   }),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
@@ -44,11 +50,14 @@ export const auth = betterAuth({
             .where(
               and(
                 eq(schema.users.verified, false),
-                lt(schema.users.createdAt, oneDayAgo)
-              )
+                lt(schema.users.createdAt, oneDayAgo),
+              ),
             );
         } catch (error) {
-          console.error("[Auth Hook] Error during old unverified users cleanup:", error);
+          console.error(
+            "[Auth Hook] Error during old unverified users cleanup:",
+            error,
+          );
         }
       }
 
@@ -62,13 +71,16 @@ export const auth = betterAuth({
             .where(eq(schema.users.email, email));
 
           if (existingUsers.length > 0 && !existingUsers[0].verified) {
-            console.log(`[Auth Hook] Purging unverified user ${email} before fresh sign-up.`);
-            await db
-              .delete(schema.users)
-              .where(eq(schema.users.email, email));
+            console.log(
+              `[Auth Hook] Purging unverified user ${email} before fresh sign-up.`,
+            );
+            await db.delete(schema.users).where(eq(schema.users.email, email));
           }
         } catch (error) {
-          console.error("[Auth Hook] Error purging unverified user on signup:", error);
+          console.error(
+            "[Auth Hook] Error purging unverified user on signup:",
+            error,
+          );
         }
       }
     }),
@@ -78,7 +90,7 @@ export const auth = betterAuth({
     sendVerificationEmail: async ({ user, url }) => {
       const apiKey = process.env.CORSAIR_API_KEY || process.env.CORSAIR_DEV_KEY;
       const subject = "Ciel Security Verification Link";
-      
+
       const body = `
         <div style="font-family: 'Outfit', sans-serif; background-color: #090B10; color: #FFFFFF; padding: 40px 20px; text-align: center;">
           <div style="max-width: 500px; margin: 0 auto; background-color: #111625; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 32px; box-shadow: 0 0 30px rgba(0, 240, 255, 0.15);">
@@ -121,12 +133,12 @@ export const auth = betterAuth({
           </div>
         </div>
       `;
-    
+
       console.log(`\n==================================================`);
       console.log(`[Better Auth API] Verification Link for ${user.email}:`);
       console.log(`${url}`);
       console.log(`==================================================\n`);
-    
+
       if (apiKey) {
         try {
           await fetch("https://api.corsair.dev/v1/gmail/send", {
@@ -137,12 +149,19 @@ export const auth = betterAuth({
             },
             body: JSON.stringify({ to: user.email, subject, body }),
           });
-          console.log(`[Better Auth API] Verification email sent successfully to ${user.email}`);
+          console.log(
+            `[Better Auth API] Verification email sent successfully to ${user.email}`,
+          );
         } catch (error) {
-          console.error("[Better Auth API] Failed to send email via Corsair:", error);
+          console.error(
+            "[Better Auth API] Failed to send email via Corsair:",
+            error,
+          );
         }
       } else {
-        console.log("[Better Auth API] Corsair API key not configured. Fallback: Please check the link printed above.");
+        console.log(
+          "[Better Auth API] Corsair API key not configured. Fallback: Please check the link printed above.",
+        );
       }
     },
   },
@@ -155,6 +174,7 @@ export async function getServerSession() {
   if (!session) return null;
   return {
     user: {
+      id: session.user.id,
       name: session.user.name,
       email: session.user.email,
     },

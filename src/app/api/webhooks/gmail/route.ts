@@ -1,81 +1,63 @@
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { users } from "@/lib/schema";
+import { eq } from "drizzle-orm";
 import { Client } from "@upstash/qstash";
+
+const qstash = new Client({
+  token: process.env.QSTASH_TOKEN || "",
+});
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log("[Gmail Webhook] Received Pub/Sub payload:", JSON.stringify(body));
 
-    if (!body?.message?.data) {
-      return NextResponse.json({ error: "Invalid payload format" }, { status: 400 });
+    // Google Pub/Sub wrappers payload inside a 'message.data' base64 string
+    if (!body.message?.data) {
+      return new NextResponse("Missing message data", { status: 400 });
     }
 
-    // Decode the base64 Pub/Sub data
-    const decodedRaw = Buffer.from(body.message.data, "base64").toString("utf8");
-    console.log("[Gmail Webhook] Decoded raw data:", decodedRaw);
+    const decodedData = JSON.parse(
+      Buffer.from(body.message.data, "base64").toString("utf-8"),
+    );
 
-    let userId = "";
-    let historyId: number | null = null;
-    try {
-      const parsedData = JSON.parse(decodedRaw);
-      userId = parsedData.emailAddress;
-      historyId = parsedData.historyId;
-    } catch (parseErr) {
-      console.error("[Gmail Webhook] JSON parse error on decoded payload, trying to extract string:", parseErr);
-      // Fallback: parse standard email matching from raw string if not JSON
-      const match = decodedRaw.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-      if (match) userId = match[0];
-    }
-
-    if (!userId) {
-      return NextResponse.json({ error: "Email address not found in payload" }, { status: 400 });
-    }
-
-    console.log(`[Gmail Webhook] New email notification received for user: ${userId}, historyId: ${historyId}`);
-
-    // Resolve the worker absolute URL
-    const url = new URL(req.url);
-    const origin = process.env.BETTER_AUTH_URL || url.origin;
-    const workerUrl = `${origin}/api/workers/sync`;
-
-    const hasQStash = !!process.env.QSTASH_TOKEN;
-
-    if (hasQStash) {
-      const qstashClient = new Client({
-        token: process.env.QSTASH_TOKEN!,
-      });
-
-      await qstashClient.publishJSON({
-        url: workerUrl,
-        body: {
-          userId,
-          historyId,
-        },
-      });
-      console.log(`[Gmail Webhook] Successfully queued sync job in QStash for user ${userId}`);
-    } else {
-      console.warn("[Gmail Webhook] QSTASH_TOKEN is not configured. Falling back to local direct worker invocation.");
-      // Invoke the worker route asynchronously using fetch to avoid blocking the webhook response
-      after(async () => {
-        try {
-          await fetch(workerUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ userId, historyId }),
-          });
-          console.log(`[Gmail Webhook Fallback] Direct worker sync invocation triggered successfully for user ${userId}`);
-        } catch (err) {
-          console.error("[Gmail Webhook Fallback] Direct worker sync invocation failed:", err);
-        }
+    const { emailAddress, historyId } = decodedData;
+    if (!emailAddress) {
+      return new NextResponse("Missing email address in payload", {
+        status: 400,
       });
     }
 
-    // Immediately return 200 OK to prevent Google from timing out and retrying
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("[Gmail Webhook Error]", error);
-    return NextResponse.json({ error: "Internal Server Error", message: error.message }, { status: 500 });
+    // Instantly look up internal immutable user ID using incoming email address
+    const [user] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, emailAddress))
+      .limit(1);
+
+    if (!user) {
+      console.log(
+        `[PUB/SUB GMAIL] Webhook received for untracked user: ${emailAddress}`,
+      );
+      return NextResponse.json({ skipped: true }, { status: 200 });
+    }
+
+    // Offload processing execution to Upstash QStash queue to prevent serverless timeouts
+    const workerUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/workers/sync`;
+
+    await qstash.publishJSON({
+      url: workerUrl,
+      body: {
+        userId: user.id,
+        userEmail: emailAddress,
+        historyId: historyId ? String(historyId) : undefined,
+      },
+    });
+
+    // Acknowledge receipt to Google instantly (Sub-10ms response window)
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (error) {
+    console.error("[CRITICAL WEBHOOK ERROR] Pub/Sub triage failed:", error);
+    return new NextResponse("Internal Server Error", { status: 500 });
   }
 }

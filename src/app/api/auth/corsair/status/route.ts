@@ -8,11 +8,12 @@ import { and, eq } from "drizzle-orm";
 export async function GET() {
   try {
     const session = await getServerSession();
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const tenantId = session.user.email;
+    const userId = session.user.id;
 
     let gmailConnected = false;
     let calendarConnected = false;
@@ -29,49 +30,61 @@ export async function GET() {
     try {
       // Sync Gmail
       if (gmailConnected) {
-        await db.insert(userIntegrations)
+        await db
+          .insert(userIntegrations)
           .values({
-            userEmail: session.user.email,
+            userId,
             provider: "gmail",
             connectedEmail: session.user.email,
             status: "connected",
           })
           .onConflictDoUpdate({
-            target: [userIntegrations.userEmail, userIntegrations.provider, userIntegrations.connectedEmail],
+            target: [
+              userIntegrations.userId,
+              userIntegrations.provider,
+              userIntegrations.connectedEmail,
+            ],
             set: { status: "connected" },
           });
       } else {
-        await db.update(userIntegrations)
+        await db
+          .update(userIntegrations)
           .set({ status: "disconnected" })
           .where(
             and(
-              eq(userIntegrations.userEmail, session.user.email),
-              eq(userIntegrations.provider, "gmail")
-            )
+              eq(userIntegrations.userId, userId),
+              eq(userIntegrations.provider, "gmail"),
+            ),
           );
       }
 
       // Sync Google Calendar
       if (calendarConnected) {
-        await db.insert(userIntegrations)
+        await db
+          .insert(userIntegrations)
           .values({
-            userEmail: session.user.email,
+            userId,
             provider: "googlecalendar",
             connectedEmail: session.user.email,
             status: "connected",
           })
           .onConflictDoUpdate({
-            target: [userIntegrations.userEmail, userIntegrations.provider, userIntegrations.connectedEmail],
+            target: [
+              userIntegrations.userId,
+              userIntegrations.provider,
+              userIntegrations.connectedEmail,
+            ],
             set: { status: "connected" },
           });
       } else {
-        await db.update(userIntegrations)
+        await db
+          .update(userIntegrations)
           .set({ status: "disconnected" })
           .where(
             and(
-              eq(userIntegrations.userEmail, session.user.email),
-              eq(userIntegrations.provider, "googlecalendar")
-            )
+              eq(userIntegrations.userId, userId),
+              eq(userIntegrations.provider, "googlecalendar"),
+            ),
           );
       }
     } catch (dbError) {
@@ -81,7 +94,9 @@ export async function GET() {
     return NextResponse.json({ gmailConnected, calendarConnected });
   } catch (error: any) {
     console.error("[Corsair Status Error]", error);
-    return NextResponse.json({ error: "Internal Server Error", message: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error", message: error.message },
+      { status: 500 },
+    );
   }
 }
-

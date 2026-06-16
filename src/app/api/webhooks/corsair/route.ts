@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { db } from "@/lib/db";
-import { emails, calendarEvents, searchDocuments } from "@/lib/schema";
+import { emails, calendarEvents, searchDocuments, users } from "@/lib/schema";
 import { getEmbedding } from "@/lib/embeddings";
 import { CorsairClient, corsair } from "@/lib/corsair";
 import { eq, and, sql } from "drizzle-orm";
@@ -10,16 +10,24 @@ import { processWebhook } from "corsair";
 
 import { activeClients } from "@/app/api/sync/stream/route";
 
-function broadcastSSE(userEmail: string, eventType: "new_email" | "new_calendar" | "sync_complete") {
+function broadcastSSE(
+  userEmail: string,
+  eventType: "new_email" | "new_calendar" | "sync_complete",
+) {
   const clientControllers = activeClients.get(userEmail);
   if (clientControllers && clientControllers.length > 0) {
-    console.log(`[Webhook Broadcast] Sending ${eventType} to ${clientControllers.length} active streams for ${userEmail}`);
+    console.log(
+      `[Webhook Broadcast] Sending ${eventType} to ${clientControllers.length} active streams for ${userEmail}`,
+    );
     const eventData = new TextEncoder().encode(`data: ${eventType}\n\n`);
     clientControllers.forEach((controller) => {
       try {
         controller.enqueue(eventData);
       } catch (err) {
-        console.error(`[Webhook Broadcast] Failed to send to SSE controller:`, err);
+        console.error(
+          `[Webhook Broadcast] Failed to send to SSE controller:`,
+          err,
+        );
       }
     });
   }
@@ -55,7 +63,11 @@ function runKeywordFallback(subject: string, body: string) {
     category = "promotions";
   }
 
-  if (content.includes("meeting") || content.includes("calendar") || content.includes("schedule")) {
+  if (
+    content.includes("meeting") ||
+    content.includes("calendar") ||
+    content.includes("schedule")
+  ) {
     category = "updates";
   }
 
@@ -65,7 +77,7 @@ function runKeywordFallback(subject: string, body: string) {
 // LLM Classifier using cheap gpt-4o-mini model
 async function classifyEmail(
   subject: string,
-  body: string
+  body: string,
 ): Promise<{
   priority: "high" | "medium" | "low";
   category: "work" | "personal" | "updates" | "promotions";
@@ -83,9 +95,9 @@ async function classifyEmail(
       quickReplies: [
         "Sounds good, approved.",
         "I need more details.",
-        "Let's discuss on a call."
+        "Let's discuss on a call.",
       ],
-      contextTag: fallback.category === "work" ? "Work" : "General"
+      contextTag: fallback.category === "work" ? "Work" : "General",
     };
   }
 
@@ -110,22 +122,30 @@ Do not wrap in markdown code blocks.`;
       prompt,
     });
 
-    const cleanText = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+    const cleanText = text
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .trim();
     const parsed = JSON.parse(cleanText);
 
     return {
       priority: parsed.priority || "medium",
       category: parsed.category || "work",
       sentiment: parsed.sentiment || "neutral",
-      quickReplies: Array.isArray(parsed.quickReplies) ? parsed.quickReplies : [
-        "Sounds good, approved.",
-        "I need more details.",
-        "Let's discuss on a call."
-      ],
+      quickReplies: Array.isArray(parsed.quickReplies)
+        ? parsed.quickReplies
+        : [
+            "Sounds good, approved.",
+            "I need more details.",
+            "Let's discuss on a call.",
+          ],
       contextTag: parsed.contextTag || "General",
     };
   } catch (error) {
-    console.error("[Webhook Classifier] Error during OpenAI classification, falling back:", error);
+    console.error(
+      "[Webhook Classifier] Error during OpenAI classification, falling back:",
+      error,
+    );
     const fallback = runKeywordFallback(subject, body);
     return {
       priority: fallback.priority,
@@ -134,16 +154,16 @@ Do not wrap in markdown code blocks.`;
       quickReplies: [
         "Sounds good, approved.",
         "I need more details.",
-        "Let's discuss on a call."
+        "Let's discuss on a call.",
       ],
-      contextTag: fallback.category === "work" ? "Work" : "General"
+      contextTag: fallback.category === "work" ? "Work" : "General",
     };
   }
 }
 
 async function classifyEvent(
   title: string,
-  description: string
+  description: string,
 ): Promise<{ contextTag: string }> {
   const client = getOpenAIClient();
   if (!client) {
@@ -160,11 +180,17 @@ Respond with a raw JSON object containing exactly one key: "contextTag". Do not 
       model: client("gpt-4o-mini"),
       prompt,
     });
-    const cleanText = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+    const cleanText = text
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .trim();
     const parsed = JSON.parse(cleanText);
     return { contextTag: parsed.contextTag || "General" };
   } catch (error) {
-    console.error("[Webhook Event Classifier] Error during OpenAI classification:", error);
+    console.error(
+      "[Webhook Event Classifier] Error during OpenAI classification:",
+      error,
+    );
     return { contextTag: "General" };
   }
 }
@@ -179,33 +205,55 @@ export async function POST(req: Request) {
     const result = await processWebhook(corsair, headers, rawBody, query);
 
     if (!result.plugin) {
-      return NextResponse.json({ error: "No matching plugin found" }, { status: 400 });
+      return NextResponse.json(
+        { error: "No matching plugin found" },
+        { status: 400 },
+      );
     }
 
     const { plugin, action, body: data, responseHeaders } = result;
 
     if (!data) {
-      return NextResponse.json({ error: "Data payload is missing" }, { status: 400, headers: responseHeaders });
+      return NextResponse.json(
+        { error: "Data payload is missing" },
+        { status: 400, headers: responseHeaders },
+      );
     }
 
     console.log("[Corsair Webhook] Processed payload:", data);
 
-    const tenantId = query.tenantId || (data as any).tenantId || (data as any).emailAddress || "unknown@domain.com";
+    const tenantId =
+      query.tenantId ||
+      (data as any).tenantId ||
+      (data as any).emailAddress ||
+      "unknown@domain.com";
 
     // 3. Process Event
     if (plugin === "gmail" && action === "messageChanged") {
       if ((data as any).type !== "messageReceived") {
-        return NextResponse.json({ success: true, message: `Gmail event ignored: ${(data as any).type}` }, { headers: responseHeaders });
+        return NextResponse.json(
+          {
+            success: true,
+            message: `Gmail event ignored: ${(data as any).type}`,
+          },
+          { headers: responseHeaders },
+        );
       }
 
       const rawMsg = (data as any).message;
       if (!rawMsg) {
-        return NextResponse.json({ error: "Message details missing in payload" }, { status: 400, headers: responseHeaders });
+        return NextResponse.json(
+          { error: "Message details missing in payload" },
+          { status: 400, headers: responseHeaders },
+        );
       }
 
       const parsed = CorsairClient.parseGmailMessage(rawMsg);
       if (!parsed) {
-        return NextResponse.json({ error: "Failed to parse Gmail message" }, { status: 400, headers: responseHeaders });
+        return NextResponse.json(
+          { error: "Failed to parse Gmail message" },
+          { status: 400, headers: responseHeaders },
+        );
       }
 
       const emailId = parsed.id;
@@ -216,23 +264,34 @@ export async function POST(req: Request) {
       const dateStr = parsed.date;
 
       // Run AI categorization
-      const { priority, category, quickReplies, contextTag } = await classifyEmail(subject, body);
+      const { priority, category, quickReplies, contextTag } =
+        await classifyEmail(subject, body);
 
       // Generate embedding vector
       const cleanBodyForEmbedding = (body || "").substring(0, 15000);
       const textToEmbed = `From: ${fromName} <${fromEmail}>\nSubject: ${subject}\nBody: ${cleanBodyForEmbedding}`;
       const embedding = await getEmbedding(textToEmbed);
 
+      // Look up userId from tenantId (email)
+      const [user] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, tenantId))
+        .limit(1);
+
+      const userId = user?.id || tenantId;
+
       // Save to database
-      await db.insert(emails)
+      await db
+        .insert(emails)
         .values({
           id: emailId,
-          userEmail: tenantId,
+          userId,
           fromName,
           fromEmail,
           subject,
           body,
-          date: dateStr,
+          date: new Date(dateStr),
           read: parsed.read,
           priority,
           category,
@@ -242,7 +301,7 @@ export async function POST(req: Request) {
         .onConflictDoUpdate({
           target: [emails.id],
           set: {
-            userEmail: sql`EXCLUDED.user_email`,
+            userId: sql`EXCLUDED.user_id`,
             fromName: sql`EXCLUDED.from_name`,
             fromEmail: sql`EXCLUDED.from_email`,
             subject: sql`EXCLUDED.subject`,
@@ -253,81 +312,135 @@ export async function POST(req: Request) {
             category: sql`EXCLUDED.category`,
             quickReplies: sql`EXCLUDED.quick_replies`,
             contextTag: sql`EXCLUDED.context_tag`,
-          }
+          },
         });
 
       if (embedding) {
-        await db.insert(searchDocuments)
+        const embeddingStr = JSON.stringify(embedding);
+        await db
+          .insert(searchDocuments)
           .values({
             id: `email:${emailId}`,
             sourceType: "email",
             sourceId: emailId,
             content: textToEmbed,
-            embedding,
+            embedding: embeddingStr,
           })
           .onConflictDoUpdate({
             target: [searchDocuments.id],
             set: {
               content: textToEmbed,
-              embedding,
-            }
+              embedding: embeddingStr,
+            },
           });
       }
 
-      console.log(`[Corsair Webhook] Cached email "${subject}" for ${tenantId} [Priority: ${priority.toUpperCase()}]`);
+      console.log(
+        `[Corsair Webhook] Cached email "${subject}" for ${tenantId} [Priority: ${priority.toUpperCase()}]`,
+      );
 
       // Broadcast to active client streams
       broadcastSSE(tenantId, "new_email");
 
-      return NextResponse.json({
-        success: true,
-        message: "Email received, classified, embedded, and stored.",
-        email: { id: emailId, user_email: tenantId, from: fromName, fromEmail, subject, body, date: dateStr, read: parsed.read, priority, category },
-      }, { headers: responseHeaders });
+      return NextResponse.json(
+        {
+          success: true,
+          message: "Email received, classified, embedded, and stored.",
+          email: {
+            id: emailId,
+            user_email: tenantId,
+            from: fromName,
+            fromEmail,
+            subject,
+            body,
+            date: dateStr,
+            read: parsed.read,
+            priority,
+            category,
+          },
+        },
+        { headers: responseHeaders },
+      );
     }
 
     if (plugin === "googlecalendar" && action === "onEventChanged") {
       if ((data as any).type === "eventDeleted") {
         const eventId = (data as any).eventId;
         if (!eventId) {
-          return NextResponse.json({ error: "Event ID is missing for deletion" }, { status: 400, headers: responseHeaders });
+          return NextResponse.json(
+            { error: "Event ID is missing for deletion" },
+            { status: 400, headers: responseHeaders },
+          );
         }
 
-        await db.delete(calendarEvents)
+        // Look up userId from tenantId (email)
+        const [user] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.email, tenantId))
+          .limit(1);
+
+        const userId = user?.id || tenantId;
+
+        await db
+          .delete(calendarEvents)
           .where(
             and(
               eq(calendarEvents.id, eventId),
-              eq(calendarEvents.userEmail, tenantId)
-            )
+              eq(calendarEvents.userId, userId),
+            ),
           );
 
-        console.log(`[Corsair Webhook] Deleted calendar event "${eventId}" for ${tenantId}`);
+        console.log(
+          `[Corsair Webhook] Deleted calendar event "${eventId}" for ${tenantId}`,
+        );
 
         // Broadcast to active client streams
         broadcastSSE(tenantId, "new_calendar");
 
-        return NextResponse.json({
-          success: true,
-          message: "Calendar event deleted.",
-          eventDeleted: eventId
-        }, { headers: responseHeaders });
+        return NextResponse.json(
+          {
+            success: true,
+            message: "Calendar event deleted.",
+            eventDeleted: eventId,
+          },
+          { headers: responseHeaders },
+        );
       }
 
-      if ((data as any).type !== "eventCreated" && (data as any).type !== "eventUpdated") {
-        return NextResponse.json({ success: true, message: `Calendar event ignored: ${(data as any).type}` }, { headers: responseHeaders });
+      if (
+        (data as any).type !== "eventCreated" &&
+        (data as any).type !== "eventUpdated"
+      ) {
+        return NextResponse.json(
+          {
+            success: true,
+            message: `Calendar event ignored: ${(data as any).type}`,
+          },
+          { headers: responseHeaders },
+        );
       }
 
       const item = (data as any).event;
       if (!item) {
-        return NextResponse.json({ error: "Event details missing in payload" }, { status: 400, headers: responseHeaders });
+        return NextResponse.json(
+          { error: "Event details missing in payload" },
+          { status: 400, headers: responseHeaders },
+        );
       }
 
       const eventId = item.id || Math.random().toString();
       const title = item.summary || "Meeting Invite";
-      const start = item.start?.dateTime || item.start?.date || new Date().toISOString();
-      const end = item.end?.dateTime || item.end?.date || new Date(Date.now() + 1800000).toISOString();
+      const start =
+        item.start?.dateTime || item.start?.date || new Date().toISOString();
+      const end =
+        item.end?.dateTime ||
+        item.end?.date ||
+        new Date(Date.now() + 1800000).toISOString();
       const location = item.location || "";
-      const attendees = (item.attendees || []).map((a: any) => a.email || a.displayName || "");
+      const attendees = (item.attendees || []).map(
+        (a: any) => a.email || a.displayName || "",
+      );
       const description = item.description || "";
 
       // Run AI categorization
@@ -337,11 +450,21 @@ export async function POST(req: Request) {
       const textToEmbed = `Title: ${title}\nLocation: ${location}\nDescription: ${description}`;
       const embedding = await getEmbedding(textToEmbed);
 
+      // Look up userId from tenantId (email) for calendar
+      const [calendarUser] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, tenantId))
+        .limit(1);
+
+      const calendarUserId = calendarUser?.id || tenantId;
+
       // Save to database
-      await db.insert(calendarEvents)
+      await db
+        .insert(calendarEvents)
         .values({
           id: eventId,
-          userEmail: tenantId,
+          userId: calendarUserId,
           title,
           startTime: new Date(start),
           endTime: new Date(end),
@@ -353,7 +476,7 @@ export async function POST(req: Request) {
         .onConflictDoUpdate({
           target: [calendarEvents.id],
           set: {
-            userEmail: sql`EXCLUDED.user_email`,
+            userId: sql`EXCLUDED.user_id`,
             title: sql`EXCLUDED.title`,
             startTime: sql`EXCLUDED.start_time`,
             endTime: sql`EXCLUDED.end_time`,
@@ -361,43 +484,64 @@ export async function POST(req: Request) {
             attendees: sql`EXCLUDED.attendees`,
             description: sql`EXCLUDED.description`,
             contextTag: sql`EXCLUDED.context_tag`,
-          }
+          },
         });
 
       if (embedding) {
-        await db.insert(searchDocuments)
+        const embeddingStr = JSON.stringify(embedding);
+        await db
+          .insert(searchDocuments)
           .values({
             id: `event:${eventId}`,
             sourceType: "event",
             sourceId: eventId,
             content: textToEmbed,
-            embedding,
+            embedding: embeddingStr,
           })
           .onConflictDoUpdate({
             target: [searchDocuments.id],
             set: {
               content: textToEmbed,
-              embedding,
-            }
+              embedding: embeddingStr,
+            },
           });
       }
 
-      console.log(`[Corsair Webhook] Cached calendar event "${title}" for ${tenantId}`);
+      console.log(
+        `[Corsair Webhook] Cached calendar event "${title}" for ${tenantId}`,
+      );
 
       // Broadcast to active client streams
       broadcastSSE(tenantId, "new_calendar");
 
-      return NextResponse.json({
-        success: true,
-        message: "Calendar event registered, embedded, and stored.",
-        event: { id: eventId, user_email: tenantId, title, start, end, location, attendees, description }
-      }, { headers: responseHeaders });
+      return NextResponse.json(
+        {
+          success: true,
+          message: "Calendar event registered, embedded, and stored.",
+          event: {
+            id: eventId,
+            user_email: tenantId,
+            title,
+            start,
+            end,
+            location,
+            attendees,
+            description,
+          },
+        },
+        { headers: responseHeaders },
+      );
     }
 
-    return NextResponse.json({ error: "Unknown event type" }, { status: 400, headers: responseHeaders });
+    return NextResponse.json(
+      { error: "Unknown event type" },
+      { status: 400, headers: responseHeaders },
+    );
   } catch (error: any) {
     console.error("[Corsair Webhook POST Error]", error);
-    return NextResponse.json({ error: "Internal Server Error", message: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error", message: error.message },
+      { status: 500 },
+    );
   }
 }
-

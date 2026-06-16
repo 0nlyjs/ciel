@@ -5,20 +5,24 @@ import { syncUserEmails } from "@/lib/sync";
 export const dynamic = "force-dynamic";
 
 // Active client stream controllers mapped by user email
-export const activeClients = new Map<string, ReadableStreamDefaultController[]>();
+export const activeClients = new Map<
+  string,
+  ReadableStreamDefaultController[]
+>();
 
 export async function GET(req: Request) {
   try {
     const session = await getServerSession();
-    if (!session?.user?.email) {
+    if (!session?.user?.id || !session?.user?.email) {
       return new Response("Unauthorized", { status: 401 });
     }
+    const userId = session.user.id;
     const email = session.user.email;
 
     const responseHeaders = new Headers({
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
-      "Connection": "keep-alive",
+      Connection: "keep-alive",
       "X-Accel-Buffering": "no", // Bypasses buffering on Nginx/Vercel
     });
 
@@ -30,7 +34,9 @@ export async function GET(req: Request) {
         }
         activeClients.get(email)!.push(controller);
 
-        console.log(`[SSE Stream] Client connected: ${email}. Active streams: ${activeClients.get(email)!.length}`);
+        console.log(
+          `[SSE Stream] Client connected: ${email}. Active streams: ${activeClients.get(email)!.length}`,
+        );
 
         // Send initial connection handshake event
         controller.enqueue(new TextEncoder().encode("data: connected\n\n"));
@@ -49,13 +55,21 @@ export async function GET(req: Request) {
         let lastCheckedId = "";
         const localPollInterval = setInterval(async () => {
           try {
-            const skeletons = await CorsairClient.listGmailMessagesDirectly(email, 1);
+            const skeletons = await CorsairClient.listGmailMessagesDirectly(
+              email,
+              1,
+            );
             if (skeletons && skeletons.length > 0) {
               const latestId = skeletons[0].id;
               if (lastCheckedId && latestId !== lastCheckedId) {
-                console.log(`[SSE Stream] Local poller detected new email ${latestId} for ${email}. Triggering background sync...`);
-                syncUserEmails(email).catch((err) => {
-                  console.error("[SSE Stream] Background poller sync failed:", err);
+                console.log(
+                  `[SSE Stream] Local poller detected new email ${latestId} for ${email}. Triggering background sync...`,
+                );
+                syncUserEmails(userId, email).catch((err) => {
+                  console.error(
+                    "[SSE Stream] Background poller sync failed:",
+                    err,
+                  );
                 });
               }
               lastCheckedId = latestId;
@@ -70,7 +84,7 @@ export async function GET(req: Request) {
           console.log(`[SSE Stream] Connection aborted for ${email}`);
           clearInterval(heartbeatInterval);
           clearInterval(localPollInterval);
-          
+
           const list = activeClients.get(email);
           if (list) {
             const filtered = list.filter((c) => c !== controller);
@@ -80,7 +94,7 @@ export async function GET(req: Request) {
               activeClients.delete(email);
             }
           }
-          
+
           try {
             controller.close();
           } catch {}
