@@ -197,7 +197,14 @@ export const useCielStore = create<CielState>((set, get) => ({
   setSelectedEmailIndex: (index) => set({ selectedEmailIndex: index }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   setActiveFolder: (folder) => {
-    set({ activeFolder: folder });
+    set({
+      activeFolder: folder,
+      emails: [],
+      emailsTotal: 0,
+      emailsPage: 1,
+      emailsHasMore: true,
+      selectedEmailIndex: null,
+    });
   },
   markAsRead: async (id) => {
     await useCielStore.getState().updateEmail(id, { read: true });
@@ -306,10 +313,16 @@ export const useCielStore = create<CielState>((set, get) => ({
       queryParams.set("offset", offset.toString());
       queryParams.set("sync_limit", (targetPage * limit).toString());
       queryParams.set("folder", state.activeFolder);
+      queryParams.set("t", Date.now().toString()); // Cache buster
 
       const res = await fetch(`/api/emails?${queryParams.toString()}`);
       if (res.ok) {
         const data = await res.json();
+        // Discard response if active folder changed in-flight to prevent race conditions
+        if (useCielStore.getState().activeFolder !== state.activeFolder) {
+          console.warn(`[Store] Discarding fetchEmails response: folder changed from ${state.activeFolder} to ${useCielStore.getState().activeFolder}`);
+          return;
+        }
         if (data.emails) {
           set({
             emails: data.emails,
@@ -358,7 +371,7 @@ export const useCielStore = create<CielState>((set, get) => ({
               selectedEmailIndex: 0,
             });
             console.log(
-              `[Store] Loaded ${initialEmails.length} emails from cache for folder ${folder}`,
+              `[Store] Restored ${initialEmails.length} cached emails for folder ${folder}`,
             );
           }
         }
@@ -370,7 +383,7 @@ export const useCielStore = create<CielState>((set, get) => ({
 
   fetchCalendarEvents: async () => {
     try {
-      const res = await fetch("/api/calendar");
+      const res = await fetch(`/api/calendar?t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         if (data.calendarEvents) {

@@ -127,9 +127,7 @@ export default function DashboardPage() {
       }
 
       if (!isOAuthSuccess) {
-        fetchEmails().then(() => {
-          fetchEmails(true);
-        });
+        fetchEmails();
         fetchCalendarEvents();
       }
     }
@@ -155,6 +153,7 @@ export default function DashboardPage() {
         console.log("[EventSource] Sync complete. Fetching updated list from database...");
         try {
           await fetchEmails(false);
+          router.refresh();
         } catch (e) {
           console.error("SSE sync_complete fetchEmails error:", e);
         }
@@ -162,6 +161,7 @@ export default function DashboardPage() {
         console.log("[EventSource] Syncing calendar events...");
         try {
           await fetchCalendarEvents();
+          router.refresh();
         } catch (e) {
           console.error("SSE fetchCalendarEvents error:", e);
         }
@@ -176,7 +176,7 @@ export default function DashboardPage() {
       console.log("[EventSource] Closing Server-Sent Events stream...");
       eventSource.close();
     };
-  }, [session, user?.email, fetchEmails, fetchCalendarEvents]);
+  }, [session, user?.email, fetchEmails, fetchCalendarEvents, router]);
 
   // Periodic Background Hard Sync Timer based on syncInterval setting
   useEffect(() => {

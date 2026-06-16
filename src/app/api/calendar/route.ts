@@ -4,6 +4,9 @@ import { db, syncEventToGoogleCalendar, isMockId } from "@/lib/db";
 import { calendarEvents, searchDocuments } from "@/lib/schema";
 import { getEmbedding, getEmbeddingsBatch } from "@/lib/embeddings";
 import { getServerSession } from "@/lib/auth";
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 import { eq, and, inArray, asc, sql, isNull } from "drizzle-orm";
 
 // GET /api/calendar - List and sync all calendar events

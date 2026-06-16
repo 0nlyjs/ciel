@@ -4,6 +4,9 @@ import { db } from "@/lib/db";
 import { emails, userIntegrations } from "@/lib/schema";
 import { getServerSession } from "@/lib/auth";
 import { syncUserEmails } from "@/lib/sync";
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { eq, and, or, desc, sql, ilike, not, isNull } from "drizzle-orm";
@@ -68,14 +71,12 @@ export async function GET(req: Request) {
       console.error("[Emails API] Failed to check integration status:", e);
     }
 
-    // Sync from Corsair inline and await it if sync=true was requested
+    // Sync from Corsair in the background if sync=true was requested
     if (forceSync) {
-      console.log(`[Emails API] Sync requested for ${session.user.email} (limit: ${syncLimit})...`);
-      try {
-        await syncUserEmails(session.user.email, syncLimit);
-      } catch (err) {
-        console.error("[Emails API] Sync failed:", err);
-      }
+      console.log(`[Emails API] Background sync started for ${session.user.email} (limit: ${syncLimit})...`);
+      syncUserEmails(session.user.email, syncLimit).catch((err) => {
+        console.error("[Emails API] Background sync failed:", err);
+      });
     }
 
     const conditions = [];

@@ -60,6 +60,7 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
   const calendarConnected = useCielStore((s) => s.calendarConnected);
   const calendarEvents = useCielStore((s) => s.calendarEvents);
   const fetchCalendarEvents = useCielStore((s) => s.fetchCalendarEvents);
+  const fetchEmails = useCielStore((s) => s.fetchEmails);
   const selectedDate = useCielStore((s) => s.selectedDate);
 
   const isDark = true;
@@ -217,7 +218,13 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
                 <button
                   onClick={async () => {
                     setIsRefreshing(true);
-                    try { await fetchCalendarEvents(); } catch (e) { console.error(e); } finally { setIsRefreshing(false); }
+                    try {
+                      await fetchCalendarEvents();
+                    } catch (e) {
+                      console.error(e);
+                    } finally {
+                      setIsRefreshing(false);
+                    }
                   }}
                   disabled={isRefreshing}
                   className={`text-[10px] px-2.5 py-1.5 font-bold uppercase border rounded-lg cursor-pointer disabled:opacity-50 transition-all ${buttonBgClass}`}

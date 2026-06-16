@@ -1,6 +1,6 @@
-import { CorsairClient } from "@/lib/corsair";
+import { CorsairClient, corsair } from "@/lib/corsair";
 import { db } from "@/lib/db";
-import { emails, searchDocuments } from "@/lib/schema";
+import { emails, calendarEvents, searchDocuments } from "@/lib/schema";
 import { getEmbeddingsBatch } from "@/lib/embeddings";
 import { activeClients } from "@/app/api/sync/stream/route";
 import { eq, and, desc, inArray, notInArray, sql, isNull } from "drizzle-orm";
@@ -396,102 +396,158 @@ function broadcastSyncStart(userEmail: string) {
   }
 }
 
+async function syncUserCalendar(userEmail: string) {
+  try {
+    console.log(`[Sync Service] Syncing calendar events for ${userEmail}...`);
+    const corsairEvents = await CorsairClient.listCalendarEvents(userEmail);
+    if (corsairEvents && corsairEvents.length > 0) {
+      for (const event of corsairEvents) {
+        const title = event.title || "Meeting Invite";
+        const start = event.start;
+        const end = event.end;
+        const location = event.location || "";
+        const description = event.description || "";
+        const attendees = event.attendees || [];
+
+        await db.insert(calendarEvents)
+          .values({
+            id: event.id,
+            userEmail,
+            title,
+            startTime: new Date(start),
+            endTime: new Date(end),
+            location,
+            attendees,
+            description,
+          })
+          .onConflictDoUpdate({
+            target: [calendarEvents.id],
+            set: {
+              title,
+              startTime: new Date(start),
+              endTime: new Date(end),
+              location,
+              attendees,
+              description,
+            }
+          });
+      }
+      console.log(`[Sync Service] Successfully synced ${corsairEvents.length} calendar events to DB.`);
+    }
+  } catch (err) {
+    console.error("[Sync Service] Calendar sync failed:", err);
+  }
+}
+
 export async function syncUserEmails(userEmail: string, syncLimit: number = 50) {
   const targetSyncLimit = syncLimit;
   console.log(`[Sync Service] Starting background sync pipeline for ${userEmail} (limit: ${targetSyncLimit})...`);
   broadcastSyncStart(userEmail);
   try {
-    // Phase 1: Sync Received Mails (Inbox) first
-    console.log(`[Sync Service] Phase 1: Listing received/inbox messages (limit: ${targetSyncLimit})...`);
-    const inboxSkeletons = await CorsairClient.listGmailMessagesDirectly(userEmail, targetSyncLimit);
-    console.log(`[Sync Service] Phase 1: Found ${inboxSkeletons.length} inbox skeletons.`);
+    // Run calendar sync and email sync in parallel
+    await Promise.all([
+      syncUserCalendar(userEmail),
+      (async () => {
+        // 1. Fetch latest skeletons from Gmail live API
+        const inboxSkeletons = await CorsairClient.listGmailMessagesDirectly(userEmail, targetSyncLimit);
+        if (inboxSkeletons && inboxSkeletons.length > 0) {
+          // Find which ones are missing
+          const existingRes = await db.select({ id: emails.id }).from(emails).where(eq(emails.userEmail, userEmail));
+          const existingIds = new Set(existingRes.map((r: any) => r.id));
+          const missingSkeletons = inboxSkeletons.filter((msg) => !existingIds.has(msg.id));
 
-    if (inboxSkeletons.length > 0) {
-      const existingRes = await db.select({
-        id: emails.id,
-      })
-      .from(emails)
-      .where(eq(emails.userEmail, userEmail));
-      const existingIds = new Set(existingRes.map((r: any) => r.id));
+          console.log(`[Sync Service] Found ${missingSkeletons.length} new/missing emails out of ${inboxSkeletons.length} skeletons.`);
 
-      const missingInboxSkeletons = inboxSkeletons.filter(
-        (msg) => !existingIds.has(msg.id),
-      );
-      console.log(`[Sync Service] Phase 1: Found ${missingInboxSkeletons.length} missing inbox emails to fetch.`);
+          if (missingSkeletons.length > 0) {
+            // Fetch only the missing ones (limit to top 15 to prevent rate limits / N+1 delays)
+            const subset = missingSkeletons.slice(0, 15);
+            const rawMessages = await Promise.all(
+              subset.map(async (skeleton) => {
+                try {
+                  return await CorsairClient.getGmailMessageDirectly(skeleton.id, userEmail);
+                } catch (err) {
+                  console.error(`[Sync] Failed to fetch message details for ${skeleton.id}:`, err);
+                  return null;
+                }
+              })
+            );
 
-      if (missingInboxSkeletons.length > 0) {
-        await runBackgroundSyncForRemaining(missingInboxSkeletons, userEmail);
-      }
+            const filteredMessages = rawMessages.filter(m => m !== null);
+            const parsedEmails: any[] = [];
+            for (const rawMsg of filteredMessages) {
+              const parsed = CorsairClient.parseGmailMessage(rawMsg);
+              if (parsed) {
+                const fromName = parsed.from || "Unknown Sender";
+                const fromEmail = parsed.fromEmail || "unknown@domain.com";
+                const subject = parsed.subject || "(No Subject)";
+                const body = parsed.body || "";
+                const cleanBodyForEmbedding = body.substring(0, 15000);
+                const textToEmbed = `From: ${fromName} <${fromEmail}>\nSubject: ${subject}\nBody: ${cleanBodyForEmbedding}`;
 
-      // Run premium AI classification only on the top 10 newest emails to minimize API token usage
-      try {
-        const recentEmails = await db.select()
-          .from(emails)
-          .where(eq(emails.userEmail, userEmail))
-          .orderBy(desc(emails.date))
-          .limit(10);
+                parsedEmails.push({
+                  id: parsed.id,
+                  fromName,
+                  fromEmail,
+                  subject,
+                  body,
+                  date: parsed.date || new Date().toISOString(),
+                  read: parsed.read ?? false,
+                  textToEmbed,
+                  labelIds: "INBOX",
+                });
+              }
+            }
 
-        if (recentEmails.length > 0) {
-          console.log(`[Sync Service] Running AI classification for the top ${recentEmails.length} newest emails...`);
-          await Promise.all(
-            recentEmails.map(async (email) => {
-              const aiResult = await classifyEmail(email.subject || "", email.body || "");
-              await db.update(emails)
-                .set({
-                  priority: aiResult.priority,
-                  category: aiResult.category,
-                  quickReplies: aiResult.quickReplies,
-                  contextTag: aiResult.contextTag,
-                })
-                .where(eq(emails.id, email.id));
-            })
-          );
+            if (parsedEmails.length > 0) {
+              const toInsert = parsedEmails.map((email) => {
+                const fallback = runKeywordFallback(email.subject, email.body);
+                return {
+                  id: email.id,
+                  userEmail,
+                  fromName: email.fromName,
+                  fromEmail: email.fromEmail,
+                  subject: email.subject,
+                  body: email.body,
+                  date: email.date,
+                  read: email.read,
+                  priority: fallback.priority,
+                  category: fallback.category,
+                  quickReplies: [
+                    "Sounds good, approved.",
+                    "I need more details.",
+                    "Let's discuss on a call."
+                  ],
+                  contextTag: fallback.category === "work" ? "Work" : "General",
+                  labelIds: email.labelIds,
+                };
+              });
+
+              await db.insert(emails)
+                .values(toInsert)
+                .onConflictDoUpdate({
+                  target: [emails.id],
+                  set: {
+                    read: sql`EXCLUDED.read`,
+                    labelIds: sql`EXCLUDED.label_ids`,
+                  }
+                });
+
+              console.log(`[Sync] Successfully batch inserted/updated ${parsedEmails.length} fresh emails.`);
+
+              // Asynchronously generate embeddings
+              setTimeout(() => {
+                generateAndSaveEmbeddings(parsedEmails, userEmail).catch((err) => {
+                  console.error("[Sync] Background embeddings launcher error:", err);
+                });
+              }, 0);
+            }
+          }
         }
-      } catch (aiErr) {
-        console.error("[Sync Service] Error during premium AI classification:", aiErr);
-      }
-    }
+      })()
+    ]);
 
-    // Immediately broadcast sync complete for inbox
-    console.log("[Sync Service] Phase 1: Inbox sync complete. Broadcasting to client...");
     broadcastSyncComplete(userEmail);
-
-    // Phase 2: Sync Sent Mails next
-    console.log(`[Sync Service] Phase 2: Listing sent messages (limit: ${targetSyncLimit})...`);
-    const sentSkeletons = await CorsairClient.listGmailMessagesDirectly(userEmail, targetSyncLimit, "in:sent");
-    console.log(`[Sync Service] Phase 2: Found ${sentSkeletons.length} sent skeletons.`);
-
-    if (sentSkeletons.length > 0) {
-      const existingRes = await db.select({
-        id: emails.id,
-      })
-      .from(emails)
-      .where(eq(emails.userEmail, userEmail));
-      const existingIds = new Set(existingRes.map((r: any) => r.id));
-
-      const missingSentSkeletons = sentSkeletons.filter(
-        (msg) => !existingIds.has(msg.id),
-      );
-      console.log(`[Sync Service] Phase 2: Found ${missingSentSkeletons.length} missing sent emails to fetch.`);
-
-      if (missingSentSkeletons.length > 0) {
-        const sentIds = new Set(sentSkeletons.map((s: any) => s.id));
-        await runBackgroundSyncForRemaining(missingSentSkeletons, userEmail, sentIds);
-      }
-
-      // Clean up deleted sent/inbox skeletons
-      const mergedSkeletonsMap = new Map<string, any>();
-      inboxSkeletons.forEach((s) => mergedSkeletonsMap.set(s.id, s));
-      sentSkeletons.forEach((s) => mergedSkeletonsMap.set(s.id, s));
-      const messageSkeletons = Array.from(mergedSkeletonsMap.values());
-      await cleanDeletedEmails(messageSkeletons, userEmail);
-    }
-
-    // Broadcast sync complete for sent as well
-    console.log("[Sync Service] Phase 2: Sent sync complete. Broadcasting to client...");
-    broadcastSyncComplete(userEmail);
-
-    return { success: true, count: inboxSkeletons.length + sentSkeletons.length };
+    return { success: true };
   } catch (error) {
     console.error(`[Sync Service] Sync failed for ${userEmail}:`, error);
     throw error;
