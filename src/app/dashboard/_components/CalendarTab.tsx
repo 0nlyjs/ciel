@@ -427,7 +427,7 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
                 <div className="flex flex-col h-full min-h-0">
                   <div className="grid grid-cols-7 gap-1 text-center border-b border-white/5 pb-1 mb-1.5 shrink-0">
                     {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName) => (
-                      <span key={dayName} className="text-[9px] uppercase font-bold text-slate-505">
+                      <span key={dayName} className="text-[9px] uppercase font-bold text-slate-500">
                         {dayName}
                       </span>
                     ))}
@@ -527,7 +527,7 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] text-slate-550 uppercase font-bold">Start Time:</label>
+                  <label className="text-[10px] text-slate-500 uppercase font-bold">Start Time:</label>
                   <input 
                     type="datetime-local" 
                     value={editEventStart}
@@ -537,7 +537,7 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] text-slate-550 uppercase font-bold">End Time:</label>
+                  <label className="text-[10px] text-slate-500 uppercase font-bold">End Time:</label>
                   <input 
                     type="datetime-local" 
                     value={editEventEnd}
@@ -571,14 +571,14 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
                 <button
                   type="button"
                   onClick={() => setShowEditEventModal(false)}
-                  className="px-3.5 py-2 text-slate-550 hover:text-slate-950 dark:hover:text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer"
+                  className="px-3.5 py-2 text-slate-500 hover:text-slate-950 dark:hover:text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isUpdatingEvent || !editEventTitle.trim()}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-zinc-800 disabled:text-slate-400 dark:disabled:text-zinc-650 text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors"
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-zinc-800 disabled:text-slate-400 dark:disabled:text-zinc-600 text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors"
                 >
                   {isUpdatingEvent ? "Saving..." : "Save Changes"}
                 </button>

@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { emails, calendarEvents, searchDocuments } from "./schema";
 import { CorsairClient } from "./corsair"; // Wrapper around Gmail / Calendar APIs
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 
 // Helper to chunk arrays into optimal sizes for batch processing
 const chunkArray = <T>(array: T[], size: number): T[][] => {
@@ -20,16 +20,23 @@ export async function syncUserEmails(
   userId: string,
   userEmail: string,
   historyId?: string,
+  limit: number = 50,
+  q?: string,
 ) {
   try {
     console.log(
-      `[SYNC START] Initiating high-speed sync for User: ${userId} (${userEmail})`,
+      `[SYNC START] Initiating high-speed sync for User: ${userId} (${userEmail}) with limit: ${limit} and query: ${q || "default"}`,
     );
 
-    // 1. Fetch message skeleton summaries from Gmail (Max 15 for speed)
+    // Resolve tenant client once to prevent caching/stampede queries inside credentials lookup
+    const client = CorsairClient.getTenant(userEmail);
+
+    // 1. Fetch message skeleton summaries from Gmail
     const skeletons = await CorsairClient.listGmailMessagesDirectly(
       userEmail,
-      15,
+      limit,
+      q,
+      client,
     );
 
     if (!skeletons || skeletons.length === 0) {
@@ -37,11 +44,17 @@ export async function syncUserEmails(
       return { success: true, count: 0 };
     }
 
-    // 2. Multi-row Lookups: Pull existing cached email IDs in a single query to diff
+    // 2. Multi-row Lookups: Pull only matching cached email IDs in a single query to diff (prevents O(N) database memory bloat)
+    const skeletonIds = skeletons.map((s) => s.id);
     const existingRecords = await db
       .select({ id: emails.id })
       .from(emails)
-      .where(eq(emails.userId, userId));
+      .where(
+        and(
+          eq(emails.userId, userId),
+          inArray(emails.id, skeletonIds)
+        )
+      );
 
     const cachedIds = new Set(existingRecords.map((r) => r.id));
     const missingSkeletons = skeletons.filter((s) => !cachedIds.has(s.id));
@@ -57,17 +70,18 @@ export async function syncUserEmails(
       `[SYNC] Detected ${missingSkeletons.length} missing emails. Beginning chunked batch-pull...`,
     );
 
-    // 3. Batch Network Fetching: Gather raw email payloads in parallel chunks
-    const preparedEmails: any[] = [];
-    const skeletonChunks = chunkArray(missingSkeletons, 10); // Ultra-safe chunking to prevent Gmail 429 Rate Limits
+    // 3. Batch Network Fetching: Gather raw email payloads with controlled concurrency to prevent Google rate limits
+    const detailedMessages: any[] = [];
+    const skeletonChunks = chunkArray(missingSkeletons, 10); // Process 10 concurrent requests at a time
 
     for (const chunk of skeletonChunks) {
-      const detailedMessages = await Promise.all(
+      const chunkResults = await Promise.all(
         chunk.map(async (skel) => {
           try {
             return await CorsairClient.getGmailMessageDirectly(
               skel.id,
-              userEmail,
+              undefined,
+              client,
             );
           } catch (err) {
             console.error(
@@ -76,56 +90,55 @@ export async function syncUserEmails(
             );
             return null;
           }
-        }),
+        })
       );
-
-      // 4. In-Memory Parsing Pipeline
-      for (const rawMsg of detailedMessages) {
-        if (!rawMsg) continue;
-
-        const parsed = CorsairClient.parseGmailMessage(rawMsg);
-        if (!parsed) continue;
-
-        preparedEmails.push({
-          id: parsed.id,
-          userId: userId,
-          fromName: parsed.from || "Unknown Sender",
-          fromEmail: parsed.fromEmail || "",
-          subject: parsed.subject || "(No Subject)",
-          body: parsed.body || "",
-          date: new Date(parsed.date), // Parses cleanly into standard native operational timestamp
-          read: parsed.read ?? false,
-          priority: parsed.priority || "medium",
-          category: parsed.category || "work",
-          labelIds: "",
-          quickReplies: null,
-          contextTag: null,
-        });
-      }
+      detailedMessages.push(...chunkResults);
     }
 
-    // 5. Atomic DB Insertion: Write all parsed structures to Neon in unified single-transaction batches
+    // 4. In-Memory Parsing Pipeline
+    const preparedEmails: any[] = [];
+    for (const rawMsg of detailedMessages) {
+      if (!rawMsg) continue;
+
+      const parsed = CorsairClient.parseGmailMessage(rawMsg);
+      if (!parsed) continue;
+
+      preparedEmails.push({
+        id: parsed.id,
+        userId: userId,
+        fromName: parsed.from || "Unknown Sender",
+        fromEmail: parsed.fromEmail || "",
+        subject: parsed.subject || "(No Subject)",
+        body: parsed.body || "",
+        date: new Date(parsed.date), // Parses cleanly into standard native operational timestamp
+        read: parsed.read ?? false,
+        priority: parsed.priority || "medium",
+        category: parsed.category || "work",
+        labelIds: (rawMsg.labelIds || []).join(","),
+        quickReplies: null,
+        contextTag: null,
+      });
+    }
+
+    // 5. Atomic DB Insertion: Write all parsed structures in a single unified operation
     if (preparedEmails.length > 0) {
-      const writeChunks = chunkArray(preparedEmails, 15); // Keep at 15, as our max fetch is now 15
-      for (const batch of writeChunks) {
-        await db
-          .insert(emails)
-          .values(batch)
-          .onConflictDoUpdate({
-            target: emails.id,
-            set: {
-              fromName: emails.fromName,
-              fromEmail: emails.fromEmail,
-              subject: emails.subject,
-              body: emails.body,
-              date: emails.date,
-              read: emails.read,
-              priority: emails.priority,
-              category: emails.category,
-              labelIds: emails.labelIds,
-            },
-          });
-      }
+      await db
+        .insert(emails)
+        .values(preparedEmails)
+        .onConflictDoUpdate({
+          target: emails.id,
+          set: {
+            fromName: emails.fromName,
+            fromEmail: emails.fromEmail,
+            subject: emails.subject,
+            body: emails.body,
+            date: emails.date,
+            read: emails.read,
+            priority: emails.priority,
+            category: emails.category,
+            labelIds: emails.labelIds,
+          },
+        });
       console.log(
         `[SYNC COMPLETE] Successfully synchronized and bulk-upserted ${preparedEmails.length} emails.`,
       );

@@ -2,6 +2,10 @@ import { getServerSession } from "@/lib/auth";
 import { CorsairClient } from "@/lib/corsair";
 import { syncUserEmails } from "@/lib/sync";
 
+import { db } from "@/lib/db";
+import { userIntegrations } from "@/lib/schema";
+import { and, eq } from "drizzle-orm";
+
 export const dynamic = "force-dynamic";
 
 // Active client stream controllers mapped by user email
@@ -51,9 +55,46 @@ export async function GET(req: Request) {
         }, 15000);
 
         // --- LOCAL DEV FALLBACK POLLER ---
-        // Checks for new email skeletons every 20 seconds to support local testing out-of-the-box
+        // Checks for new email skeletons to support local testing out-of-the-box
+        // Uses recursive setTimeout to prevent request overlap pile-up (concurrency control)
         let lastCheckedId = "";
-        const localPollInterval = setInterval(async () => {
+        let isGmailConnected = false;
+        let timerId: NodeJS.Timeout | null = null;
+        let active = true;
+
+        const checkConnectionAndStartPoll = async () => {
+          if (!active) return;
+          try {
+            const [integration] = await db
+              .select()
+              .from(userIntegrations)
+              .where(
+                and(
+                  eq(userIntegrations.userId, userId),
+                  eq(userIntegrations.provider, "gmail"),
+                  eq(userIntegrations.status, "connected"),
+                ),
+              )
+              .limit(1);
+
+            isGmailConnected = !!integration;
+
+            if (isGmailConnected && active) {
+              pollNext();
+            } else if (active) {
+              // Re-check connection status in 10 seconds
+              timerId = setTimeout(checkConnectionAndStartPoll, 10000);
+            }
+          } catch (err) {
+            console.error("[SSE Stream] Failed to check connection status:", err);
+            if (active) {
+              timerId = setTimeout(checkConnectionAndStartPoll, 10000);
+            }
+          }
+        };
+
+        const pollNext = async () => {
+          if (!active) return;
           try {
             const skeletons = await CorsairClient.listGmailMessagesDirectly(
               email,
@@ -76,14 +117,25 @@ export async function GET(req: Request) {
             }
           } catch (e) {
             console.error("[SSE Stream] Local poller fetch error:", e);
+          } finally {
+            if (active) {
+              // Wait 25 seconds before the next poll attempt
+              timerId = setTimeout(pollNext, 25000);
+            }
           }
-        }, 20000);
+        };
+
+        // Start checking connection status
+        checkConnectionAndStartPoll();
 
         // Cleanup resources on abort
         req.signal.addEventListener("abort", () => {
           console.log(`[SSE Stream] Connection aborted for ${email}`);
+          active = false;
           clearInterval(heartbeatInterval);
-          clearInterval(localPollInterval);
+          if (timerId) {
+            clearTimeout(timerId);
+          }
 
           const list = activeClients.get(email);
           if (list) {

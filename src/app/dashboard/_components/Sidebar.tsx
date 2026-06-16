@@ -91,7 +91,7 @@ export function Sidebar({ onShowShortcuts }: SidebarProps) {
         <button
           onClick={handleSignOutClick}
           className={`w-full px-3 py-2.5 border border-slate-200/20 dark:border-white/5 rounded-xl text-[10px] uppercase font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
-            isDark ? "bg-white/5 text-slate-400 hover:text-red-400" : "bg-slate-900/5 text-slate-600 hover:text-red-650"
+            isDark ? "bg-white/5 text-slate-400 hover:text-red-400" : "bg-slate-900/5 text-slate-600 hover:text-red-600"
           }`}
         >
           Sign Out

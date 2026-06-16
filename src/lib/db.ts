@@ -16,6 +16,9 @@ const globalForDb = globalThis as unknown as {
 
 export const pool = globalForDb.pool ?? new Pool({
   connectionString,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
 });
 
 if (process.env.NODE_ENV !== "production") {

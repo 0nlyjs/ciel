@@ -42,7 +42,7 @@ export async function ensureCorsairSetup() {
 // handles connection to corsair API or MCP server
 // falls back to local zustand state if credentials are missing
 export class CorsairClient {
-  private static getTenant(tenantId?: string) {
+  static getTenant(tenantId?: string) {
     const resolvedTenantId = tenantId || "guest@ciel.app";
     return corsair.withTenant(resolvedTenantId);
   }
@@ -550,10 +550,10 @@ export class CorsairClient {
     }
   }
 
-  static async listGmailMessagesDirectly(tenantId?: string, maxResults: number = 100, q: string = "label:INBOX"): Promise<any[]> {
+  static async listGmailMessagesDirectly(tenantId?: string, maxResults: number = 100, q: string = "label:INBOX", clientInstance?: any): Promise<any[]> {
     console.log(`[Corsair] Listing Gmail messages directly for tenant: ${tenantId} (query: ${q})`);
     try {
-      const client = this.getTenant(tenantId);
+      const client = clientInstance || this.getTenant(tenantId);
       const res = await client.gmail.api.messages.list({
         userId: "me",
         maxResults: maxResults,
@@ -563,15 +563,19 @@ export class CorsairClient {
       if (res && res.messages) {
         return res.messages;
       }
-    } catch (error) {
-      console.error("[Corsair API] listGmailMessagesDirectly error:", error);
+    } catch (error: any) {
+      if (error?.message?.includes("Account not found")) {
+        console.warn(`[Corsair API] Account not found for tenant: ${tenantId} (Gmail is likely disconnected).`);
+      } else {
+        console.error("[Corsair API] listGmailMessagesDirectly error:", error);
+      }
     }
     return [];
   }
 
-  static async getGmailMessageDirectly(messageId: string, tenantId?: string): Promise<any> {
+  static async getGmailMessageDirectly(messageId: string, tenantId?: string, clientInstance?: any): Promise<any> {
     try {
-      const client = this.getTenant(tenantId);
+      const client = clientInstance || this.getTenant(tenantId);
       const res = await client.gmail.api.messages.get({
         userId: "me",
         id: messageId
@@ -597,6 +601,33 @@ export class CorsairClient {
       return !!res;
     } catch (error) {
       console.error(`[Corsair API] markGmailMessageRead error for ${messageId}:`, error);
+      return false;
+    }
+  }
+
+  static async modifyGmailMessageLabels(
+    messageId: string,
+    addLabelIds: string[],
+    removeLabelIds: string[],
+    tenantId?: string,
+  ): Promise<boolean> {
+    console.log(
+      `[Corsair] Modifying message labels on Gmail: ${messageId} (tenant: ${tenantId}, add: ${addLabelIds}, remove: ${removeLabelIds})`,
+    );
+    try {
+      const client = this.getTenant(tenantId);
+      const res = await client.gmail.api.messages.modify({
+        userId: "me",
+        id: messageId,
+        addLabelIds,
+        removeLabelIds,
+      });
+      return !!res;
+    } catch (error) {
+      console.error(
+        `[Corsair API] modifyGmailMessageLabels error for ${messageId}:`,
+        error,
+      );
       return false;
     }
   }

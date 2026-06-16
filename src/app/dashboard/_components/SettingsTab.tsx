@@ -43,7 +43,7 @@ export function SettingsTab() {
           <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Preferences</h3>
 
           <div className="space-y-1.5">
-            <label className="text-[10px] text-slate-550 uppercase font-bold block">Sync Interval</label>
+            <label className="text-[10px] text-slate-500 uppercase font-bold block">Sync Interval</label>
             <select
               value={syncInterval}
               onChange={(e) => updateSettings({ syncInterval: parseInt(e.target.value, 10) })}
@@ -58,7 +58,7 @@ export function SettingsTab() {
 
           <div className="flex items-center justify-between pt-2 border-t border-white/5">
             <div>
-              <label className="text-[10px] text-slate-550 uppercase font-bold block">AI Auto-Priority</label>
+              <label className="text-[10px] text-slate-500 uppercase font-bold block">AI Auto-Priority</label>
               <span className="text-[9px] text-slate-500">Classify incoming emails using AI model</span>
             </div>
             <button
@@ -66,7 +66,7 @@ export function SettingsTab() {
               className={`px-3 py-1.5 text-xs font-bold rounded-xl uppercase cursor-pointer transition-colors ${
                 aiAutoPriority 
                   ? "bg-green-600/20 text-green-700 dark:text-green-300 border border-green-500/20" 
-                  : "bg-red-500/10 text-red-650 dark:text-red-300 border border-red-500/20"
+                  : "bg-red-500/10 text-red-600 dark:text-red-300 border border-red-500/20"
               }`}
             >
               {aiAutoPriority ? "Enabled" : "Disabled"}

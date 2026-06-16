@@ -303,74 +303,72 @@ export default function DashboardPage() {
     <DashboardLayout sidebar={<Sidebar onShowShortcuts={() => setShowShortcutsModal(true)} />}>
       {renderTab()}
 
-      {/* Compose Email Modal */}
+      {/* Compose Email Modal - Gmail-Style Floating Box */}
       {showComposeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowComposeModal(false)}>
-          <div 
-            className={`w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[400px] ${cardBgClass} transition-transform duration-300 transform scale-100`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={`p-4 border-b ${borderClass} flex items-center justify-between ${accordionHeaderBgClass}`}>
-              <h3 className={`text-xs font-bold ${isDark ? "text-white" : "text-slate-900"} uppercase tracking-normal leading-tight`}>Compose New Message</h3>
-              <button 
+        <div 
+          className={`fixed bottom-4 right-4 z-50 w-full max-w-lg rounded-2xl shadow-[0_15px_40px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden flex flex-col min-h-[420px] max-h-[550px] ${cardBgClass} transition-all duration-300 transform scale-100`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className={`p-4 border-b ${borderClass} flex items-center justify-between ${accordionHeaderBgClass}`}>
+            <h3 className={`text-xs font-bold ${isDark ? "text-white" : "text-slate-900"} uppercase tracking-normal leading-tight`}>Compose New Message</h3>
+            <button 
+              onClick={() => setShowComposeModal(false)}
+              className="text-slate-500 hover:text-slate-950 dark:hover:text-white font-bold text-lg cursor-pointer"
+            >
+              ×
+            </button>
+          </div>
+          <form onSubmit={handleSendComposeMail} className="flex-1 flex flex-col p-4 space-y-4">
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-500 uppercase font-bold">To:</label>
+              <input 
+                type="email" 
+                value={composeTo}
+                onChange={(e) => setComposeTo(e.target.value)}
+                placeholder="recipient@example.com"
+                required
+                className={`w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-500 uppercase font-bold">Subject:</label>
+              <input 
+                type="text" 
+                value={composeSubject}
+                onChange={(e) => setComposeSubject(e.target.value)}
+                placeholder="Enter email subject"
+                required
+                className={`w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
+              />
+            </div>
+            <div className="flex-1 flex flex-col space-y-1">
+              <label className="text-[10px] text-slate-500 uppercase font-bold">Message:</label>
+              <textarea 
+                value={composeBody}
+                onChange={(e) => setComposeBody(e.target.value)}
+                placeholder="Type your message here..."
+                rows={8}
+                required
+                className={`flex-1 text-xs p-3 outline-none rounded-xl border transition-all duration-300 ${inputBgClass} resize-none`}
+              />
+            </div>
+            <div className={`pt-3 border-t border-slate-900/10 dark:border-white/10 flex justify-end gap-2 shrink-0`}>
+              <button
+                type="button"
                 onClick={() => setShowComposeModal(false)}
-                className="text-slate-500 hover:text-slate-950 dark:hover:text-white font-bold text-lg cursor-pointer"
+                className="px-3.5 py-2 text-slate-500 hover:text-slate-950 dark:hover:text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer"
               >
-                ×
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSendingCompose || !composeTo.trim() || !composeSubject.trim() || !composeBody.trim()}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-zinc-800 disabled:text-slate-400 dark:disabled:text-zinc-600 text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors"
+              >
+                {isSendingCompose ? "Sending..." : "Send Email"}
               </button>
             </div>
-            <form onSubmit={handleSendComposeMail} className="flex-1 flex flex-col p-4 space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] text-slate-550 uppercase font-bold">To:</label>
-                <input 
-                  type="email" 
-                  value={composeTo}
-                  onChange={(e) => setComposeTo(e.target.value)}
-                  placeholder="recipient@example.com"
-                  required
-                  className={`w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] text-slate-550 uppercase font-bold">Subject:</label>
-                <input 
-                  type="text" 
-                  value={composeSubject}
-                  onChange={(e) => setComposeSubject(e.target.value)}
-                  placeholder="Enter email subject"
-                  required
-                  className={`w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
-                />
-              </div>
-              <div className="flex-1 flex flex-col space-y-1">
-                <label className="text-[10px] text-slate-550 uppercase font-bold">Message:</label>
-                <textarea 
-                  value={composeBody}
-                  onChange={(e) => setComposeBody(e.target.value)}
-                  placeholder="Type your message here..."
-                  rows={8}
-                  required
-                  className={`flex-1 text-xs p-3 outline-none rounded-xl border transition-all duration-300 ${inputBgClass} resize-none`}
-                />
-              </div>
-              <div className={`pt-3 border-t border-slate-900/10 dark:border-white/10 flex justify-end gap-2 shrink-0`}>
-                <button
-                  type="button"
-                  onClick={() => setShowComposeModal(false)}
-                  className="px-3.5 py-2 text-slate-500 hover:text-slate-950 dark:hover:text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSendingCompose || !composeTo.trim() || !composeSubject.trim() || !composeBody.trim()}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-zinc-800 disabled:text-slate-400 dark:disabled:text-zinc-605 text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors"
-                >
-                  {isSendingCompose ? "Sending..." : "Send Email"}
-                </button>
-              </div>
-            </form>
-          </div>
+          </form>
         </div>
       )}
 
@@ -397,7 +395,7 @@ export default function DashboardPage() {
               </div>
               <button 
                 onClick={() => setShowShortcutsModal(false)} 
-                className="px-2.5 py-1 text-[9px] bg-slate-200/50 dark:bg-white/5 hover:bg-red-500/20 hover:text-red-400 border border-transparent rounded-lg text-slate-505 uppercase font-bold transition-all cursor-pointer"
+                className="px-2.5 py-1 text-[9px] bg-slate-200/50 dark:bg-white/5 hover:bg-red-500/20 hover:text-red-400 border border-transparent rounded-lg text-slate-500 uppercase font-bold transition-all cursor-pointer"
               >
                 Close (Esc)
               </button>
@@ -465,7 +463,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="border-t border-slate-200/20 dark:border-white/5 pt-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between text-[10px] text-slate-550 gap-2">
+            <div className="border-t border-slate-200/20 dark:border-white/5 pt-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between text-[10px] text-slate-500 gap-2">
               <span className="font-mono">
                 💡 Tip: Type command queries in natural English; Ciel parses your intent.
               </span>

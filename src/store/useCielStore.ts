@@ -67,12 +67,15 @@ interface CielState {
   emailsHasMore: boolean;
   selectedEmailIndex: number | null;
   searchQuery: string;
-  activeFolder: "all" | "sent";
+  activeFolder: "inbox" | "starred" | "sent" | "drafts" | "social" | "promotions" | "updates";
   setEmails: (emails: Email[]) => void;
   setEmailsPage: (page: number) => void;
   setSelectedEmailIndex: (index: number | null) => void;
   setSearchQuery: (query: string) => void;
-  setActiveFolder: (folder: "all" | "sent") => void;
+  setActiveFolder: (
+    folder: "inbox" | "starred" | "sent" | "drafts" | "social" | "promotions" | "updates",
+  ) => void;
+  toggleStarEmail: (id: string, starred: boolean) => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
   archiveEmail: (id: string) => Promise<void>;
   addEmail: (email: Email) => void;
@@ -163,7 +166,7 @@ export const useCielStore = create<CielState>((set, get) => ({
       calendarEvents: [],
       selectedEmailIndex: null,
       searchQuery: "",
-      activeFolder: "all",
+      activeFolder: "inbox",
       chatMessages: [
         {
           id: "init",
@@ -186,11 +189,11 @@ export const useCielStore = create<CielState>((set, get) => ({
   emails: [],
   emailsTotal: 0,
   emailsPage: 1,
-  emailsPerPage: 50,
+  emailsPerPage: 30,
   emailsHasMore: true,
   selectedEmailIndex: null,
   searchQuery: "",
-  activeFolder: "all",
+  activeFolder: "inbox",
   setEmails: (emails) =>
     set({ emails, selectedEmailIndex: emails.length > 0 ? 0 : null }),
   setEmailsPage: (page) => set({ emailsPage: page }),
@@ -205,6 +208,38 @@ export const useCielStore = create<CielState>((set, get) => ({
       emailsHasMore: true,
       selectedEmailIndex: null,
     });
+  },
+  toggleStarEmail: async (id, starred) => {
+    const currentEmails = useCielStore.getState().emails;
+    const targetEmail = currentEmails.find((email) => email.id === id);
+    if (!targetEmail) return;
+
+    // Optimistically update the UI local state
+    set((state) => ({
+      emails: state.emails.map((email) => {
+        if (email.id !== id) return email;
+        let labels = (email.labelIds || "").split(",").filter(Boolean);
+        if (starred) {
+          if (!labels.includes("STARRED")) labels.push("STARRED");
+        } else {
+          labels = labels.filter((l) => l !== "STARRED");
+        }
+        return { ...email, labelIds: labels.join(",") };
+      }),
+    }));
+
+    // Send backend sync request
+    try {
+      const res = await fetch("/api/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "star", id, starred }),
+      });
+      if (!res.ok) throw new Error("Backend star update failed");
+    } catch (error) {
+      console.error("[Store] Error toggling star on server, reverting...", error);
+      set({ emails: currentEmails });
+    }
   },
   markAsRead: async (id) => {
     await useCielStore.getState().updateEmail(id, { read: true });

@@ -323,7 +323,7 @@ export function ChatTab() {
               ({activeConversationId})
             </span>
           )}
-          <span className="text-[9px] bg-purple-500/10 text-purple-650 dark:text-purple-355 border border-purple-500/20 px-2 py-0.5 rounded-lg font-mono font-bold shrink-0">
+          <span className="text-[9px] bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20 px-2 py-0.5 rounded-lg font-mono font-bold shrink-0">
             Tokens: {tokensConsumed.toLocaleString()} / 100,000
           </span>
           <span className="text-[9px] bg-slate-900/5 dark:bg-white/5 text-slate-500 dark:text-slate-400 border border-slate-900/10 dark:border-white/10 px-2 py-0.5 rounded-lg font-mono shrink-0">
@@ -555,11 +555,11 @@ export function ChatTab() {
                     className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs shadow-[0_1px_2px_rgba(0,0,0,0.02)] border ${
                       isUser
                         ? isDark
-                          ? "bg-cyan-950/40 border-cyan-800/50 text-cyan-205 rounded-tr-none"
+                          ? "bg-cyan-950/40 border-cyan-800/50 text-cyan-200 rounded-tr-none"
                           : "bg-cyan-50 border-cyan-200 text-cyan-950 rounded-tr-none"
                         : isDark
                           ? "bg-black/35 border-white/5 text-slate-300 font-mono rounded-tl-none"
-                          : "bg-white/80 border-slate-205 text-slate-800 rounded-tl-none"
+                          : "bg-white/80 border-slate-200 text-slate-800 rounded-tl-none"
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
@@ -646,7 +646,7 @@ export function ChatTab() {
           {/* Input Form */}
           <form
             onSubmit={handleChatSubmit}
-            className={`relative border ${borderClass} ${inputBgClass} rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-purple-650/50 transition-all mt-3 shrink-0`}
+            className={`relative border ${borderClass} ${inputBgClass} rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-purple-600/50 transition-all mt-3 shrink-0`}
           >
             <textarea
               ref={textareaRef}
@@ -685,7 +685,7 @@ export function ChatTab() {
               <button
                 type="submit"
                 disabled={isInputDisabled || !chatInput.trim()}
-                className="bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-zinc-800 disabled:text-slate-400 dark:disabled:text-zinc-650 text-white text-xs px-4 py-1.5 font-bold uppercase rounded-xl transition-colors cursor-pointer"
+                className="bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-zinc-800 disabled:text-slate-400 dark:disabled:text-zinc-600 text-white text-xs px-4 py-1.5 font-bold uppercase rounded-xl transition-colors cursor-pointer"
               >
                 Send
               </button>
@@ -716,7 +716,7 @@ export function ChatTab() {
 
             <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
               {conversationsList.length === 0 ? (
-                <div className="text-[10px] text-slate-550 text-center py-8">
+                <div className="text-[10px] text-slate-500 text-center py-8">
                   No saved chats.
                 </div>
               ) : (
@@ -739,13 +739,13 @@ export function ChatTab() {
                             : "bg-purple-55 border-purple-300 text-purple-950"
                           : isDark
                             ? "bg-black/20 border-white/5 text-slate-400 hover:bg-black/35 hover:text-white"
-                            : "bg-white border-slate-205 text-slate-600 hover:bg-slate-50 hover:text-black"
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-black"
                       }`}
                     >
                       <span className="font-bold truncate text-[11px] block">
                         {conv.title || "Untitled Chat"}
                       </span>
-                      <span className="text-[9px] text-slate-550 font-mono truncate">
+                      <span className="text-[9px] text-slate-500 font-mono truncate">
                         ID: {conv.id}
                       </span>
                       {conv.tokens_used > 0 && (
@@ -753,7 +753,7 @@ export function ChatTab() {
                           Tokens: {conv.tokens_used}
                         </span>
                       )}
-                      <span className="text-[8px] text-slate-505 self-end mt-1">
+                      <span className="text-[8px] text-slate-500 self-end mt-1">
                         <span className="font-mono">
                           {new Date(conv.updated_at).toLocaleString()}
                         </span>
