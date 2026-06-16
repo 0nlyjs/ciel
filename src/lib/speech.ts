@@ -202,12 +202,20 @@ export function useSpeechToText(onTranscriptComplete?: (text: string) => void) {
 }
 
 // text-to-speech hook for ciel's voice replies
-// Uses Google Cloud TTS via /api/tts when configured, falls back to browser SpeechSynthesis
+// Uses browser SpeechSynthesis (local TTS only)
 export function useTextToSpeech() {
   const setCielStatus = useCielStore((s) => s.setCielStatus);
   const setCurrentVolume = useCielStore((s) => s.setCurrentVolume);
   const animationFrameRef = useRef<number | null>(null);
-  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+
+  // Stop TTS when the hook/component unmounts (e.g. changing tabs)
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   // Strip markdown/html for clean speech text
   const stripFormatting = (text: string): string => {
@@ -226,90 +234,109 @@ export function useTextToSpeech() {
       .trim();
   };
 
-  // Speak using Google Cloud TTS API (server-side), falls back to browser TTS
-  const speak = async (text: string) => {
-    // Stop any existing audio playback
-    if (audioElementRef.current) {
-      audioElementRef.current.pause();
-      audioElementRef.current = null;
+  // Get available browser voices with gender hints
+  // Filtered exclusively to Google UK English Female (default) and UK English Male
+  const getAvailableVoices = (): Array<{
+    name: string;
+    lang: string;
+    gender: string;
+  }> => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return [];
+    
+    const voices = window.speechSynthesis.getVoices();
+    
+    // Find Google UK English Female or fallback to any en-GB female voice
+    const femaleVoice = 
+      voices.find((v) => v.name === "Google UK English Female") ||
+      voices.find((v) => v.lang === "en-GB" && (v.name.toLowerCase().includes("female") || ["Serena", "Kate", "Susan", "Hazel", "Victoria"].some(h => v.name.includes(h)))) ||
+      voices.find((v) => v.lang === "en-GB");
+
+    // Find Google UK English Male or fallback to any en-GB male voice
+    const maleVoice = 
+      voices.find((v) => v.name === "Google UK English Male") ||
+      voices.find((v) => v.lang === "en-GB" && v !== femaleVoice && (v.name.toLowerCase().includes("male") || ["Daniel", "George", "Oliver", "James"].some(h => v.name.includes(h)))) ||
+      voices.find((v) => v.lang === "en-GB" && v !== femaleVoice);
+
+    const result: Array<{ name: string; lang: string; gender: string }> = [];
+    if (femaleVoice) {
+      result.push({ name: femaleVoice.name, lang: femaleVoice.lang, gender: "female" });
     }
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
+    if (maleVoice) {
+      result.push({ name: maleVoice.name, lang: maleVoice.lang, gender: "male" });
     }
-    stopSpeechSimulation();
-
-    const clean = stripFormatting(text);
-    if (!clean) return;
-
-    // Try Google Cloud TTS first
-    try {
-      const response = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: clean, voice: "default" }),
-      });
-
-      // If response is not audio, fall back to browser TTS
-      const contentType = response.headers.get("content-type") || "";
-      if (!response.ok || !contentType.includes("audio")) {
-        speakBrowser(clean);
-        return;
-      }
-
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-
-      const audio = new Audio(audioUrl);
-      audioElementRef.current = audio;
-
-      audio.addEventListener("play", () => {
-        setCielStatus("speaking");
-        simulateSpeakingPulses();
-      });
-
-      audio.addEventListener("ended", () => {
-        setCielStatus("idle");
-        stopSpeechSimulation();
-        URL.revokeObjectURL(audioUrl);
-        audioElementRef.current = null;
-      });
-
-      audio.addEventListener("error", () => {
-        setCielStatus("error");
-        stopSpeechSimulation();
-        URL.revokeObjectURL(audioUrl);
-        audioElementRef.current = null;
-        setTimeout(() => setCielStatus("idle"), 2000);
-      });
-
-      await audio.play();
-    } catch {
-      // Fallback to browser TTS on any error
-      speakBrowser(clean);
-    }
+    return result;
   };
 
-  // Browser SpeechSynthesis fallback
-  const speakBrowser = (text: string) => {
+  // Preview a voice with a short test sentence
+  const previewVoice = (voiceName: string) => {
+    stop();
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const utterance = new SpeechSynthesisUtterance(
+      "Hello, this is a calm and pleasant voice.",
+    );
+    const voices = window.speechSynthesis.getVoices();
+    const voice = voices.find((v) => v.name === voiceName);
+    if (voice) utterance.voice = voice;
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.onstart = () => {
+      setCielStatus("speaking");
+      simulateSpeakingPulses();
+    };
+    utterance.onend = () => {
+      setCielStatus("idle");
+      stopSpeechSimulation();
+    };
+    utterance.onerror = () => {
+      setCielStatus("error");
+      stopSpeechSimulation();
+      setTimeout(() => setCielStatus("idle"), 2000);
+    };
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Browser SpeechSynthesis (local TTS)
+  // Default voice: Google UK English Female
+  const speakBrowser = (text: string, voiceName?: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
 
     const utterance = new SpeechSynthesisUtterance(text);
 
     const voices = window.speechSynthesis.getVoices();
-    const englishVoice =
-      voices.find(
-        (v) =>
-          v.name.includes("Google US English") || v.name.includes("Natural"),
-      ) ||
-      voices.find((v) => v.lang.startsWith("en")) ||
-      voices[0];
 
-    if (englishVoice) {
-      utterance.voice = englishVoice;
+    // Resolve the voice to use
+    let selectedVoice: SpeechSynthesisVoice | null = null;
+
+    if (voiceName && voiceName.trim()) {
+      // Use the explicitly requested voice
+      selectedVoice = voices.find((v) => v.name === voiceName.trim()) || null;
     }
 
-    utterance.rate = 1.05;
-    utterance.pitch = 1.05;
+    // Strict voice selection fallback (prefers Google UK English Female as default)
+    if (!selectedVoice) {
+      const isMaleRequest = voiceName?.toLowerCase().includes("male") || false;
+      if (isMaleRequest) {
+        selectedVoice =
+          voices.find((v) => v.name === "Google UK English Male") ||
+          voices.find((v) => v.lang === "en-GB" && v.name.toLowerCase().includes("male")) ||
+          voices.find((v) => v.lang === "en-GB") ||
+          null;
+      } else {
+        selectedVoice =
+          voices.find((v) => v.name === "Google UK English Female") ||
+          voices.find((v) => v.lang === "en-GB" && v.name.toLowerCase().includes("female")) ||
+          voices.find((v) => v.lang === "en-GB") ||
+          null;
+      }
+    }
+
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+    }
+
+    // Calm voice settings
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
 
     utterance.onstart = () => {
       setCielStatus("speaking");
@@ -328,6 +355,20 @@ export function useTextToSpeech() {
     };
 
     window.speechSynthesis.speak(utterance);
+  };
+
+  // Main speak function
+  const speak = (text: string, voiceName?: string) => {
+    // Stop any existing speech synthesis
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    stopSpeechSimulation();
+
+    const clean = stripFormatting(text);
+    if (!clean) return;
+
+    speakBrowser(clean, voiceName);
   };
 
   // fake voice volume pulses so the R3F visual orb animates during speech
@@ -354,14 +395,6 @@ export function useTextToSpeech() {
   };
 
   const stop = () => {
-    if (audioElementRef.current) {
-      audioElementRef.current.pause();
-      const src = audioElementRef.current.src;
-      if (src.startsWith("blob:")) {
-        URL.revokeObjectURL(src);
-      }
-      audioElementRef.current = null;
-    }
     if (typeof window !== "undefined" && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
@@ -369,5 +402,5 @@ export function useTextToSpeech() {
     stopSpeechSimulation();
   };
 
-  return { speak, stop };
+  return { speak, stop, getAvailableVoices, previewVoice };
 }

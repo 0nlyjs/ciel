@@ -189,6 +189,7 @@ export function ChatTab() {
   };
 
   const handleStartFreshChat = () => {
+    stop();
     const newId = Math.random().toString(36).substring(2, 15);
     setActiveConversationId(newId);
     setTokensConsumed(0);
@@ -220,10 +221,48 @@ export function ChatTab() {
     ? "bg-white/5 hover:bg-white/10 text-white border border-white/10"
     : "bg-white/40 hover:bg-white/60 text-slate-800 border border-white/50";
 
-  const { speak, stop } = useTextToSpeech();
-
-  // Global TTS toggle (default ON)
+  // TTS settings
   const [ttsEnabled, setTtsEnabled] = useState(true);
+  const [ttsDropdownOpen, setTtsDropdownOpen] = useState(false);
+  const [selectedLocalVoice, setSelectedLocalVoice] = useState("");
+  const [showVoicePicker, setShowVoicePicker] = useState(false);
+  const [availableVoices, setAvailableVoices] = useState<Array<{ name: string; lang: string; gender: string }>>([]);
+
+  const { speak, stop, getAvailableVoices, previewVoice } = useTextToSpeech();
+
+  // Auto-select default voice: Google UK English Female once voices are loaded
+  useEffect(() => {
+    const updateVoices = () => {
+      const voices = getAvailableVoices();
+      setAvailableVoices(voices);
+      if (voices.length > 0) {
+        // Prefer "Google" UK female voice, fallback to any female voice, then first available
+        const defaultVoice =
+          voices.find(
+            (v) =>
+              v.name.includes("Google") &&
+              v.lang === "en-GB" &&
+              v.gender === "female",
+          ) || 
+          voices.find((v) => v.gender === "female") || 
+          voices[0];
+        if (defaultVoice) {
+          setSelectedLocalVoice(defaultVoice.name);
+        }
+      }
+    };
+
+    // Try immediately
+    updateVoices();
+
+    // Listen for speech synthesis voices loaded asynchronously by the browser
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.addEventListener("voiceschanged", updateVoices);
+      return () => {
+        window.speechSynthesis.removeEventListener("voiceschanged", updateVoices);
+      };
+    }
+  }, []);
 
   // Track last spoken message ID to auto-speak new assistant messages
   const lastSpokenIdRef = useRef<string | null>(null);
@@ -231,17 +270,17 @@ export function ChatTab() {
   // Auto-speak new assistant messages when TTS is enabled
   useEffect(() => {
     if (!ttsEnabled) return;
-    if (isSendingChat) return; // Don't speak while still generating
+    if (isSendingChat) return;
+    if (!selectedLocalVoice) return; // Wait until local voice selection is resolved
 
     const lastMsg = chatMessages[chatMessages.length - 1];
     if (!lastMsg) return;
     if (lastMsg.role !== "assistant") return;
     if (lastSpokenIdRef.current === lastMsg.id) return;
 
-    // Found a new assistant message — speak it
     lastSpokenIdRef.current = lastMsg.id;
-    speak(lastMsg.content);
-  }, [chatMessages, isSendingChat, ttsEnabled, speak]);
+    speak(lastMsg.content, selectedLocalVoice);
+  }, [chatMessages, isSendingChat, ttsEnabled, speak, selectedLocalVoice]);
 
   // Stop TTS when turning it off
   const handleTtsToggle = () => {
@@ -251,6 +290,22 @@ export function ChatTab() {
       stop();
     }
   };
+
+  // Close dropdown when clicking outside
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!ttsDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setTtsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [ttsDropdownOpen]);
 
   return (
     <div
@@ -283,48 +338,177 @@ export function ChatTab() {
           >
             + New Chat
           </button>
-          {/* TTS Toggle */}
-          <button
-            onClick={handleTtsToggle}
-            className={`text-[10px] px-3.5 py-1.5 rounded-xl font-bold uppercase cursor-pointer transition-all flex items-center gap-1.5 shrink-0 border ${
-              ttsEnabled
-                ? "bg-purple-500/20 text-purple-400 border-purple-500/30 hover:bg-purple-500/30"
-                : "bg-white/5 text-slate-500 border-white/10 hover:bg-white/10"
-            }`}
-            title={ttsEnabled ? "Turn off voice" : "Turn on voice"}
-          >
-            {ttsEnabled ? (
+          {/* TTS Dropdown */}
+          <div ref={dropdownRef} className="relative">
+            <button
+              onClick={() => setTtsDropdownOpen(!ttsDropdownOpen)}
+              className={`text-[10px] px-3.5 py-1.5 rounded-xl font-bold uppercase cursor-pointer transition-all flex items-center gap-1.5 shrink-0 border ${
+                ttsEnabled
+                  ? "bg-purple-500/20 text-purple-400 border-purple-500/30 hover:bg-purple-500/30"
+                  : "bg-white/5 text-slate-500 border-white/10 hover:bg-white/10"
+              }`}
+              title={ttsEnabled ? "Voice settings" : "Voice disabled"}
+            >
+              {ttsEnabled ? (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                </svg>
+              ) : (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <line x1="23" y1="1" x2="1" y2="23" />
+                </svg>
+              )}
+              <span>{ttsEnabled ? "Voice" : "Muted"}</span>
               <svg
-                width="14"
-                height="14"
+                width="10"
+                height="10"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="2"
+                strokeWidth="3"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                className={`transition-transform duration-200 ${ttsDropdownOpen ? "rotate-180" : ""}`}
               >
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                <polyline points="6 9 12 15 18 9" />
               </svg>
-            ) : (
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            </button>
+
+            {/* Dropdown Menu */}
+            {ttsDropdownOpen && (
+              <div
+                className={`absolute right-0 top-full mt-2 w-60 rounded-xl border z-50 overflow-hidden shadow-xl ${
+                  isDark
+                    ? "bg-zinc-950 border-white/10"
+                    : "bg-white border-slate-200"
+                }`}
               >
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                <line x1="23" y1="1" x2="1" y2="23" />
-              </svg>
+                {/* Enable/Disable Toggle */}
+                <div
+                  className={`px-4 py-3 flex items-center justify-between border-b ${
+                    isDark ? "border-white/5" : "border-slate-100"
+                  }`}
+                >
+                  <span
+                    className={`text-[11px] font-bold uppercase tracking-wider ${textWhiteClass}`}
+                  >
+                    Voice
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleTtsToggle();
+                    }}
+                    className={`w-8 h-4 rounded-full transition-colors relative ${
+                      ttsEnabled
+                        ? "bg-purple-500"
+                        : isDark
+                          ? "bg-zinc-700"
+                          : "bg-slate-300"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${
+                        ttsEnabled ? "left-4.5" : "left-0.5"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Local Voice Picker */}
+                {ttsEnabled && (
+                  <div className="px-4 py-3">
+                    <div className="flex flex-col gap-2.5 mt-1">
+                      {availableVoices.map((voice) => {
+                        const isSelected = selectedLocalVoice === voice.name;
+                        return (
+                          <div
+                            key={voice.name}
+                            onClick={() => setSelectedLocalVoice(voice.name)}
+                            className="flex items-center gap-1.5 cursor-pointer"
+                          >
+                            {/* custom radio button styling */}
+                            <div
+                              className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all ${
+                                isSelected
+                                  ? "border-purple-500 bg-purple-500/20 shadow-[0_0_8px_rgba(168,85,247,0.4)]"
+                                  : isDark
+                                    ? "border-white/20 bg-white/5"
+                                    : "border-slate-300 bg-slate-50"
+                              }`}
+                            >
+                              {isSelected && (
+                                <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                              )}
+                            </div>
+                            <span
+                              className={`text-[11px] font-bold transition-colors ${
+                                isSelected
+                                  ? "text-purple-400"
+                                  : textMutedClass
+                              }`}
+                            >
+                              {voice.gender === "female" ? "Female" : "Male"}
+                            </span>
+                            
+                            {/* Short preview button icon */}
+                            <button
+                              type="button"
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                previewVoice(voice.name);
+                              }}
+                              className={`p-1 rounded transition-colors ${
+                                isDark
+                                  ? "hover:bg-white/10 text-slate-400 hover:text-white"
+                                  : "hover:bg-slate-100 text-slate-500 hover:text-slate-900"
+                              }`}
+                              title="Preview voice"
+                            >
+                              <svg
+                                width="10"
+                                height="10"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                              </svg>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
-            <span>{ttsEnabled ? "Voice" : "Muted"}</span>
-          </button>
+          </div>
           <button
             onClick={() => {
               const nextShowHistory = !showHistory;
