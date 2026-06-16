@@ -62,8 +62,7 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
   const fetchCalendarEvents = useCielStore((s) => s.fetchCalendarEvents);
   const selectedDate = useCielStore((s) => s.selectedDate);
 
-  const theme = useCielStore((s) => s.theme);
-  const isDark = theme === "dark";
+  const isDark = true;
 
   // Local state
   const [isRefreshing, setIsRefreshing] = useState(false);

@@ -2,7 +2,6 @@
 
 import { useCielStore } from "@/store/useCielStore";
 import { useSession, signOut } from "@/lib/auth-client";
-import { PerformanceCanvas } from "@/components/PerformanceCanvas";
 import { useRouter } from "next/navigation";
 
 interface SidebarProps {
@@ -15,8 +14,7 @@ export function Sidebar({ onShowShortcuts }: SidebarProps) {
   const activeTab = useCielStore((s) => s.activeTab);
   const setActiveTab = useCielStore((s) => s.setActiveTab);
   const logout = useCielStore((s) => s.logout);
-  const theme = useCielStore((s) => s.theme);
-  const isDark = theme === "dark";
+  const isDark = true;
 
   const handleSignOutClick = async () => {
     await signOut({
@@ -48,7 +46,7 @@ export function Sidebar({ onShowShortcuts }: SidebarProps) {
 
   return (
     <aside className="w-64 flex flex-col p-4 transition-all duration-300 bg-white/5 dark:bg-black/10 backdrop-blur-xl border border-white/10 dark:border-white/5 shadow-2xl rounded-2xl">
-      {/* Brand Header */}
+// Brand Header
       <div className="flex items-center gap-3 px-2 py-3 mb-6">
         <div className="w-8 h-8 rounded-full bg-gradient-to-b from-cyan-400 to-blue-600 flex items-center justify-center font-bold text-white tracking-tighter shadow-sm shrink-0">
           C
@@ -59,11 +57,6 @@ export function Sidebar({ onShowShortcuts }: SidebarProps) {
             {session?.user?.email || "Workspace Console"}
           </span>
         </div>
-      </div>
-
-      {/* R3F Orb Container */}
-      <div className="flex justify-center items-center py-4 mb-6 relative">
-        <PerformanceCanvas />
       </div>
 
       {/* Navigation Menu */}

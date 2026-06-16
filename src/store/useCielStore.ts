@@ -102,13 +102,11 @@ interface CielState {
   setCurrentVolume: (vol: number) => void;
 
   // settings state
-  theme: "dark" | "light";
   syncInterval: number;
   aiAutoPriority: boolean;
   fetchSettings: () => Promise<void>;
   updateSettings: (
     settings: Partial<{
-      theme: "dark" | "light";
       syncInterval: number;
       aiAutoPriority: boolean;
     }>,
@@ -449,7 +447,6 @@ export const useCielStore = create<CielState>((set, get) => ({
   },
 
   // settings default state
-  theme: "light",
   syncInterval: 60,
   aiAutoPriority: true,
   localIntegrations: [],
@@ -460,12 +457,11 @@ export const useCielStore = create<CielState>((set, get) => ({
       if (res.ok) {
         const data = await res.json();
         set({
-          theme: data.theme || "light",
           syncInterval: data.sync_interval_minutes || 60,
           aiAutoPriority:
             data.ai_auto_priority !== undefined
-              ? !!data.ai_auto_priority
-              : true,
+               ? !!data.ai_auto_priority
+               : true,
         });
       }
     } catch (error) {
@@ -474,9 +470,9 @@ export const useCielStore = create<CielState>((set, get) => ({
   },
 
   updateSettings: async (settings) => {
+    const state = get();
     // update locally first
     set((state) => ({
-      theme: settings.theme !== undefined ? settings.theme : state.theme,
       syncInterval:
         settings.syncInterval !== undefined
           ? settings.syncInterval
@@ -489,12 +485,10 @@ export const useCielStore = create<CielState>((set, get) => ({
 
     // push to API
     try {
-      const state = useCielStore.getState();
       await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          theme: settings.theme !== undefined ? settings.theme : state.theme,
           sync_interval_minutes:
             settings.syncInterval !== undefined
               ? settings.syncInterval

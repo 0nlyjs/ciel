@@ -15,7 +15,6 @@ export async function GET() {
     const email = session.user.email;
     const rows = await db.select({
       user_email: userSettings.userEmail,
-      theme: userSettings.theme,
       sync_interval_minutes: userSettings.syncIntervalMinutes,
       ai_auto_priority: userSettings.aiAutoPriority,
       created_at: userSettings.createdAt,
@@ -28,13 +27,11 @@ export async function GET() {
       const defaultSettings = await db.insert(userSettings)
         .values({
           userEmail: email,
-          theme: 'light',
           syncIntervalMinutes: 60,
           aiAutoPriority: true,
         })
         .returning({
           user_email: userSettings.userEmail,
-          theme: userSettings.theme,
           sync_interval_minutes: userSettings.syncIntervalMinutes,
           ai_auto_priority: userSettings.aiAutoPriority,
           created_at: userSettings.createdAt,
@@ -58,27 +55,24 @@ export async function POST(req: Request) {
     }
 
     const email = session.user.email;
-    const { theme, sync_interval_minutes, ai_auto_priority } = await req.json();
+    const { sync_interval_minutes, ai_auto_priority } = await req.json();
 
     // Validate parameters
     const updated = await db.insert(userSettings)
       .values({
         userEmail: email,
-        theme: theme || 'light',
         syncIntervalMinutes: sync_interval_minutes !== undefined ? parseInt(sync_interval_minutes, 10) : 60,
         aiAutoPriority: ai_auto_priority !== undefined ? !!ai_auto_priority : true
       })
       .onConflictDoUpdate({
         target: [userSettings.userEmail],
         set: {
-          theme: theme || 'light',
           syncIntervalMinutes: sync_interval_minutes !== undefined ? parseInt(sync_interval_minutes, 10) : 60,
           aiAutoPriority: ai_auto_priority !== undefined ? !!ai_auto_priority : true
         }
       })
       .returning({
         user_email: userSettings.userEmail,
-        theme: userSettings.theme,
         sync_interval_minutes: userSettings.syncIntervalMinutes,
         ai_auto_priority: userSettings.aiAutoPriority,
         created_at: userSettings.createdAt,

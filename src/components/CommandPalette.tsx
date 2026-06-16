@@ -76,8 +76,7 @@ export function CommandPalette() {
     }
   };
 
-  const theme = useCielStore((s) => s.theme);
-  const isDark = theme === "dark";
+  const isDark = true;
 
   if (!open) return null;
 

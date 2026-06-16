@@ -83,6 +83,39 @@ export class CorsairClient {
     return "";
   }
 
+  private static replaceInlineImages(body: string, payload: any): string {
+    if (!body || !payload) return body;
+    const imageMap: Record<string, string> = {};
+    const traverseParts = (p: any) => {
+      if (p.mimeType?.startsWith("image/") && p.body?.data) {
+        const contentIdHeader = p.headers?.find(
+          (h: any) => h.name.toLowerCase() === "content-id"
+        );
+        if (contentIdHeader) {
+          const contentId = contentIdHeader.value.replace(/[<>]/g, "").trim();
+          const base64 = p.body.data.replace(/-/g, "+").replace(/_/g, "/");
+          imageMap[contentId] = `data:${p.mimeType};base64,${base64}`;
+        }
+      }
+      if (p.parts && p.parts.length > 0) {
+        for (const subPart of p.parts) {
+          traverseParts(subPart);
+        }
+      }
+    };
+    traverseParts(payload);
+
+    let updatedBody = body;
+    for (const [cid, dataUri] of Object.entries(imageMap)) {
+      const escapedCid = cid.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
+      const regex = new RegExp(`src=['"]cid:${escapedCid}['"]`, "gi");
+      updatedBody = updatedBody.replace(regex, `src="${dataUri}"`);
+      const rawRegex = new RegExp(`cid:${escapedCid}`, "gi");
+      updatedBody = updatedBody.replace(rawRegex, dataUri);
+    }
+    return updatedBody;
+  }
+
   static parseGmailMessage(msg: any): Email | null {
     if (!msg || !msg.id) return null;
 
@@ -128,6 +161,7 @@ export class CorsairClient {
     let body = "";
     if (msg.payload) {
       body = this.extractBody(msg.payload);
+      body = this.replaceInlineImages(body, msg.payload);
     }
     if (!body) {
       body = msg.snippet || "";
@@ -201,6 +235,9 @@ export class CorsairClient {
     let body = data.body || "";
     if (!body && data.payload) {
       body = this.extractBody(data.payload);
+    }
+    if (data.payload) {
+      body = this.replaceInlineImages(body, data.payload);
     }
     if (!body) {
       body = data.snippet || "";

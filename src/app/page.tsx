@@ -36,21 +36,23 @@ export default function LandingPage() {
   const isAuthenticated = !isPending && !!session;
 
   return (
-    <div className="relative min-h-screen bg-transparent text-[#334155] font-sans selection:bg-cyan-500 selection:text-black">
+    <div className="relative min-h-screen bg-transparent text-slate-200 font-sans selection:bg-cyan-500 selection:text-black">
       {/* Ambient Animated Background Layer */}
       <div
         className="fixed inset-0 pointer-events-none -z-10 select-none overflow-hidden"
         style={{
-          background: `
-            url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.035'/%3E%3C/svg%3E"),
-            linear-gradient(135deg, #bfdbfe 0%, #c7d2fe 16%, #ddd6fe 32%, #fbcfe8 48%, #fecdd3 64%, #fed7aa 80%, #bbf7d0 100%)
+          backgroundImage: `
+            url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.015'/%3E%3C/svg%3E"),
+            url("/cielbg.jpg")
           `,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
         }}
       >
         {/* Soft, blurred glowing blobs that slowly pulse/float */}
-        <div className="absolute top-[10%] left-[5%] w-[45vw] h-[45vw] max-w-[600px] rounded-full bg-sky-300/35 blur-[120px] animate-float-slow-1" />
-        <div className="absolute bottom-[10%] right-[5%] w-[50vw] h-[50vw] max-w-[700px] rounded-full bg-pink-300/35 blur-[140px] animate-float-slow-2" />
-        <div className="absolute top-[40%] left-[35%] w-[40vw] h-[40vw] max-w-[500px] rounded-full bg-violet-300/25 blur-[120px] animate-float-slow-3" />
+        <div className="absolute top-[10%] left-[5%] w-[45vw] h-[45vw] max-w-[600px] rounded-full bg-cyan-500/15 blur-[120px] animate-float-slow-1" />
+        <div className="absolute bottom-[10%] right-[5%] w-[50vw] h-[50vw] max-w-[700px] rounded-full bg-purple-500/15 blur-[140px] animate-float-slow-2" />
+        <div className="absolute top-[40%] left-[35%] w-[40vw] h-[40vw] max-w-[500px] rounded-full bg-blue-500/10 blur-[120px] animate-float-slow-3" />
       </div>
       
       {/* Foreground UI Layer */}
@@ -68,7 +70,7 @@ export default function LandingPage() {
             <div className="w-8 h-8 rounded-full bg-gradient-to-b from-cyan-400 to-blue-600 flex items-center justify-center font-bold text-white tracking-tighter shadow-[0_4px_12px_rgba(6,182,212,0.3),inset_0_1px_1px_rgba(255,255,255,0.5)]">
               C
             </div>
-            <span className="text-slate-900 font-bold tracking-widest text-sm uppercase">Ceil.</span>
+            <span className="text-white font-bold tracking-widest text-sm uppercase">Ceil.</span>
           </div>
 
           <div className="flex items-center gap-4">
@@ -90,7 +92,7 @@ export default function LandingPage() {
                     setAuthSuccess("");
                     setShowAuthModal(true);
                   }}
-                  className="px-4 py-1.5 liquid-glass-button text-[10px] uppercase text-slate-700 hover:text-slate-900 cursor-pointer"
+                  className="px-4 py-1.5 liquid-glass-button text-[10px] uppercase text-slate-200 hover:text-white cursor-pointer"
                 >
                   Login
                 </button>
@@ -124,7 +126,7 @@ export default function LandingPage() {
             </div>
 
             {/* Main Headline */}
-            <h1 className="text-5xl md:text-7xl font-extrabold text-slate-900 tracking-normal leading-tight uppercase">
+            <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-normal leading-tight uppercase">
               Think Fast.<br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 drop-shadow-[0_0_15px_rgba(6,182,212,0.2)]">
                 Work Faster.
@@ -132,7 +134,7 @@ export default function LandingPage() {
             </h1>
 
             {/* Sub-Headline */}
-            <p className="text-sm md:text-base text-slate-600 leading-relaxed">
+            <p className="text-sm md:text-base text-slate-300 leading-relaxed">
               Your time is valuable. Ceil clears the noise and handles the busywork, so you can stay in the zone and get things done.
             </p>
 
@@ -158,16 +160,16 @@ export default function LandingPage() {
           </div>
 
           {/* Placeholder column for future image */}
-          <div className="hidden md:block w-full h-[360px] border border-dashed border-slate-350/40 rounded-2xl bg-slate-500/5 relative overflow-hidden shadow-[inset_0_1px_4px_rgba(0,0,0,0.02)]">
-            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400/50 uppercase tracking-widest font-mono">Placeholder Image Area</div>
+          <div className="hidden md:block w-full h-[360px] border border-dashed border-white/10 rounded-2xl bg-white/5 relative overflow-hidden shadow-[inset_0_1px_4px_rgba(0,0,0,0.02)]">
+            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-500/50 uppercase tracking-widest font-mono">Placeholder Image Area</div>
           </div>
         </section>
 
         {/* Section 2: The Agent (Corsair MCP Focus) */}
         <section className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center py-12 w-full text-left">
           {/* Placeholder column for future image (renders first on desktop, bottom on mobile) */}
-          <div className="hidden md:block w-full h-[360px] border border-dashed border-slate-355/40 rounded-2xl bg-slate-500/5 relative overflow-hidden shadow-[inset_0_1px_4px_rgba(0,0,0,0.02)] order-last md:order-first">
-            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400/50 uppercase tracking-widest font-mono">Placeholder Image Area</div>
+          <div className="hidden md:block w-full h-[360px] border border-dashed border-white/10 rounded-2xl bg-white/5 relative overflow-hidden shadow-[inset_0_1px_4px_rgba(0,0,0,0.02)] order-last md:order-first">
+            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-500/50 uppercase tracking-widest font-mono">Placeholder Image Area</div>
           </div>
 
           <div className="space-y-6 max-w-xl">
@@ -176,32 +178,32 @@ export default function LandingPage() {
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500">Corsair MCP Layer</span>
             </div>
 
-            <h2 className="text-3xl md:text-5xl font-bold text-slate-900 tracking-normal leading-tight uppercase relative z-10">
+            <h2 className="text-3xl md:text-5xl font-bold text-white tracking-normal leading-tight uppercase relative z-10">
               Just Tell Ceil What to Do.
             </h2>
 
-            <p className="text-xs md:text-sm text-slate-600 leading-relaxed relative z-10">
-              Press <kbd className="px-1.5 py-0.5 rounded bg-black/5 border border-black/10 text-slate-900 text-[10px] font-mono">Cmd + K</kbd> and just type. Need to set up a meeting for Thursday? Want to clear out your junk mail? Just ask. Ceil understands plain English and handles the complex steps for you. It is like having a real assistant built right into your screen.
+            <p className="text-xs md:text-sm text-slate-300 leading-relaxed relative z-10">
+              Press <kbd className="px-1.5 py-0.5 rounded bg-white/10 border border-white/20 text-white text-[10px] font-mono">Cmd + K</kbd> and just type. Need to set up a meeting for Thursday? Want to clear out your junk mail? Just ask. Ceil understands plain English and handles the complex steps for you. It is like having a real assistant built right into your screen.
             </p>
 
             {/* Vertical Stack Mini-Cards */}
             <div className="space-y-3 pt-2 relative z-10">
-              <div className="p-4 rounded-xl border border-black/5 bg-slate-50/50 text-left space-y-1">
+              <div className="p-4 rounded-xl border border-white/10 bg-white/5 backdrop-blur-md text-left space-y-1">
                 <Terminal className="w-4 h-4 text-cyan-500" />
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Chat to Act</h4>
-                <p className="text-[11px] text-slate-600 leading-relaxed">Just type what you want.</p>
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Chat to Act</h4>
+                <p className="text-[11px] text-slate-300 leading-relaxed">Just type what you want.</p>
               </div>
 
-              <div className="p-4 rounded-xl border border-black/5 bg-slate-50/50 text-left space-y-1">
+              <div className="p-4 rounded-xl border border-white/10 bg-white/5 backdrop-blur-md text-left space-y-1">
                 <Filter className="w-4 h-4 text-purple-500" />
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Smart Sorting</h4>
-                <p className="text-[11px] text-slate-600 leading-relaxed">AI finds your most important emails.</p>
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Smart Sorting</h4>
+                <p className="text-[11px] text-slate-300 leading-relaxed">AI finds your most important emails.</p>
               </div>
 
-              <div className="p-4 rounded-xl border border-black/5 bg-slate-50/50 text-left space-y-1">
+              <div className="p-4 rounded-xl border border-white/10 bg-white/5 backdrop-blur-md text-left space-y-1">
                 <MousePointerClick className="w-4 h-4 text-blue-500" />
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Keyboard Only</h4>
-                <p className="text-[11px] text-slate-600 leading-relaxed">Never click through menus again.</p>
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Keyboard Only</h4>
+                <p className="text-[11px] text-slate-300 leading-relaxed">Never click through menus again.</p>
               </div>
             </div>
           </div>
@@ -215,70 +217,70 @@ export default function LandingPage() {
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 to-blue-500">Database Speed Engine</span>
             </div>
 
-            <h2 className="text-3xl md:text-5xl font-bold text-slate-900 tracking-normal leading-tight uppercase relative z-10">
+            <h2 className="text-3xl md:text-5xl font-bold text-white tracking-normal leading-tight uppercase relative z-10">
               Find Anything Instantly.
             </h2>
 
-            <p className="text-xs md:text-sm text-slate-600 leading-relaxed relative z-10">
+            <p className="text-xs md:text-sm text-slate-300 leading-relaxed relative z-10">
               Waiting for pages to load is frustrating. Ceil solves this by saving your data locally. This means you can search your entire email history and find any calendar event in less than one second. No loading bars. It is just always ready.
             </p>
 
             {/* Vertical Stack Mini-Cards */}
             <div className="space-y-3 pt-2 relative z-10">
-              <div className="p-4 rounded-xl border border-black/5 bg-slate-50/50 text-left space-y-1">
+              <div className="p-4 rounded-xl border border-white/10 bg-white/5 backdrop-blur-md text-left space-y-1">
                 <Search className="w-4 h-4 text-cyan-500" />
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Instant Search</h4>
-                <p className="text-[11px] text-slate-600 leading-relaxed">Find emails in under a second.</p>
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Instant Search</h4>
+                <p className="text-[11px] text-slate-300 leading-relaxed">Find emails in under a second.</p>
               </div>
 
-              <div className="p-4 rounded-xl border border-black/5 bg-slate-50/50 text-left space-y-1">
+              <div className="p-4 rounded-xl border border-white/10 bg-white/5 backdrop-blur-md text-left space-y-1">
                 <Clock className="w-4 h-4 text-purple-500" />
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Zero Waiting</h4>
-                <p className="text-[11px] text-slate-600 leading-relaxed">No loading screens or spinners.</p>
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Zero Waiting</h4>
+                <p className="text-[11px] text-slate-300 leading-relaxed">No loading screens or spinners.</p>
               </div>
 
-              <div className="p-4 rounded-xl border border-black/5 bg-slate-50/50 text-left space-y-1">
+              <div className="p-4 rounded-xl border border-white/10 bg-white/5 backdrop-blur-md text-left space-y-1">
                 <RefreshCw className="w-4 h-4 text-blue-500" />
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Always Live</h4>
-                <p className="text-[11px] text-slate-600 leading-relaxed">Syncs your calendar in real-time.</p>
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Always Live</h4>
+                <p className="text-[11px] text-slate-300 leading-relaxed">Syncs your calendar in real-time.</p>
               </div>
             </div>
           </div>
 
           {/* Placeholder column for future image */}
-          <div className="hidden md:block w-full h-[360px] border border-dashed border-slate-350/40 rounded-2xl bg-slate-500/5 relative overflow-hidden shadow-[inset_0_1px_4px_rgba(0,0,0,0.02)]">
-            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400/50 uppercase tracking-widest font-mono">Placeholder Image Area</div>
+          <div className="hidden md:block w-full h-[360px] border border-dashed border-white/10 rounded-2xl bg-white/5 relative overflow-hidden shadow-[inset_0_1px_4px_rgba(0,0,0,0.02)]">
+            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-500/50 uppercase tracking-widest font-mono">Placeholder Image Area</div>
           </div>
         </section>
 
         {/* Pricing Section */}
-        <section className="py-12 border-t border-slate-200/50 space-y-12">
+        <section className="py-12 border-t border-white/10 space-y-12">
           <div className="text-center max-w-2xl mx-auto space-y-3">
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-normal uppercase">
+            <h2 className="text-3xl md:text-4xl font-bold text-white tracking-normal uppercase">
               Simple, Transparent Pricing.
             </h2>
-            <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
+            <p className="text-xs md:text-sm text-slate-300 leading-relaxed">
               Start for free today. Upgrade as your agentic workspace grows.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto pt-4 relative z-10">
             {/* Free Plan */}
-            <div className="p-8 rounded-2xl border border-black/5 bg-slate-50/50 space-y-6 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.02)]">
+            <div className="p-8 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md space-y-6 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.1)]">
               <div className="space-y-4">
                 <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-cyan-600 font-sans">Developer Tier</span>
-                  <h3 className="text-xl font-bold text-slate-900 uppercase">Free Plan</h3>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-cyan-400 font-sans">Developer Tier</span>
+                  <h3 className="text-xl font-bold text-white uppercase">Free Plan</h3>
                 </div>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black text-slate-900">$0</span>
-                  <span className="text-xs text-slate-500 font-medium">/ month</span>
+                  <span className="text-4xl font-black text-white">$0</span>
+                  <span className="text-xs text-slate-400 font-medium">/ month</span>
                 </div>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
+                <p className="text-[11px] text-slate-400 leading-relaxed">
                   Perfect for individual developers getting started with local agentic workflows.
                 </p>
-                <hr className="border-black/5" />
-                <ul className="space-y-2.5 text-xs text-slate-600">
+                <hr className="border-white/10" />
+                <ul className="space-y-2.5 text-xs text-slate-300">
                   <li className="flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
                     <span>Gmail & Calendar integration</span>
@@ -309,36 +311,36 @@ export default function LandingPage() {
                     setShowAuthModal(true);
                   }
                 }}
-                className="w-full py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-700 hover:text-slate-900 shadow-sm transition-all duration-200 cursor-pointer"
+                className="w-full py-2.5 rounded-xl border border-white/10 bg-white/10 hover:bg-white/20 text-[11px] font-bold uppercase tracking-wider text-slate-100 hover:text-white shadow-sm transition-all duration-200 cursor-pointer"
               >
                 {isAuthenticated ? "Go to Dashboard" : "Get Started Free"}
               </button>
             </div>
 
             {/* Pro Plan */}
-            <div className="p-8 rounded-2xl border border-purple-500/10 bg-slate-50/50 space-y-6 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.02)] relative overflow-hidden">
+            <div className="p-8 rounded-2xl border border-purple-500/20 bg-white/5 backdrop-blur-md space-y-6 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.1)] relative overflow-hidden">
               {/* Coming Soon Tag */}
-              <div className="absolute top-4 right-4 bg-purple-500/10 text-purple-700 border border-purple-500/20 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest">
+              <div className="absolute top-4 right-4 bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest">
                 Coming Soon
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-purple-600 font-sans">Enterprise Ready</span>
-                  <h3 className="text-xl font-bold text-slate-900 uppercase">Pro Plan</h3>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-purple-400 font-sans">Enterprise Ready</span>
+                  <h3 className="text-xl font-bold text-white uppercase">Pro Plan</h3>
                 </div>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black text-slate-900">$15</span>
-                  <span className="text-xs text-slate-500 font-medium">/ month</span>
+                  <span className="text-4xl font-black text-white">$15</span>
+                  <span className="text-xs text-slate-400 font-medium">/ month</span>
                 </div>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
+                <p className="text-[11px] text-slate-400 leading-relaxed">
                   For power users and teams requiring infinite scale, custom voice models, and smarter AI models.
                 </p>
-                <hr className="border-black/5" />
-                <ul className="space-y-2.5 text-xs text-slate-600">
+                <hr className="border-white/10" />
+                <ul className="space-y-2.5 text-xs text-slate-300">
                   <li className="flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-                    <span className="font-semibold text-slate-900">Everything in Free, plus:</span>
+                    <span className="font-semibold text-white">Everything in Free, plus:</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
@@ -361,7 +363,7 @@ export default function LandingPage() {
 
               <button
                 disabled
-                className="w-full py-2.5 rounded-xl bg-slate-200 border border-slate-300/10 text-[11px] font-bold uppercase tracking-wider text-slate-400 cursor-not-allowed shadow-none"
+                className="w-full py-2.5 rounded-xl bg-white/5 border border-white/5 text-[11px] font-bold uppercase tracking-wider text-slate-500 cursor-not-allowed shadow-none"
               >
                 Coming Soon
               </button>
@@ -371,21 +373,21 @@ export default function LandingPage() {
       </main>
 
       {/* Footer */}
-      <footer className="w-full liquid-glass-footer py-8 px-6 border-t border-slate-200/50">
+      <footer className="w-full liquid-glass-footer py-8 px-6 border-t border-white/10">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
           {/* Left: Copyright */}
-          <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
+          <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
             © {new Date().getFullYear()} Ciel. All rights reserved.
           </div>
 
           {/* Right: Social links */}
-          <div className="flex justify-center gap-4 text-slate-600">
+          <div className="flex justify-center gap-4 text-slate-400">
             <a
               href="https://github.com/0nlyjs"
               target="_blank"
               rel="noreferrer"
               aria-label="GitHub"
-              className="hover:text-cyan-600 transition-colors p-1.5"
+              className="hover:text-cyan-400 transition-colors p-1.5"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
@@ -397,7 +399,7 @@ export default function LandingPage() {
               target="_blank"
               rel="noreferrer"
               aria-label="X (formerly Twitter)"
-              className="hover:text-cyan-600 transition-colors p-1.5"
+              className="hover:text-cyan-400 transition-colors p-1.5"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
@@ -408,7 +410,7 @@ export default function LandingPage() {
               target="_blank"
               rel="noreferrer"
               aria-label="LinkedIn"
-              className="hover:text-cyan-600 transition-colors p-1.5"
+              className="hover:text-cyan-400 transition-colors p-1.5"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
@@ -428,7 +430,7 @@ export default function LandingPage() {
         onClick={() => setShowAuthModal(false)}
       >
         <div
-          className={`max-w-md w-full h-full !bg-slate-50/20 !bg-none backdrop-blur-xl rounded-none border-y-0 border-r-0 border-l border-slate-200/30 p-8 flex flex-col justify-center relative overflow-hidden transition-transform duration-300 ease-in-out shadow-[-10px_0_30px_rgba(0,0,0,0.03)] ${
+          className={`max-w-md w-full h-full !bg-slate-950/70 !bg-none backdrop-blur-xl rounded-none border-y-0 border-r-0 border-l border-white/10 p-8 flex flex-col justify-center relative overflow-hidden transition-transform duration-300 ease-in-out shadow-[-10px_0_30px_rgba(0,0,0,0.3)] ${
             showAuthModal ? "translate-x-0" : "translate-x-full"
           }`}
           onClick={(e) => e.stopPropagation()}
@@ -440,19 +442,19 @@ export default function LandingPage() {
             {/* Close Button */}
             <button
               onClick={() => setShowAuthModal(false)}
-              className="absolute top-4 right-4 text-slate-500 hover:text-slate-900 transition-all cursor-pointer p-1.5 rounded-full bg-slate-900/5 hover:bg-slate-900/10 border border-slate-900/5 hover:border-slate-900/10 shadow-sm"
+              className="absolute top-4 right-4 text-slate-400 hover:text-white transition-all cursor-pointer p-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 shadow-sm"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-xl font-bold text-slate-900 mb-1 tracking-normal leading-tight text-center font-sans">CIEL WORKSPACE</h3>
-            <p className="text-[10px] text-slate-500 mb-6 uppercase tracking-wider text-center">Node Security Authorization</p>
+            <h3 className="text-xl font-bold text-white mb-1 tracking-normal leading-tight text-center font-sans">CIEL WORKSPACE</h3>
+            <p className="text-[10px] text-slate-400 mb-6 uppercase tracking-wider text-center">Node Security Authorization</p>
 
             {isVerificationSent ? (
               <div className="space-y-4">
-                <div className="border border-green-200 bg-green-50/50 p-4 rounded-xl text-xs text-green-700 leading-relaxed">
+                <div className="border border-green-500/20 bg-green-950/35 p-4 rounded-xl text-xs text-green-400 leading-relaxed">
                   <span className="font-bold block uppercase mb-1">VERIFICATION LINK DISPATCHED</span>
-                  A secure verification link has been sent to <span className="underline font-bold text-slate-900">{authEmail}</span>. 
+                  A secure verification link has been sent to <span className="underline font-bold text-white">{authEmail}</span>. 
                   Please check your inbox and click the link to activate your node.
                 </div>
                 <button
@@ -463,7 +465,7 @@ export default function LandingPage() {
                     setAuthSuccess("");
                     setAuthError("");
                   }}
-                  className="w-full py-2.5 liquid-glass-button text-slate-700 hover:text-slate-900 text-xs uppercase tracking-wider border border-slate-900/10"
+                  className="w-full py-2.5 liquid-glass-button text-slate-200 hover:text-white text-xs uppercase tracking-wider border border-white/10 hover:bg-white/5"
                 >
                   Back to Sign In
                 </button>
@@ -475,13 +477,13 @@ export default function LandingPage() {
                 </p>
 
                 {authError && (
-                  <div className="border border-red-200 bg-red-50/50 p-3 rounded-lg text-[11px] text-red-600 whitespace-pre-wrap">
+                  <div className="border border-red-500/20 bg-red-950/35 p-3 rounded-lg text-[11px] text-red-400 whitespace-pre-wrap">
                     {authError}
                   </div>
                 )}
 
                 {authSuccess && (
-                  <div className="border border-green-200 bg-green-50/50 p-3 rounded-lg text-[11px] text-green-600">
+                  <div className="border border-green-500/20 bg-green-950/35 p-3 rounded-lg text-[11px] text-green-400">
                     {authSuccess}
                   </div>
                 )}
@@ -550,36 +552,36 @@ export default function LandingPage() {
                 >
                   {isSignUp && (
                     <div>
-                      <label className="text-[9px] text-slate-500 uppercase tracking-widest block mb-1">NODE_NAME</label>
+                      <label className="text-[9px] text-slate-400 uppercase tracking-widest block mb-1">NODE_NAME</label>
                       <input
                         type="text"
                         placeholder="e.g. John Doe"
                         value={authName}
                         onChange={(e) => setAuthName(e.target.value)}
-                        className="w-full bg-slate-900/5 focus:bg-slate-900/10 border border-slate-900/10 focus:border-cyan-500/50 outline-none rounded-xl text-xs px-3 py-2.5 text-slate-900 transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
+                        className="w-full bg-white/5 focus:bg-white/10 border border-white/10 focus:border-cyan-500/50 outline-none rounded-xl text-xs px-3 py-2.5 text-white transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
                       />
                     </div>
                   )}
 
                   <div>
-                    <label className="text-[9px] text-slate-500 uppercase tracking-widest block mb-1">EMAIL_ADDRESS</label>
+                    <label className="text-[9px] text-slate-400 uppercase tracking-widest block mb-1">EMAIL_ADDRESS</label>
                     <input
                       type="email"
                       placeholder="e.g. guest@ciel.app"
                       value={authEmail}
                       onChange={(e) => setAuthEmail(e.target.value)}
-                      className="w-full bg-slate-900/5 focus:bg-slate-900/10 border border-slate-900/10 focus:border-cyan-500/50 outline-none rounded-xl text-xs px-3 py-2.5 text-slate-900 transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
+                      className="w-full bg-white/5 focus:bg-white/10 border border-white/10 focus:border-cyan-500/50 outline-none rounded-xl text-xs px-3 py-2.5 text-white transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[9px] text-slate-500 uppercase tracking-widest block mb-1">PASSWORD_SECRET</label>
+                    <label className="text-[9px] text-slate-400 uppercase tracking-widest block mb-1">PASSWORD_SECRET</label>
                     <input
                       type="password"
                       placeholder="••••••••"
                       value={authPassword}
                       onChange={(e) => setAuthPassword(e.target.value)}
-                      className="w-full bg-slate-900/5 focus:bg-slate-900/10 border border-slate-900/10 focus:border-cyan-500/50 outline-none rounded-xl text-xs px-3 py-2.5 text-slate-900 transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
+                      className="w-full bg-white/5 focus:bg-white/10 border border-white/10 focus:border-cyan-500/50 outline-none rounded-xl text-xs px-3 py-2.5 text-white transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
                     />
                   </div>
 
@@ -593,9 +595,9 @@ export default function LandingPage() {
                 </form>
 
                 <div className="flex items-center gap-3 my-4">
-                  <div className="flex-1 h-[1px] bg-slate-900/10" />
-                  <span className="text-[9px] text-slate-400 uppercase tracking-widest font-mono">OR</span>
-                  <div className="flex-1 h-[1px] bg-slate-900/10" />
+                  <div className="flex-1 h-[1px] bg-white/10" />
+                  <span className="text-[9px] text-slate-500 uppercase tracking-widest font-mono">OR</span>
+                  <div className="flex-1 h-[1px] bg-white/10" />
                 </div>
 
                 <button
@@ -610,7 +612,7 @@ export default function LandingPage() {
                       console.error("Google login error", err);
                     }
                   }}
-                  className="w-full py-2.5 liquid-glass-button text-xs uppercase tracking-wider flex items-center justify-center gap-2 text-slate-700 hover:text-slate-900 border border-slate-900/10 transition-colors"
+                  className="w-full py-2.5 liquid-glass-button text-xs uppercase tracking-wider flex items-center justify-center gap-2 text-slate-200 hover:text-white border border-white/10 hover:bg-white/5 transition-colors"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -629,7 +631,7 @@ export default function LandingPage() {
                       setAuthError("");
                       setAuthSuccess("");
                     }}
-                    className="text-[10px] text-slate-500 hover:text-slate-900 transition-colors underline uppercase tracking-wider cursor-pointer bg-transparent border-none"
+                    className="text-[10px] text-slate-400 hover:text-white transition-colors underline uppercase tracking-wider cursor-pointer bg-transparent border-none"
                   >
                     {isSignUp ? "Already registered? Sign In" : "Need an account? Register Node"}
                   </button>

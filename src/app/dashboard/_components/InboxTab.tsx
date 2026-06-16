@@ -29,8 +29,7 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
   const selectedEmailIndex = useCielStore((s) => s.selectedEmailIndex);
   const setSelectedEmailIndex = useCielStore((s) => s.setSelectedEmailIndex);
 
-  const theme = useCielStore((s) => s.theme);
-  const isDark = theme === "dark";
+  const isDark = true;
 
   // Local state
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -452,17 +451,16 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
               const isHtml = activeEmail.body.includes("<html") || activeEmail.body.includes("<div") || activeEmail.body.includes("<p>") || activeEmail.body.includes("<br") || activeEmail.body.includes("<table") || activeEmail.body.includes("<style");
               const iframeSrcDoc = isHtml
                 ? activeEmail.body
-                : `<html><head><style>body { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13.5px; line-height: 1.6; color: ${isDark ? '#e4e4e7' : '#1f2937'}; background: ${isDark ? '#0b0c14' : '#ffffff'}; white-space: pre-wrap; word-break: break-word; padding: 16px; margin: 0; }</style></head><body>${activeEmail.body}</body></html>`;
+                : `<html><head><style>body { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13.5px; line-height: 1.6; color: #1f2937; background: #ffffff; white-space: pre-wrap; word-break: break-word; padding: 16px; margin: 0; }</style></head><body>${activeEmail.body}</body></html>`;
               
-              const containerBg = isDark ? "bg-[#0b0c14]" : "bg-white";
-              const iframeFilter = isDark && isHtml ? "dark-email-filter" : "";
+              const containerBg = "bg-white";
               
               return (
-                <div className={`w-full flex-1 min-h-[250px] border border-slate-200 dark:border-white/5 rounded-2xl overflow-hidden ${containerBg}`}>
+                <div className={`w-full flex-1 min-h-[350px] border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden ${containerBg}`}>
                   <iframe
                     title="Email Body"
                     srcDoc={iframeSrcDoc}
-                    className={`w-full h-full border-none ${containerBg} ${iframeFilter}`}
+                    className={`w-full h-full border-none ${containerBg}`}
                     sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
                   />
                 </div>

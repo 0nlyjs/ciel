@@ -33,8 +33,7 @@ export default function DashboardPage() {
   const initializeClientDate = useCielStore((s) => s.initializeClientDate);
   const fetchSettings = useCielStore((s) => s.fetchSettings);
   const fetchLocalIntegrations = useCielStore((s) => s.fetchLocalIntegrations);
-  const theme = useCielStore((s) => s.theme);
-  const isDark = theme === "dark";
+  const isDark = true;
 
   // Modals / global states
   const [mounted, setMounted] = useState(false);

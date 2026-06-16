@@ -9,14 +9,11 @@ export function OverviewTab() {
   const calendarConnected = useCielStore((s) => s.calendarConnected);
   const emails = useCielStore((s) => s.emails);
   const calendarEvents = useCielStore((s) => s.calendarEvents);
-  const theme = useCielStore((s) => s.theme);
-  const isDark = theme === "dark";
+  const isDark = true;
 
-  const textWhiteClass = isDark ? "text-white" : "text-slate-900";
-  const textMutedClass = isDark ? "text-slate-400" : "text-slate-500";
-  const cardBgClass = isDark 
-    ? "bg-transparent backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.15)]"
-    : "bg-transparent backdrop-blur-2xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.04)]";
+  const textWhiteClass = "text-white";
+  const textMutedClass = "text-slate-400";
+  const cardBgClass = "bg-transparent backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.15)]";
 
   return (
     <div className="space-y-6">
@@ -68,8 +65,8 @@ export function OverviewTab() {
             <span className="text-green-500 font-bold uppercase">Active</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className={textMutedClass}>Current Client Theme</span>
-            <span className="text-purple-400 font-bold uppercase">{theme}</span>
+            <span className={textMutedClass}>Database Cache State</span>
+            <span className="text-cyan-400 font-bold uppercase">Synced</span>
           </div>
         </div>
       </div>

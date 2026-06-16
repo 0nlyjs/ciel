@@ -10,21 +10,18 @@ export function SettingsTab() {
   const calendarEvents = useCielStore((s) => s.calendarEvents);
   const chatMessages = useCielStore((s) => s.chatMessages);
   const searchQuery = useCielStore((s) => s.searchQuery);
-  const theme = useCielStore((s) => s.theme);
   const syncInterval = useCielStore((s) => s.syncInterval);
   const aiAutoPriority = useCielStore((s) => s.aiAutoPriority);
   const localIntegrations = useCielStore((s) => s.localIntegrations);
   const updateSettings = useCielStore((s) => s.updateSettings);
 
-  const isDark = theme === "dark";
+  const isDark = true;
 
-  const textWhiteClass = isDark ? "text-white" : "text-slate-900";
-  const textMutedClass = isDark ? "text-slate-400" : "text-slate-500";
-  const borderClass = isDark ? "border-white/5" : "border-white/20";
-  const border900Class = isDark ? "border-white/10" : "border-white/30";
-  const cardBgClass = isDark 
-    ? "bg-transparent backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.15)]"
-    : "bg-transparent backdrop-blur-2xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.04)]";
+  const textWhiteClass = "text-white";
+  const textMutedClass = "text-slate-400";
+  const borderClass = "border-white/5";
+  const border900Class = "border-white/10";
+  const cardBgClass = "bg-transparent backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.15)]";
   const innerCardBgClass = isDark ? "bg-black/15" : "bg-white/20";
   const buttonBgClass = isDark 
     ? "bg-white/5 hover:bg-white/10 text-white border border-white/10" 
@@ -44,32 +41,6 @@ export function SettingsTab() {
         {/* Preferences Panel */}
         <div className={`p-5 rounded-2xl border ${borderClass} ${cardBgClass} space-y-4`}>
           <h3 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Preferences</h3>
-          
-          <div className="space-y-1.5">
-            <label className="text-[10px] text-slate-550 uppercase font-bold block">UI Color Theme</label>
-            <div className="flex gap-2">
-              <button
-                onClick={() => updateSettings({ theme: "dark" })}
-                className={`flex-1 py-2 text-xs font-bold rounded-xl border uppercase cursor-pointer transition-all ${
-                  theme === "dark" 
-                    ? "bg-purple-500/20 text-purple-300 border-purple-500/40" 
-                    : buttonBgClass
-                }`}
-              >
-                Dark (Void)
-              </button>
-              <button
-                onClick={() => updateSettings({ theme: "light" })}
-                className={`flex-1 py-2 text-xs font-bold rounded-xl border uppercase cursor-pointer transition-all ${
-                  theme === "light" 
-                    ? "bg-cyan-500/10 text-cyan-700 border-cyan-500/20" 
-                    : buttonBgClass
-                }`}
-              >
-                Light (Alabaster)
-              </button>
-            </div>
-          </div>
 
           <div className="space-y-1.5">
             <label className="text-[10px] text-slate-550 uppercase font-bold block">Sync Interval</label>
@@ -145,7 +116,7 @@ export function SettingsTab() {
             calendarEventsCount: calendarEvents.length,
             chatMessagesCount: chatMessages.length,
             searchQuery,
-            settings: { theme, syncInterval, aiAutoPriority },
+            settings: { syncInterval, aiAutoPriority },
             localIntegrations,
           }, null, 2)}
         </pre>

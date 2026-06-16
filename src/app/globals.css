@@ -53,6 +53,131 @@ body {
   border-radius: 1rem;
 }
 
+/* ── Neutral Glass Button ── */
+.liquid-glass-button {
+  position: relative;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top-color: rgba(255, 255, 255, 0.22);
+  border-bottom-color: rgba(255, 255, 255, 0.04);
+  border-radius: 9999px;
+  box-shadow:
+    inset 0 1.5px 0 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.1),
+    0 4px 12px -4px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.liquid-glass-button:hover {
+  transform: translateY(-1px) scale(1.03);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(255, 255, 255, 0.07) 100%
+  );
+  box-shadow:
+    inset 0 1.5px 0 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.1),
+    0 8px 20px -4px rgba(0, 0, 0, 0.3);
+}
+
+.liquid-glass-button:active {
+  transform: translateY(0.5px) scale(0.98);
+}
+
+/* ── Primary Cyan Glass Button ── */
+.liquid-glass-button-cyan {
+  position: relative;
+  background: linear-gradient(
+    180deg,
+    rgba(6, 182, 212, 0.45) 0%,
+    rgba(6, 182, 212, 0.18) 100%
+  );
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  border-top-color: rgba(103, 232, 249, 0.55);
+  border-bottom-color: rgba(6, 182, 212, 0.18);
+  border-radius: 9999px;
+  box-shadow:
+    inset 0 2px 0 0 rgba(255, 255, 255, 0.25),
+    inset 0 -2px 4px 0 rgba(0, 0, 0, 0.15),
+    0 6px 20px -4px rgba(6, 182, 212, 0.35),
+    0 2px 6px -2px rgba(6, 182, 212, 0.2);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  cursor: pointer;
+  color: #ffffff;
+}
+
+.liquid-glass-button-cyan:hover {
+  transform: translateY(-1px) scale(1.03);
+  background: linear-gradient(
+    180deg,
+    rgba(6, 182, 212, 0.55) 0%,
+    rgba(6, 182, 212, 0.25) 100%
+  );
+  box-shadow:
+    inset 0 2px 0 0 rgba(255, 255, 255, 0.4),
+    inset 0 -2px 4px 0 rgba(0, 0, 0, 0.15),
+    0 12px 32px -4px rgba(6, 182, 212, 0.5),
+    0 4px 8px -2px rgba(6, 182, 212, 0.25);
+}
+
+.liquid-glass-button-cyan:active {
+  transform: translateY(0.5px) scale(0.98);
+}
+
+/* ── Glass Island (Navbar Container) ── */
+.liquid-glass-island {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 2rem);
+  max-width: 64rem;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top-color: rgba(255, 255, 255, 0.22);
+  border-bottom-color: rgba(255, 255, 255, 0.04);
+  border-radius: 9999px;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.15),
+    0 8px 32px 0 rgba(0, 0, 0, 0.35);
+}
+
+/* ── Footer Glass ── */
+.liquid-glass-footer {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.12),
+    0 -4px 16px -4px rgba(0, 0, 0, 0.2);
+}
+
 /* Animations for floating blobs */
 @keyframes float-slow-1 {
   0% { transform: translate(0px, 0px) scale(1); }

@@ -11,8 +11,7 @@ export function ChatTab() {
   const fetchEmails = useCielStore((s) => s.fetchEmails);
   const fetchCalendarEvents = useCielStore((s) => s.fetchCalendarEvents);
 
-  const theme = useCielStore((s) => s.theme);
-  const isDark = theme === "dark";
+  const isDark = true;
 
   // Local Chat / NLP UI states
   const [chatInput, setChatInput] = useState("");
