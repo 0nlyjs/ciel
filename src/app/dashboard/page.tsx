@@ -54,7 +54,12 @@ export default function DashboardPage() {
     isDanger?: boolean;
   } | null>(null);
 
-  const requestConfirm = (title: string, message: string, onConfirm: () => void, isDanger = false) => {
+  const requestConfirm = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    isDanger = false,
+  ) => {
     setConfirmModal({
       show: true,
       title,
@@ -121,7 +126,9 @@ export default function DashboardPage() {
             body: JSON.stringify({ plugin }),
           });
           if (res.ok) {
-            toast.success(`${plugin === "gmail" ? "Gmail" : "Google Calendar"} disconnected successfully.`);
+            toast.success(
+              `${plugin === "gmail" ? "Gmail" : "Google Calendar"} disconnected successfully.`,
+            );
             fetchIntegrationStatus();
             fetchLocalIntegrations();
           } else {
@@ -132,7 +139,7 @@ export default function DashboardPage() {
           console.error(err);
           toast.error("Error disconnecting integration");
         }
-      }
+      },
     );
   };
 
@@ -158,7 +165,9 @@ export default function DashboardPage() {
       async () => {
         setIsClearingData(true);
         try {
-          const res = await fetch("/api/auth/profile/clear-data", { method: "POST" });
+          const res = await fetch("/api/auth/profile/clear-data", {
+            method: "POST",
+          });
           if (res.ok) {
             toast.success("Local database cache cleared successfully!");
             await fetchEmails(false);
@@ -176,7 +185,7 @@ export default function DashboardPage() {
           setIsClearingData(false);
         }
       },
-      true
+      true,
     );
   };
 
@@ -187,7 +196,9 @@ export default function DashboardPage() {
       async () => {
         setIsDeletingAccount(true);
         try {
-          const res = await fetch("/api/auth/profile/delete", { method: "POST" });
+          const res = await fetch("/api/auth/profile/delete", {
+            method: "POST",
+          });
           if (res.ok) {
             toast.success("Account deleted successfully.");
             const { signOut } = await import("@/lib/auth-client");
@@ -196,8 +207,8 @@ export default function DashboardPage() {
                 onSuccess: () => {
                   logout();
                   router.push("/");
-                }
-              }
+                },
+              },
             });
           } else {
             const data = await res.json();
@@ -210,10 +221,9 @@ export default function DashboardPage() {
           setIsDeletingAccount(false);
         }
       },
-      true
+      true,
     );
   };
-
 
   // Auth Redirect Guard
   useEffect(() => {
@@ -239,7 +249,10 @@ export default function DashboardPage() {
         now.getFullYear(),
         now.getMonth(),
         now.getDate() + 1,
-        0, 0, 0, 0
+        0,
+        0,
+        0,
+        0,
       );
       return nextMidnight.getTime() - now.getTime();
     };
@@ -275,7 +288,7 @@ export default function DashboardPage() {
       fetchIntegrationStatus();
       fetchSettings();
       fetchLocalIntegrations();
-      
+
       // Check if we just redirected from OAuth connection successfully
       let isOAuthSuccess = false;
       if (typeof window !== "undefined") {
@@ -301,7 +314,16 @@ export default function DashboardPage() {
         fetchCalendarEvents(true);
       }
     }
-  }, [session, fetchIntegrationStatus, fetchSettings, fetchLocalIntegrations, fetchEmails, fetchCalendarEvents, loadEmailsFromCache, setActiveTab]);
+  }, [
+    session,
+    fetchIntegrationStatus,
+    fetchSettings,
+    fetchLocalIntegrations,
+    fetchEmails,
+    fetchCalendarEvents,
+    loadEmailsFromCache,
+    setActiveTab,
+  ]);
 
   // Real-time Event Stream Listener (SSE)
   useEffect(() => {
@@ -320,7 +342,9 @@ export default function DashboardPage() {
           console.error("SSE fetchEmails error:", e);
         }
       } else if (event.data === "sync_complete") {
-        console.log("[EventSource] Sync complete. Fetching updated list from database...");
+        console.log(
+          "[EventSource] Sync complete. Fetching updated list from database...",
+        );
         try {
           await fetchEmails(false);
           router.refresh();
@@ -339,7 +363,10 @@ export default function DashboardPage() {
     };
 
     eventSource.onerror = (error) => {
-      console.error("[EventSource] Error in event stream, reconnecting:", error);
+      console.error(
+        "[EventSource] Error in event stream, reconnecting:",
+        error,
+      );
     };
 
     return () => {
@@ -353,7 +380,9 @@ export default function DashboardPage() {
     if (!session || !user?.email || !syncInterval) return;
 
     const intervalMs = syncInterval * 60 * 1000;
-    console.log(`[Sync Timer] Starting periodic hard sync every ${syncInterval} minutes (${intervalMs}ms)`);
+    console.log(
+      `[Sync Timer] Starting periodic hard sync every ${syncInterval} minutes (${intervalMs}ms)`,
+    );
 
     const performHardSync = async () => {
       console.log(`[Sync Timer] Hard sync triggered for ${user.email}...`);
@@ -371,7 +400,9 @@ export default function DashboardPage() {
     const timer = setInterval(performHardSync, intervalMs);
 
     return () => {
-      console.log(`[Sync Timer] Clearing periodic sync timer for ${user.email}`);
+      console.log(
+        `[Sync Timer] Clearing periodic sync timer for ${user.email}`,
+      );
       clearInterval(timer);
     };
   }, [session, user?.email, syncInterval, fetchEmails, fetchCalendarEvents]);
@@ -390,6 +421,21 @@ export default function DashboardPage() {
     return () => window.removeEventListener("ciel-compose", handleComposeEvent);
   }, []);
 
+  // Listen for Cmd+K or Ctrl+K to open chat and close open modals
+  useEffect(() => {
+    const handleGlobalShortcuts = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setActiveTab("chat");
+        setShowShortcutsModal(false);
+        setShowProfileModal(false);
+        setShowComposeModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleGlobalShortcuts);
+    return () => window.removeEventListener("keydown", handleGlobalShortcuts);
+  }, [setActiveTab]);
+
   const handleInitiateCompose = (to = "", subject = "", body = "") => {
     setComposeTo(to);
     setComposeSubject(subject);
@@ -399,7 +445,13 @@ export default function DashboardPage() {
 
   const handleSendComposeMail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!composeTo.trim() || !composeSubject.trim() || !composeBody.trim() || isSendingCompose) return;
+    if (
+      !composeTo.trim() ||
+      !composeSubject.trim() ||
+      !composeBody.trim() ||
+      isSendingCompose
+    )
+      return;
 
     setIsSendingCompose(true);
     try {
@@ -410,8 +462,8 @@ export default function DashboardPage() {
           action: "send",
           to: composeTo,
           subject: composeSubject,
-          body: composeBody
-        })
+          body: composeBody,
+        }),
       });
 
       if (res.ok) {
@@ -456,38 +508,56 @@ export default function DashboardPage() {
 
   const borderClass = isDark ? "border-white/5" : "border-white/20";
   const border900Class = isDark ? "border-white/10" : "border-white/30";
-  const cardBgClass = isDark 
+  const cardBgClass = isDark
     ? "bg-transparent backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.15)]"
     : "bg-transparent backdrop-blur-2xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.04)]";
-  const inputBgClass = isDark 
-    ? "bg-black/20 focus:bg-black/35 border-white/10 focus:border-purple-500/50 text-white" 
+  const inputBgClass = isDark
+    ? "bg-black/20 focus:bg-black/35 border-white/10 focus:border-purple-500/50 text-white"
     : "bg-white/35 focus:bg-white/55 border-white/40 focus:border-cyan-500/50 text-slate-900";
   const accordionHeaderBgClass = isDark ? "bg-black/15" : "bg-white/20";
 
   return (
-    <DashboardLayout sidebar={<Sidebar onShowShortcuts={() => setShowShortcutsModal(true)} onOpenProfile={() => setShowProfileModal(true)} />}>
+    <DashboardLayout
+      sidebar={
+        <Sidebar
+          onShowShortcuts={() => setShowShortcutsModal(true)}
+          onOpenProfile={() => setShowProfileModal(true)}
+        />
+      }
+    >
       {renderTab()}
 
       {/* Compose Email Modal - Gmail-Style Floating Box */}
       {showComposeModal && (
-        <div 
+        <div
           className={`fixed bottom-4 right-4 z-50 w-full max-w-lg rounded-2xl shadow-[0_15px_40px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden flex flex-col min-h-[420px] max-h-[550px] ${cardBgClass} transition-all duration-300 transform scale-100`}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className={`p-4 border-b ${borderClass} flex items-center justify-between ${accordionHeaderBgClass}`}>
-            <h3 className={`text-xs font-bold ${isDark ? "text-white" : "text-slate-900"} uppercase tracking-normal leading-tight`}>Compose New Message</h3>
-            <button 
+          <div
+            className={`p-4 border-b ${borderClass} flex items-center justify-between ${accordionHeaderBgClass}`}
+          >
+            <h3
+              className={`text-xs font-bold ${isDark ? "text-white" : "text-slate-900"} uppercase tracking-normal leading-tight`}
+            >
+              Compose New Message
+            </h3>
+            <button
               onClick={() => setShowComposeModal(false)}
               className="text-slate-500 hover:text-slate-950 dark:hover:text-white font-bold text-lg cursor-pointer"
             >
               ×
             </button>
           </div>
-          <form onSubmit={handleSendComposeMail} className="flex-1 flex flex-col p-4 space-y-4">
+          <form
+            onSubmit={handleSendComposeMail}
+            className="flex-1 flex flex-col p-4 space-y-4"
+          >
             <div className="space-y-1">
-              <label className="text-[10px] text-slate-500 uppercase font-bold">To:</label>
-              <input 
-                type="email" 
+              <label className="text-[10px] text-slate-500 uppercase font-bold">
+                To:
+              </label>
+              <input
+                type="email"
                 value={composeTo}
                 onChange={(e) => setComposeTo(e.target.value)}
                 placeholder="recipient@example.com"
@@ -496,9 +566,11 @@ export default function DashboardPage() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-slate-500 uppercase font-bold">Subject:</label>
-              <input 
-                type="text" 
+              <label className="text-[10px] text-slate-500 uppercase font-bold">
+                Subject:
+              </label>
+              <input
+                type="text"
                 value={composeSubject}
                 onChange={(e) => setComposeSubject(e.target.value)}
                 placeholder="Enter email subject"
@@ -507,8 +579,10 @@ export default function DashboardPage() {
               />
             </div>
             <div className="flex-1 flex flex-col space-y-1">
-              <label className="text-[10px] text-slate-500 uppercase font-bold">Message:</label>
-              <textarea 
+              <label className="text-[10px] text-slate-500 uppercase font-bold">
+                Message:
+              </label>
+              <textarea
                 value={composeBody}
                 onChange={(e) => setComposeBody(e.target.value)}
                 placeholder="Type your message here..."
@@ -517,7 +591,9 @@ export default function DashboardPage() {
                 className={`flex-1 text-xs p-3 outline-none rounded-xl border transition-all duration-300 ${inputBgClass} resize-none`}
               />
             </div>
-            <div className={`pt-3 border-t border-slate-900/10 dark:border-white/10 flex justify-end gap-2 shrink-0`}>
+            <div
+              className={`pt-3 border-t border-slate-900/10 dark:border-white/10 flex justify-end gap-2 shrink-0`}
+            >
               <button
                 type="button"
                 onClick={() => setShowComposeModal(false)}
@@ -527,7 +603,12 @@ export default function DashboardPage() {
               </button>
               <button
                 type="submit"
-                disabled={isSendingCompose || !composeTo.trim() || !composeSubject.trim() || !composeBody.trim()}
+                disabled={
+                  isSendingCompose ||
+                  !composeTo.trim() ||
+                  !composeSubject.trim() ||
+                  !composeBody.trim()
+                }
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-zinc-800 disabled:text-slate-400 dark:disabled:text-zinc-600 text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors"
               >
                 {isSendingCompose ? "Sending..." : "Send Email"}
@@ -539,28 +620,33 @@ export default function DashboardPage() {
 
       {/* Keyboard Shortcuts Modal */}
       {showShortcutsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setShowShortcutsModal(false)}>
-          <div 
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[10px] p-4 animate-in fade-in duration-200"
+          onClick={() => setShowShortcutsModal(false)}
+        >
+          <div
             className={`w-full max-w-2xl border ${
-              isDark 
-                ? "bg-slate-955/90 border-cyan-500/30 shadow-[0_0_40px_rgba(6,182,212,0.2)] text-white" 
-                : "bg-white/95 border-cyan-500/20 shadow-[0_0_30px_rgba(6,182,212,0.1)] text-slate-900"
-            } rounded-2xl overflow-hidden shadow-2xl p-6 space-y-5 transition-transform duration-300 transform scale-100`} 
+              isDark
+                ? "bg-white/[0.06] border-white/10 text-white"
+                : "bg-white/45 border-white/50 text-slate-900"
+            } backdrop-blur-md rounded-2xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.12)] p-6 space-y-5 transition-transform duration-300 transform scale-100`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-200/20 dark:border-white/5 pb-3.5">
               <div className="flex items-center gap-2">
-                <span className="text-lg">⌨️</span>
+                <span className="text-xl">⌨️</span>
                 <div>
-                  <h3 className="text-sm font-bold uppercase tracking-wider bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
+                  <h3 className="text-base font-bold uppercase tracking-wider bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
                     Ciel Workspace Mind Console
                   </h3>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Keyboard & NLP Commands Directory</p>
+                  <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">
+                    Keyboard & NLP Commands Directory
+                  </p>
                 </div>
               </div>
-              <button 
-                onClick={() => setShowShortcutsModal(false)} 
-                className="px-2.5 py-1 text-[9px] bg-slate-200/50 dark:bg-white/5 hover:bg-red-500/20 hover:text-red-400 border border-transparent rounded-lg text-slate-500 uppercase font-bold transition-all cursor-pointer"
+              <button
+                onClick={() => setShowShortcutsModal(false)}
+                className="px-3.5 py-1.5 text-xs bg-slate-200/50 dark:bg-white/5 hover:bg-red-500/20 hover:text-red-400 border border-transparent rounded-lg text-slate-500 uppercase font-bold transition-all cursor-pointer"
               >
                 Close (Esc)
               </button>
@@ -569,90 +655,121 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Left Column: Direct System Hotkeys */}
               <div className="space-y-4">
-                <h4 className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider border-b border-slate-200/20 dark:border-white/5 pb-1">
+                <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider border-b border-slate-200/20 dark:border-white/5 pb-1">
                   ⌨️ Active Hotkeys
                 </h4>
                 <div className="space-y-3">
-                  <div className="flex items-start justify-between border-b border-slate-100 dark:border-white/5 pb-2 text-xs">
+                  <div className="flex items-start justify-between border-b border-slate-100 dark:border-white/5 pb-2 text-sm">
                     <div className="space-y-0.5">
-                      <span className="font-semibold block">Global Command Palette</span>
-                      <span className="text-[10px] text-slate-500">Search and navigate through Ciel</span>
+                      <span className="font-semibold block">
+                        Focus AI Chat
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        Switch to AI Chat console on dashboard
+                      </span>
                     </div>
-                    <kbd className="px-2 py-1 bg-slate-800 text-[10px] text-slate-300 rounded-lg border border-slate-700 font-mono font-bold shrink-0">⌘ K / Ctrl K</kbd>
+                    <kbd className="px-2.5 py-1 bg-slate-800 text-xs text-slate-300 rounded-lg border border-slate-700 font-mono font-bold shrink-0">
+                      ⌘ K / Ctrl K
+                    </kbd>
                   </div>
-                  <div className="flex items-start justify-between border-b border-slate-100 dark:border-white/5 pb-2 text-xs">
+                  <div className="flex items-start justify-between border-b border-slate-100 dark:border-white/5 pb-2 text-sm">
                     <div className="space-y-0.5">
-                      <span className="font-semibold block">AI Quick Reply badges</span>
-                      <span className="text-[10px] text-slate-500">Insert AI reply 1, 2, or 3 from expanded mail</span>
+                      <span className="font-semibold block">
+                        AI Quick Reply badges
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        Insert AI reply 1, 2, or 3 from expanded mail
+                      </span>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <kbd className="px-2 py-0.5 bg-slate-800 text-[10px] text-slate-300 rounded-lg border border-slate-700 font-mono font-bold">1</kbd>
-                      <kbd className="px-2 py-0.5 bg-slate-800 text-[10px] text-slate-300 rounded-lg border border-slate-700 font-mono font-bold">2</kbd>
-                      <kbd className="px-2 py-0.5 bg-slate-800 text-[10px] text-slate-300 rounded-lg border border-slate-700 font-mono font-bold">3</kbd>
+                      <kbd className="px-2 py-0.5 bg-slate-800 text-xs text-slate-300 rounded-lg border border-slate-700 font-mono font-bold">
+                        1
+                      </kbd>
+                      <kbd className="px-2 py-0.5 bg-slate-800 text-xs text-slate-300 rounded-lg border border-slate-700 font-mono font-bold">
+                        2
+                      </kbd>
+                      <kbd className="px-2 py-0.5 bg-slate-800 text-xs text-slate-300 rounded-lg border border-slate-700 font-mono font-bold">
+                        3
+                      </kbd>
                     </div>
                   </div>
-                  <div className="flex items-start justify-between border-b border-slate-100 dark:border-white/5 pb-2 text-xs">
+                  <div className="flex items-start justify-between border-b border-slate-100 dark:border-white/5 pb-2 text-sm">
                     <div className="space-y-0.5">
-                      <span className="font-semibold block">Close Panels / Modals</span>
-                      <span className="text-[10px] text-slate-500">Instantly dismiss active popup or palette</span>
+                      <span className="font-semibold block">
+                        Close Panels / Modals
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        Instantly dismiss active popup or palette
+                      </span>
                     </div>
-                    <kbd className="px-2 py-1 bg-slate-800 text-[10px] text-slate-300 rounded-lg border border-slate-700 font-mono font-bold shrink-0">Esc</kbd>
+                    <kbd className="px-2.5 py-1 bg-slate-800 text-xs text-slate-300 rounded-lg border border-slate-700 font-mono font-bold shrink-0">
+                      Esc
+                    </kbd>
                   </div>
                 </div>
               </div>
 
               {/* Right Column: Command Palette NLP Capabilities */}
               <div className="space-y-4">
-                <h4 className="text-[11px] font-bold text-purple-400 uppercase tracking-wider border-b border-slate-200/20 dark:border-white/5 pb-1">
+                <h4 className="text-xs font-bold text-purple-400 uppercase tracking-wider border-b border-slate-200/20 dark:border-white/5 pb-1">
                   🧠 AI Command Examples
                 </h4>
-                <div className="space-y-2 text-xs font-mono">
-                  <div className="p-2 rounded-xl bg-slate-500/5 border border-slate-200/10 space-y-1">
-                    <span className="text-[10px] text-cyan-400 font-semibold block uppercase">🌐 Navigation</span>
+                <div className="space-y-2 text-sm font-mono">
+                  <div className="p-2.5 rounded-xl bg-slate-500/5 border border-slate-200/10 space-y-1">
+                    <span className="text-xs text-cyan-400 font-semibold block uppercase">
+                      🌐 Navigation
+                    </span>
                     <span className="text-slate-400">"Go to calendar"</span>
-                    <span className="text-slate-500 block text-[9px]">Options: overview, inbox, calendar, chat, settings</span>
+                    <span className="text-slate-500 block text-[10px]">
+                      Options: overview, inbox, calendar, chat, settings
+                    </span>
                   </div>
-                  <div className="p-2 rounded-xl bg-slate-500/5 border border-slate-200/10 space-y-1">
-                    <span className="text-[10px] text-purple-400 font-semibold block uppercase">🔍 Deep Vector Search</span>
-                    <span className="text-slate-400">"Search for meeting notes"</span>
+                  <div className="p-2.5 rounded-xl bg-slate-500/5 border border-slate-200/10 space-y-1">
+                    <span className="text-xs text-purple-400 font-semibold block uppercase">
+                      🔍 Deep Vector Search
+                    </span>
+                    <span className="text-slate-400">
+                      "Search for meeting notes"
+                    </span>
                   </div>
-                  <div className="p-2 rounded-xl bg-slate-500/5 border border-slate-200/10 space-y-1">
-                    <span className="text-[10px] text-pink-400 font-semibold block uppercase">✉️ Smart Compose draft</span>
-                    <span className="text-slate-400">"Compose to name@domain.com"</span>
+                  <div className="p-2.5 rounded-xl bg-slate-500/5 border border-slate-200/10 space-y-1">
+                    <span className="text-xs text-pink-400 font-semibold block uppercase">
+                      ✉️ Smart Compose draft
+                    </span>
+                    <span className="text-slate-400">
+                      "Compose to name@domain.com"
+                    </span>
                   </div>
-                  <div className="p-2 rounded-xl bg-slate-500/5 border border-slate-200/10 space-y-1">
-                    <span className="text-[10px] text-amber-400 font-semibold block uppercase">⏳ Smart Operations</span>
-                    <span className="text-slate-400">"Snooze this email until tomorrow"</span>
+                  <div className="p-2.5 rounded-xl bg-slate-500/5 border border-slate-200/10 space-y-1">
+                    <span className="text-xs text-amber-400 font-semibold block uppercase">
+                      ⏳ Smart Operations
+                    </span>
+                    <span className="text-slate-400">
+                      "Snooze this email until tomorrow"
+                    </span>
                   </div>
                 </div>
               </div>
-            </div>
-
-            <div className="border-t border-slate-200/20 dark:border-white/5 pt-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between text-[10px] text-slate-500 gap-2">
-              <span className="font-mono">
-                💡 Tip: Type command queries in natural English; Ciel parses your intent.
-              </span>
-              <span className="italic font-sans">
-                * Hotkeys are disabled when writing inside form inputs.
-              </span>
             </div>
           </div>
         </div>
       )}
       {showProfileModal && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200" 
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[10px] p-4 animate-in fade-in duration-200"
           onClick={() => setShowProfileModal(false)}
         >
-          <div 
-            className="w-full max-w-lg border border-white/10 bg-slate-950/15 backdrop-blur-2xl text-white rounded-2xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.15)] p-6 space-y-6 transition-transform duration-300 transform scale-100" 
+          <div
+            className="w-full max-w-lg border border-white/10 bg-white/[0.06] backdrop-blur-md text-white rounded-2xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.12)] p-6 space-y-6 transition-transform duration-300 transform scale-100"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <span className="text-sm font-black tracking-widest uppercase text-white">Profile</span>
-              <button 
-                onClick={() => setShowProfileModal(false)} 
+              <span className="text-sm font-black tracking-widest uppercase text-white">
+                Profile
+              </span>
+              <button
+                onClick={() => setShowProfileModal(false)}
                 className="px-3.5 py-1.5 text-xs bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg text-slate-300 uppercase font-bold transition-all cursor-pointer"
               >
                 Close
@@ -661,32 +778,54 @@ export default function DashboardPage() {
 
             {/* Profile Avatar & Info */}
             <div className="flex flex-col items-center justify-center gap-3 py-4 bg-black/30 rounded-xl border border-white/5">
-              <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-20 h-20 rounded-full bg-purple-900/40 border border-white/10 shadow-inner shrink-0">
+              <svg
+                viewBox="0 0 36 36"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-20 h-20 rounded-full bg-purple-900/40 border border-white/10 shadow-inner shrink-0"
+              >
                 {/* Head/Face shape */}
                 <circle cx="18" cy="16" r="8" fill="#FDBA74" />
                 {/* Hair */}
-                <path d="M10 16C10 11.5817 13.5817 8 18 8C22.4183 8 26 11.5817 26 16V17H10V16Z" fill="#1E293B" />
+                <path
+                  d="M10 16C10 11.5817 13.5817 8 18 8C22.4183 8 26 11.5817 26 16V17H10V16Z"
+                  fill="#1E293B"
+                />
                 {/* Eyes */}
                 <circle cx="15.5" cy="16" r="1" fill="#0F172A" />
                 <circle cx="20.5" cy="16" r="1" fill="#0F172A" />
                 {/* Smile */}
-                <path d="M16 19.5C16.5 20.2 19.5 20.2 20 19.5" stroke="#0F172A" strokeWidth="1" strokeLinecap="round" />
+                <path
+                  d="M16 19.5C16.5 20.2 19.5 20.2 20 19.5"
+                  stroke="#0F172A"
+                  strokeWidth="1"
+                  strokeLinecap="round"
+                />
                 {/* Body/Clothes */}
-                <path d="M8 30C8 25.5817 11.5817 22 16 22H20C24.4183 22 28 25.5817 28 30V32H8V30Z" fill="#6366F1" />
+                <path
+                  d="M8 30C8 25.5817 11.5817 22 16 22H20C24.4183 22 28 25.5817 28 30V32H8V30Z"
+                  fill="#6366F1"
+                />
               </svg>
               <div className="text-center">
-                <span className="text-sm font-extrabold block text-white">{user?.name || "User"}</span>
-                <span className="text-xs text-slate-400 font-mono block mt-0.5">{user?.email || ""}</span>
+                <span className="text-sm font-extrabold block text-white">
+                  {user?.name || "User"}
+                </span>
+                <span className="text-xs text-slate-400 font-mono block mt-0.5">
+                  {user?.email || ""}
+                </span>
               </div>
             </div>
 
             {/* Profile Edit Form */}
             <form onSubmit={handleUpdateProfile} className="space-y-3">
               <div className="space-y-1.5">
-                <label className="text-xs text-slate-400 uppercase font-extrabold tracking-wider">Display Name</label>
+                <label className="text-xs text-slate-400 uppercase font-extrabold tracking-wider">
+                  Display Name
+                </label>
                 <div className="flex gap-2">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={profileName}
                     onChange={(e) => setProfileName(e.target.value)}
                     placeholder="Enter new display name"
@@ -695,7 +834,11 @@ export default function DashboardPage() {
                   />
                   <button
                     type="submit"
-                    disabled={isSavingProfile || !profileName.trim() || profileName.trim() === user?.name}
+                    disabled={
+                      isSavingProfile ||
+                      !profileName.trim() ||
+                      profileName.trim() === user?.name
+                    }
                     className="px-5 py-3 bg-purple-600/80 hover:bg-purple-700/80 disabled:bg-slate-800 disabled:text-slate-650 text-white rounded-xl font-bold uppercase text-xs cursor-pointer transition-colors"
                   >
                     {isSavingProfile ? "Saving..." : "Save"}
@@ -706,16 +849,20 @@ export default function DashboardPage() {
 
             {/* Sync Integrations Statuses */}
             <div className="space-y-3">
-              <label className="text-xs text-slate-400 uppercase font-extrabold tracking-wider block">Connection Integrations</label>
-              
+              <label className="text-xs text-slate-400 uppercase font-extrabold tracking-wider block">
+                Connection Integrations
+              </label>
+
               <div className="space-y-2.5">
                 {/* Gmail Integration */}
                 <div className="p-3.5 bg-black/20 border border-white/5 rounded-xl flex justify-between items-center text-sm">
                   <div>
-                    <span className="font-extrabold block text-white uppercase tracking-wider text-xs">Gmail Integration</span>
+                    <span className="font-extrabold block text-white uppercase tracking-wider text-xs">
+                      Gmail Integration
+                    </span>
                     <span className="text-xs text-slate-400 block mt-0.5">
-                      {gmailConnected 
-                        ? `Connected to Workspace` 
+                      {gmailConnected
+                        ? `Connected to Workspace`
                         : "Disconnected"}
                     </span>
                   </div>
@@ -741,10 +888,12 @@ export default function DashboardPage() {
                 {/* Calendar Integration */}
                 <div className="p-3.5 bg-black/20 border border-white/5 rounded-xl flex justify-between items-center text-sm">
                   <div>
-                    <span className="font-extrabold block text-white uppercase tracking-wider text-xs">Google Calendar</span>
+                    <span className="font-extrabold block text-white uppercase tracking-wider text-xs">
+                      Google Calendar
+                    </span>
                     <span className="text-xs text-slate-400 block mt-0.5">
-                      {calendarConnected 
-                        ? `Connected to Workspace` 
+                      {calendarConnected
+                        ? `Connected to Workspace`
                         : "Disconnected"}
                     </span>
                   </div>
@@ -771,8 +920,10 @@ export default function DashboardPage() {
 
             {/* Danger Zone */}
             <div className="border border-red-950/20 bg-red-950/5 rounded-xl p-4.5 space-y-3">
-              <label className="text-xs text-red-400/60 uppercase font-extrabold tracking-wider block">Danger Zone</label>
-              
+              <label className="text-xs text-red-400/60 uppercase font-extrabold tracking-wider block">
+                Danger Zone
+              </label>
+
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   type="button"
@@ -780,7 +931,9 @@ export default function DashboardPage() {
                   onClick={handleClearWorkspaceData}
                   className="flex-1 px-4 py-2.5 bg-red-950/10 hover:bg-red-900/10 border border-red-950/20 text-red-400/65 rounded-lg font-extrabold uppercase text-xs cursor-pointer transition-all disabled:opacity-50"
                 >
-                  {isClearingData ? "Clearing Cache..." : "Clear Local Cache Data"}
+                  {isClearingData
+                    ? "Clearing Cache..."
+                    : "Clear Local Cache Data"}
                 </button>
                 <button
                   type="button"
@@ -788,7 +941,9 @@ export default function DashboardPage() {
                   onClick={handleDeleteAccount}
                   className="flex-1 px-4 py-2.5 bg-red-950/30 hover:bg-red-900/30 border border-red-900/25 text-red-400/80 rounded-lg font-extrabold uppercase text-xs cursor-pointer transition-all disabled:opacity-50"
                 >
-                  {isDeletingAccount ? "Deleting Account..." : "Delete Ciel Account"}
+                  {isDeletingAccount
+                    ? "Deleting Account..."
+                    : "Delete Ciel Account"}
                 </button>
               </div>
             </div>
@@ -798,18 +953,22 @@ export default function DashboardPage() {
 
       {/* Themed Confirmation Modal */}
       {confirmModal && confirmModal.show && (
-        <div 
+        <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200"
           onClick={() => setConfirmModal(null)}
         >
-          <div 
+          <div
             className="w-full max-w-sm border border-white/10 bg-slate-950/40 backdrop-blur-2xl text-white rounded-2xl p-6 space-y-5 shadow-[0_8px_32px_rgba(0,0,0,0.2)] transform scale-100 transition-all"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Title */}
             <div className="flex items-center gap-2.5 pb-2 border-b border-white/10">
-              <span className="text-base">{confirmModal.isDanger ? "⚠️" : "❓"}</span>
-              <h4 className={`text-xs font-bold uppercase tracking-wider ${confirmModal.isDanger ? "text-red-450" : "text-purple-400"}`}>
+              <span className="text-base">
+                {confirmModal.isDanger ? "⚠️" : "❓"}
+              </span>
+              <h4
+                className={`text-xs font-bold uppercase tracking-wider ${confirmModal.isDanger ? "text-red-450" : "text-purple-400"}`}
+              >
                 {confirmModal.title}
               </h4>
             </div>
@@ -832,8 +991,8 @@ export default function DashboardPage() {
                 type="button"
                 onClick={confirmModal.onConfirm}
                 className={`px-4 py-2 rounded-xl font-bold uppercase text-[10px] tracking-wider text-white transition-colors cursor-pointer ${
-                  confirmModal.isDanger 
-                    ? "bg-red-650 hover:bg-red-700" 
+                  confirmModal.isDanger
+                    ? "bg-red-650 hover:bg-red-700"
                     : "bg-purple-650 hover:bg-purple-700"
                 }`}
               >

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useCielStore } from "@/store/useCielStore";
 import { useTextToSpeech } from "@/lib/speech";
+import { ChevronDown } from "lucide-react";
 
 const ALL_SUGGESTIONS = [
   { title: "Bullet Summaries", text: "Always summarize emails or details into maximum 3 clean, actionable bullet points." },
@@ -103,15 +104,18 @@ export function SettingsTab() {
 
           <div className="space-y-1.5">
             <label className="text-[10px] text-slate-500 uppercase font-bold block">Sync Interval</label>
-            <select
-              value={syncInterval}
-              onChange={(e) => updateSettings({ syncInterval: parseInt(e.target.value, 10) })}
-              className={`w-full text-xs px-3 py-2 border ${border900Class} rounded-xl outline-none transition-all duration-300 ${inputBgClass}`}
-            >
-              <option value={5}>Every 5 minutes</option>
-              <option value={15}>Every 15 minutes (Default)</option>
-              <option value={30}>Every 30 minutes</option>
-            </select>
+            <div className="relative">
+              <select
+                value={syncInterval}
+                onChange={(e) => updateSettings({ syncInterval: parseInt(e.target.value, 10) })}
+                className={`w-full text-xs pl-3 pr-8 py-2 border ${border900Class} rounded-xl outline-none transition-all duration-300 ${inputBgClass} appearance-none cursor-pointer`}
+              >
+                <option value={5}>Every 5 minutes</option>
+                <option value={15}>Every 15 minutes (Default)</option>
+                <option value={30}>Every 30 minutes</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            </div>
           </div>
 
           <div className="flex items-center justify-between pt-2 border-t border-white/5">
@@ -169,16 +173,19 @@ export function SettingsTab() {
           
           <div className="space-y-1.5">
             <label className="text-[10px] text-slate-500 uppercase font-bold block">Response Tone</label>
-            <select
-              value={aiTone}
-              onChange={(e) => updateSettings({ aiTone: e.target.value })}
-              className={`w-full text-xs px-3 py-2 border ${border900Class} rounded-xl outline-none transition-all duration-300 ${inputBgClass}`}
-            >
-              <option value="professional">Professional (Accurate & Formal)</option>
-              <option value="friendly">Friendly (Warm & Helpful)</option>
-              <option value="concise">Concise (Brief & Direct)</option>
-              <option value="academic">Detailed (In-depth Analysis)</option>
-            </select>
+            <div className="relative">
+              <select
+                value={aiTone}
+                onChange={(e) => updateSettings({ aiTone: e.target.value })}
+                className={`w-full text-xs pl-3 pr-8 py-2 border ${border900Class} rounded-xl outline-none transition-all duration-300 ${inputBgClass} appearance-none cursor-pointer`}
+              >
+                <option value="professional">Professional (Accurate & Formal)</option>
+                <option value="friendly">Friendly (Warm & Helpful)</option>
+                <option value="concise">Concise (Brief & Direct)</option>
+                <option value="academic">Detailed (In-depth Analysis)</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -268,18 +275,21 @@ export function SettingsTab() {
           
           <div className="space-y-1.5">
             <label className="text-[10px] text-slate-500 uppercase font-bold block">Default TTS Voice</label>
-            <select
-              value={ttsVoice}
-              onChange={(e) => {
-                const val = e.target.value;
-                updateSettings({ ttsVoice: val });
-                previewVoice(val);
-              }}
-              className={`w-full text-xs px-3 py-2 border ${border900Class} rounded-xl outline-none transition-all duration-300 ${inputBgClass}`}
-            >
-              <option value="Google UK English Female">Google UK English Female (Female)</option>
-              <option value="Google UK English Male">Google UK English Male (Male)</option>
-            </select>
+            <div className="relative">
+              <select
+                value={ttsVoice}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  updateSettings({ ttsVoice: val });
+                  previewVoice(val);
+                }}
+                className={`w-full text-xs pl-3 pr-8 py-2 border ${border900Class} rounded-xl outline-none transition-all duration-300 ${inputBgClass} appearance-none cursor-pointer`}
+              >
+                <option value="Google UK English Female">Google UK English Female (Female)</option>
+                <option value="Google UK English Male">Google UK English Male (Male)</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            </div>
           </div>
 
           <div className="space-y-1.5">

@@ -579,7 +579,7 @@ export default function LandingPage() {
                   <button
                     type="submit"
                     disabled={authLoading}
-                    className="w-full py-3 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 hover:border-cyan-500/40 text-cyan-200 hover:text-white rounded-xl text-xs uppercase tracking-widest transition-all duration-200 shadow-sm disabled:opacity-50"
+                    className="w-full py-3 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 hover:border-cyan-500/40 text-cyan-200 hover:text-white rounded-xl text-xs uppercase tracking-widest transition-all duration-200 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed disabled:bg-cyan-500/10 disabled:border-cyan-500/10 disabled:text-cyan-200/50"
                   >
                     {authLoading ? "Authorizing..." : isSignUp ? "Create Node Account" : "Access Console"}
                   </button>
@@ -593,7 +593,11 @@ export default function LandingPage() {
 
                 <button
                   type="button"
+                  disabled={authLoading}
                   onClick={async () => {
+                    setAuthError("");
+                    setAuthSuccess("");
+                    setAuthLoading(true);
                     try {
                       await signIn.social({
                         provider: "google",
@@ -601,9 +605,11 @@ export default function LandingPage() {
                       });
                     } catch (err) {
                       console.error("Google login error", err);
+                      setAuthError("Google authentication failed.");
+                      setAuthLoading(false);
                     }
                   }}
-                  className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-xs uppercase tracking-wider flex items-center justify-center gap-2 text-slate-200 hover:text-white rounded-xl transition-all duration-200 shadow-sm"
+                  className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-xs uppercase tracking-wider flex items-center justify-center gap-2 text-slate-200 hover:text-white rounded-xl transition-all duration-200 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed disabled:bg-white/5 disabled:border-white/10 disabled:text-slate-200/50"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -617,12 +623,13 @@ export default function LandingPage() {
                 <div className="text-center mt-4 pt-2">
                   <button
                     type="button"
+                    disabled={authLoading}
                     onClick={() => {
                       setIsSignUp(!isSignUp);
                       setAuthError("");
                       setAuthSuccess("");
                     }}
-                    className="text-[10px] text-slate-400 hover:text-white transition-colors underline uppercase tracking-wider cursor-pointer bg-transparent border-none"
+                    className="text-[10px] text-slate-400 hover:text-white transition-colors underline uppercase tracking-wider cursor-pointer bg-transparent border-none disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     {isSignUp ? "Already registered? Sign In" : "Need an account? Register Node"}
                   </button>
