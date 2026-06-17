@@ -48,12 +48,7 @@ export default function LandingPage() {
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
-      >
-        {/* Soft, blurred glowing blobs that slowly pulse/float */}
-        <div className="absolute top-[10%] left-[5%] w-[45vw] h-[45vw] max-w-[600px] rounded-full bg-cyan-500/15 blur-[120px] animate-float-slow-1" />
-        <div className="absolute bottom-[10%] right-[5%] w-[50vw] h-[50vw] max-w-[700px] rounded-full bg-purple-500/15 blur-[140px] animate-float-slow-2" />
-        <div className="absolute top-[40%] left-[35%] w-[40vw] h-[40vw] max-w-[500px] rounded-full bg-blue-500/10 blur-[120px] animate-float-slow-3" />
-      </div>
+      />
       
       {/* Foreground UI Layer */}
       <div className={`relative z-10 min-h-screen flex flex-col justify-between transition-all duration-300 ${
@@ -67,7 +62,7 @@ export default function LandingPage() {
       }`}>
         <div className="w-full px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-b from-cyan-400 to-blue-600 flex items-center justify-center font-bold text-white tracking-tighter shadow-[0_4px_12px_rgba(6,182,212,0.3),inset_0_1px_1px_rgba(255,255,255,0.5)]">
+            <div className="w-8 h-8 rounded-full bg-cyan-600/20 border border-cyan-500/30 flex items-center justify-center font-bold text-cyan-200 tracking-tighter shadow-sm">
               C
             </div>
             <span className="text-white font-bold tracking-widest text-sm uppercase">Ceil.</span>
@@ -79,7 +74,7 @@ export default function LandingPage() {
             ) : isAuthenticated ? (
               <button
                 onClick={() => router.push("/dashboard")}
-                className="px-4 py-1.5 liquid-glass-button-cyan text-[10px] uppercase"
+                className="px-4 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 hover:border-cyan-500/40 text-cyan-200 hover:text-white rounded-full text-[10px] uppercase transition-all duration-200 shadow-sm cursor-pointer"
               >
                 Dashboard
               </button>
@@ -92,7 +87,7 @@ export default function LandingPage() {
                     setAuthSuccess("");
                     setShowAuthModal(true);
                   }}
-                  className="px-4 py-1.5 liquid-glass-button text-[10px] uppercase text-slate-200 hover:text-white cursor-pointer"
+                  className="px-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-slate-200 hover:text-white rounded-full text-[10px] uppercase transition-all duration-200 shadow-sm cursor-pointer"
                 >
                   Login
                 </button>
@@ -103,7 +98,7 @@ export default function LandingPage() {
                     setAuthSuccess("");
                     setShowAuthModal(true);
                   }}
-                  className="px-4 py-1.5 liquid-glass-button-cyan text-[10px] uppercase cursor-pointer"
+                  className="px-4 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 hover:border-cyan-500/40 text-cyan-200 hover:text-white rounded-full text-[10px] uppercase transition-all duration-200 shadow-sm cursor-pointer"
                 >
                   Get Started
                 </button>
@@ -128,7 +123,7 @@ export default function LandingPage() {
             {/* Main Headline */}
             <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-normal leading-tight uppercase">
               Think Fast.<br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 drop-shadow-[0_0_15px_rgba(6,182,212,0.2)]">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
                 Work Faster.
               </span>
             </h1>
@@ -151,7 +146,7 @@ export default function LandingPage() {
                     setShowAuthModal(true);
                   }
                 }}
-                className="px-8 py-4 liquid-glass-button-cyan text-xs tracking-widest flex items-center gap-2 group"
+                className="px-8 py-4 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 hover:border-cyan-500/40 text-cyan-200 hover:text-white rounded-full text-xs tracking-widest flex items-center gap-2 group transition-all duration-200 shadow-sm cursor-pointer"
               >
                 {isAuthenticated ? "Go to Dashboard" : "Launch Ceil"}
                 <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
@@ -422,23 +417,26 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* Auth Sliding Sidebar */}
+      {/* Backdrop overlay */}
       <div
-        className={`fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm lg:bg-transparent lg:backdrop-blur-none transition-opacity duration-300 ${
+        className={`fixed inset-0 z-40 bg-transparent transition-opacity duration-300 ${
           showAuthModal ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         }`}
         onClick={() => setShowAuthModal(false)}
-      >
-        <div
-          className={`max-w-md w-full h-full !bg-slate-950/70 !bg-none backdrop-blur-xl rounded-none border-y-0 border-r-0 border-l border-white/10 p-8 flex flex-col justify-center relative overflow-hidden transition-transform duration-300 ease-in-out shadow-[-10px_0_30px_rgba(0,0,0,0.3)] ${
-            showAuthModal ? "translate-x-0" : "translate-x-full"
-          }`}
-          onClick={(e) => e.stopPropagation()}
-        >
-            {/* Subtle background glow accents inside modal */}
-            <div className="absolute -top-10 -right-10 w-32 h-32 bg-cyan-400/10 rounded-full blur-2xl pointer-events-none" />
-            <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
+      />
 
+      {/* Auth Sidebar Panel Container */}
+      <div
+        className={`fixed right-0 top-0 bottom-0 z-50 w-full max-w-md bg-slate-950/35 backdrop-blur-xl border-y-0 border-r-0 border-l border-white/10 shadow-[-8px_0_32px_rgba(0,0,0,0.25)] transition-opacity duration-300 ${
+          showAuthModal ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
+      >
+        {/* Sliding content panel */}
+        <div
+          className={`w-full h-full p-8 flex flex-col justify-center relative overflow-hidden transition-all duration-300 ease-out ${
+            showAuthModal ? "translate-x-0 opacity-100" : "translate-x-8 opacity-0"
+          }`}
+        >
             {/* Close Button */}
             <button
               onClick={() => setShowAuthModal(false)}
@@ -447,8 +445,7 @@ export default function LandingPage() {
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-xl font-bold text-white mb-1 tracking-normal leading-tight text-center font-sans">CIEL WORKSPACE</h3>
-            <p className="text-[10px] text-slate-400 mb-6 uppercase tracking-wider text-center">Node Security Authorization</p>
+            <h3 className="text-xl font-bold text-white mb-6 tracking-normal leading-tight text-center font-sans">CIEL</h3>
 
             {isVerificationSent ? (
               <div className="space-y-4">
@@ -465,16 +462,13 @@ export default function LandingPage() {
                     setAuthSuccess("");
                     setAuthError("");
                   }}
-                  className="w-full py-2.5 liquid-glass-button text-slate-200 hover:text-white text-xs uppercase tracking-wider border border-white/10 hover:bg-white/5"
+                  className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-slate-200 hover:text-white text-xs uppercase tracking-wider rounded-xl transition-all duration-200 shadow-sm"
                 >
                   Back to Sign In
                 </button>
               </div>
             ) : (
               <div className="space-y-4">
-                <p className="text-[9px] leading-relaxed text-cyan-600 font-bold uppercase tracking-widest text-center">
-                  {isSignUp ? "INITIALIZE_NEW_IDENTITY_NODE" : "AUTHORIZE_SECURE_SESSION"}
-                </p>
 
                 {authError && (
                   <div className="border border-red-500/20 bg-red-950/35 p-3 rounded-lg text-[11px] text-red-400 whitespace-pre-wrap">
@@ -552,43 +546,43 @@ export default function LandingPage() {
                 >
                   {isSignUp && (
                     <div>
-                      <label className="text-[9px] text-slate-400 uppercase tracking-widest block mb-1">NODE_NAME</label>
+                      <label className="text-[9px] text-slate-400 uppercase tracking-widest block mb-1">name</label>
                       <input
                         type="text"
                         placeholder="e.g. John Doe"
                         value={authName}
                         onChange={(e) => setAuthName(e.target.value)}
-                        className="w-full bg-white/5 focus:bg-white/10 border border-white/10 focus:border-cyan-500/50 outline-none rounded-xl text-xs px-3 py-2.5 text-white transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
+                        className="w-full bg-white/5 focus:bg-white/10 border border-white/10 focus:border-white/20 outline-none rounded-xl text-xs px-3 py-2.5 text-white transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
                       />
                     </div>
                   )}
 
                   <div>
-                    <label className="text-[9px] text-slate-400 uppercase tracking-widest block mb-1">EMAIL_ADDRESS</label>
+                    <label className="text-[9px] text-slate-400 uppercase tracking-widest block mb-1">email</label>
                     <input
                       type="email"
                       placeholder="e.g. guest@ciel.app"
                       value={authEmail}
                       onChange={(e) => setAuthEmail(e.target.value)}
-                      className="w-full bg-white/5 focus:bg-white/10 border border-white/10 focus:border-cyan-500/50 outline-none rounded-xl text-xs px-3 py-2.5 text-white transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
+                      className="w-full bg-white/5 focus:bg-white/10 border border-white/10 focus:border-white/20 outline-none rounded-xl text-xs px-3 py-2.5 text-white transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[9px] text-slate-400 uppercase tracking-widest block mb-1">PASSWORD_SECRET</label>
+                    <label className="text-[9px] text-slate-400 uppercase tracking-widest block mb-1">password</label>
                     <input
                       type="password"
                       placeholder="••••••••"
                       value={authPassword}
                       onChange={(e) => setAuthPassword(e.target.value)}
-                      className="w-full bg-white/5 focus:bg-white/10 border border-white/10 focus:border-cyan-500/50 outline-none rounded-xl text-xs px-3 py-2.5 text-white transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
+                      className="w-full bg-white/5 focus:bg-white/10 border border-white/10 focus:border-white/20 outline-none rounded-xl text-xs px-3 py-2.5 text-white transition-all duration-300 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]"
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={authLoading}
-                    className="w-full py-3 liquid-glass-button-cyan text-xs uppercase tracking-widest disabled:opacity-50"
+                    className="w-full py-3 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 hover:border-cyan-500/40 text-cyan-200 hover:text-white rounded-xl text-xs uppercase tracking-widest transition-all duration-200 shadow-sm disabled:opacity-50"
                   >
                     {authLoading ? "Authorizing..." : isSignUp ? "Create Node Account" : "Access Console"}
                   </button>
@@ -612,7 +606,7 @@ export default function LandingPage() {
                       console.error("Google login error", err);
                     }
                   }}
-                  className="w-full py-2.5 liquid-glass-button text-xs uppercase tracking-wider flex items-center justify-center gap-2 text-slate-200 hover:text-white border border-white/10 hover:bg-white/5 transition-colors"
+                  className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-xs uppercase tracking-wider flex items-center justify-center gap-2 text-slate-200 hover:text-white rounded-xl transition-all duration-200 shadow-sm"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
