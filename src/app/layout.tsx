@@ -4,8 +4,9 @@ import { Providers } from "@/components/Providers";
 import { CommandPalette } from "@/components/CommandPalette";
 
 export const metadata: Metadata = {
-  title: "Ciel Workspace // Sentient Analytical Interface",
-  description: "AI-driven Gmail and Google Calendar coordination dashboard, built with Corsair integration layer.",
+  title: "Ciel",
+  description:
+    "AI-driven Gmail and Google Calendar coordination dashboard, built with Corsair integration layer.",
 };
 
 export default function RootLayout({
@@ -14,17 +15,27 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className="h-full"
-      suppressHydrationWarning
-    >
+    <html lang="en" className="h-full" suppressHydrationWarning>
       <body className="min-h-full flex flex-col antialiased">
         {/* Global SVG Filters for Liquid Glass Refraction */}
-        <svg xmlns="http://www.w3.org/2000/svg" style={{ position: "absolute", width: 0, height: 0, pointerEvents: "none" }}>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          style={{
+            position: "absolute",
+            width: 0,
+            height: 0,
+            pointerEvents: "none",
+          }}
+        >
           <defs>
             {/* Standard pebble-lens refraction for cards, nav, buttons */}
-            <filter id="liquid-glass-refract" x="-10%" y="-10%" width="120%" height="120%">
+            <filter
+              id="liquid-glass-refract"
+              x="-10%"
+              y="-10%"
+              width="120%"
+              height="120%"
+            >
               <feImage
                 href="data:image/svg+xml;utf8,<svg width='200' height='200' xmlns='http://www.w3.org/2000/svg'><defs><radialGradient id='r' cx='50%25' cy='50%25' r='50%25'><stop offset='0%25' stop-color='%23808080'/><stop offset='70%25' stop-color='%23808080'/><stop offset='100%25' stop-color='%23606060'/></radialGradient></defs><rect width='200' height='200' fill='%23808080'/><ellipse cx='100' cy='100' rx='90' ry='90' fill='url(%23r)'/></svg>"
                 result="lensMap"
@@ -34,8 +45,21 @@ export default function RootLayout({
                 height="100%"
                 preserveAspectRatio="none"
               />
-              <feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="3" seed="1" result="noise" />
-              <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" xChannelSelector="R" yChannelSelector="G" result="warped" />
+              <feTurbulence
+                type="fractalNoise"
+                baseFrequency="0.015"
+                numOctaves="3"
+                seed="1"
+                result="noise"
+              />
+              <feDisplacementMap
+                in="SourceGraphic"
+                in2="noise"
+                scale="3"
+                xChannelSelector="R"
+                yChannelSelector="G"
+                result="warped"
+              />
               <feGaussianBlur in="warped" stdDeviation="0.4" />
             </filter>
 
@@ -60,16 +84,40 @@ export default function RootLayout({
                 preserveAspectRatio="none"
               />
               <feBlend in="mapX" in2="mapY" mode="screen" result="map" />
-              <feDisplacementMap in="SourceGraphic" in2="map" scale="120" xChannelSelector="R" yChannelSelector="G" />
+              <feDisplacementMap
+                in="SourceGraphic"
+                in2="map"
+                scale="120"
+                xChannelSelector="R"
+                yChannelSelector="G"
+              />
             </filter>
 
             {/* Stronger refraction for larger surfaces (modal) */}
-            <filter id="liquid-glass-refract-strong" x="-10%" y="-10%" width="120%" height="120%">
-              <feTurbulence type="fractalNoise" baseFrequency="0.01" numOctaves="3" seed="2" result="noise" />
-              <feDisplacementMap in="SourceGraphic" in2="noise" scale="5" xChannelSelector="R" yChannelSelector="G" result="warped" />
+            <filter
+              id="liquid-glass-refract-strong"
+              x="-10%"
+              y="-10%"
+              width="120%"
+              height="120%"
+            >
+              <feTurbulence
+                type="fractalNoise"
+                baseFrequency="0.01"
+                numOctaves="3"
+                seed="2"
+                result="noise"
+              />
+              <feDisplacementMap
+                in="SourceGraphic"
+                in2="noise"
+                scale="5"
+                xChannelSelector="R"
+                yChannelSelector="G"
+                result="warped"
+              />
               <feGaussianBlur in="warped" stdDeviation="0.6" />
             </filter>
-
           </defs>
         </svg>
         <Providers>
@@ -80,4 +128,3 @@ export default function RootLayout({
     </html>
   );
 }
-
