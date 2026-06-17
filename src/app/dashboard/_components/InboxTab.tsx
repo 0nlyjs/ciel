@@ -62,6 +62,7 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
   const [isPageSyncing, setIsPageSyncing] = useState(false);
   const [isTabLoading, setIsTabLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [syncedFolders, setSyncedFolders] = useState<Record<string, boolean>>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -375,26 +376,47 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
 
   return (
     <div className="flex h-full w-full gap-5 overflow-hidden p-2 text-slate-100 font-sans">
-      {/* 1st STAGE GUARD: Gmail OAuth connection status check */}
       {!gmailConnected ? (
-        <div className={`flex-1 flex flex-col justify-center items-center p-8 text-center ${glassPanelClass}`}>
-          <button
-            onClick={async () => {
-              try {
-                const res = await fetch("/api/auth/corsair/connect?plugin=gmail");
-                const data = await res.json();
-                if (data.authorizeUrl) {
-                  window.location.href = data.authorizeUrl;
-                }
-              } catch (e) {
-                console.error("Gmail OAuth Link Failure:", e);
-                toast.error("Authentication setup failed");
-              }
-            }}
-            className="px-10 py-5 bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/10 hover:border-white/20 text-white rounded-2xl text-sm uppercase font-black tracking-widest shadow-lg transition-all duration-300 transform hover:scale-[1.03] cursor-pointer"
-          >
-            Connect Gmail Account
-          </button>
+        <div className={`flex-1 flex flex-col p-0 overflow-hidden ${glassPanelClass}`}>
+          {/* Dark shaded top banner */}
+          <div className="bg-black/40 border-b border-white/10 px-6 py-4 flex items-center justify-between gap-4">
+            <h3 className="text-sm font-black uppercase tracking-wider text-white">
+              Connect Gmail
+            </h3>
+            <div className="flex items-center gap-3 shrink-0">
+              {isConnecting && (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-purple-500/20 border-t-purple-500 rounded-full animate-spin"></div>
+                  <span className="text-[9px] text-slate-400 font-mono tracking-wider uppercase animate-pulse">Redirecting...</span>
+                </div>
+              )}
+              <button
+                disabled={isConnecting}
+                onClick={async () => {
+                  setIsConnecting(true);
+                  try {
+                    const res = await fetch("/api/auth/corsair/connect?plugin=gmail");
+                    const data = await res.json();
+                    if (data.authorizeUrl) {
+                      window.location.href = data.authorizeUrl;
+                    } else {
+                      setIsConnecting(false);
+                    }
+                  } catch (e) {
+                    console.error("Gmail OAuth Link Failure:", e);
+                    toast.error("Authentication setup failed");
+                    setIsConnecting(false);
+                  }
+                }}
+                className={`px-6 py-3 bg-purple-655 hover:bg-purple-500 text-white border border-purple-500/30 rounded-xl text-[10px] font-black uppercase tracking-wider shadow-lg transition-all duration-300 ${isConnecting ? "opacity-50 cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
+              >
+                {isConnecting ? "Connecting..." : "Connect Gmail"}
+              </button>
+            </div>
+          </div>
+
+          {/* Rest of the card section - unmodified style, color and opacity */}
+          <div className="flex-1" />
         </div>
       ) : (
         <div className="flex-1 flex h-full gap-5 min-w-0 overflow-hidden">

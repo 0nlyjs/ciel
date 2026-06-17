@@ -432,11 +432,8 @@ export default function DashboardPage() {
 
   if (isPending || !session) {
     return (
-      <div className="min-h-screen bg-[#0b0c10] text-gray-400 flex flex-col items-center justify-center font-sans gap-4">
-        <div className="w-12 h-12 rounded-full bg-gradient-to-b from-cyan-400 to-blue-600 flex items-center justify-center font-bold text-white tracking-tighter shadow-md animate-pulse">
-          C
-        </div>
-        <p className="text-xs uppercase tracking-widest text-slate-500 font-mono animate-pulse">Initializing Console...</p>
+      <div className="min-h-screen bg-[#0b0c10] flex flex-col items-center justify-center">
+        <div className="w-10 h-10 border-2 border-purple-500/20 border-t-purple-500 rounded-full animate-spin"></div>
       </div>
     );
   }

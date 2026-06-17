@@ -24,6 +24,7 @@ export function ChatTab() {
   const fetchCalendarEvents = useCielStore((s) => s.fetchCalendarEvents);
   const gmailConnected = useCielStore((s) => s.gmailConnected);
   const calendarConnected = useCielStore((s) => s.calendarConnected);
+  const isIntegrationStatusLoaded = useCielStore((s) => s.isIntegrationStatusLoaded);
 
   const isDark = true;
 
@@ -47,22 +48,23 @@ export function ChatTab() {
     textareaRef.current?.focus();
   }, [isSendingChat, chatMessages]);
 
-  // Dynamically update the initial greeting content when connection status resolves
+  // Dynamically initialize the greeting content only after connection status is loaded
   useEffect(() => {
-    if (chatMessages.length === 1 && chatMessages[0].id.startsWith("init")) {
+    if (isIntegrationStatusLoaded && chatMessages.length === 0) {
       const welcomeMsg = getWelcomeMessage(gmailConnected, calendarConnected);
-      if (chatMessages[0].content !== welcomeMsg) {
-        useCielStore.setState({
-          chatMessages: [
-            {
-              ...chatMessages[0],
-              content: welcomeMsg,
-            }
-          ]
-        });
-      }
+      useCielStore.setState({
+        chatMessages: [
+          {
+            id: "init-" + Math.random().toString(36).substring(2, 9),
+            role: "assistant",
+            content: welcomeMsg,
+            timestamp: new Date(),
+          }
+        ]
+      });
+      shouldSpeakRef.current = true;
     }
-  }, [gmailConnected, calendarConnected, chatMessages]);
+  }, [isIntegrationStatusLoaded, gmailConnected, calendarConnected, chatMessages.length]);
 
   // Global keydown handler to keep textarea active when typing anywhere
   useEffect(() => {
@@ -131,7 +133,6 @@ export function ChatTab() {
     if (!activeConversationId) {
       setActiveConversationId(Math.random().toString(36).substring(2, 15));
       setTokensConsumed(0);
-      shouldSpeakRef.current = true;
     }
   }, [activeConversationId]);
 
@@ -254,17 +255,7 @@ export function ChatTab() {
     const newId = Math.random().toString(36).substring(2, 15);
     setActiveConversationId(newId);
     setTokensConsumed(0);
-    shouldSpeakRef.current = true;
-    useCielStore.setState({
-      chatMessages: [
-        {
-          id: "init-" + Math.random().toString(36).substring(2, 9),
-          role: "assistant",
-          content: getWelcomeMessage(gmailConnected, calendarConnected),
-          timestamp: new Date(),
-        },
-      ],
-    });
+    useCielStore.setState({ chatMessages: [] });
   };
 
   const handleDeleteConversation = async (e: React.MouseEvent, convId: string) => {
@@ -370,6 +361,7 @@ export function ChatTab() {
     if (!ttsEnabled) return;
     if (isSendingChat) return;
     if (!selectedLocalVoice) return; // Wait until local voice selection is resolved
+    if (!isIntegrationStatusLoaded) return; // Wait until integration statuses are resolved!
     if (!shouldSpeakRef.current) return;
 
     const lastMsg = chatMessages[chatMessages.length - 1];
@@ -380,7 +372,7 @@ export function ChatTab() {
     shouldSpeakRef.current = false;
     lastSpokenIdRef.current = lastMsg.id;
     speak(lastMsg.content, selectedLocalVoice);
-  }, [chatMessages, isSendingChat, ttsEnabled, speak, selectedLocalVoice]);
+  }, [chatMessages, isSendingChat, ttsEnabled, speak, selectedLocalVoice, isIntegrationStatusLoaded]);
 
   // Stop TTS when turning it off
   const handleTtsToggle = () => {
@@ -630,90 +622,103 @@ export function ChatTab() {
       <div className="flex-1 flex min-h-0 overflow-hidden mt-3">
         {/* Messages + Input */}
         <div className="flex-1 flex flex-col min-h-0 px-4 pb-4">
-          <div className="flex-1 space-y-4 p-4 border border-slate-900/5 dark:border-white/5 bg-slate-900/5 dark:bg-black/10 rounded-2xl overflow-y-auto min-h-0">
-            {chatMessages.length === 0 && (
-              <div className="flex-1 flex flex-col items-center justify-center py-16 text-center">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-b from-purple-400 to-purple-700 flex items-center justify-center mb-4 shadow-lg">
-                  <span className="text-white text-xl font-bold">C</span>
+          <div className="flex-1 space-y-4 p-4 border border-slate-900/5 dark:border-white/5 bg-slate-900/5 dark:bg-black/10 rounded-2xl overflow-y-auto min-h-0 flex flex-col justify-start">
+            {!isIntegrationStatusLoaded ? (
+              <div className="flex-1 flex flex-col justify-center items-center py-20 text-slate-500">
+                <div className="relative flex items-center justify-center mb-4">
+                  <div className="w-10 h-10 border-2 border-purple-500/20 border-t-purple-500 rounded-full animate-spin"></div>
                 </div>
-                <h4 className={`text-sm font-bold ${textWhiteClass} mb-1`}>
-                  Welcome to Ciel AI
-                </h4>
-                <p className={`text-xs ${textMutedClass} max-w-sm mb-4`}>
-                  Ask me to send emails, check your calendar, schedule meetings,
-                  or answer any question.
+                <p className="text-[10px] text-slate-400 font-mono tracking-widest uppercase animate-pulse">
+                  Establishing Neural Connection...
                 </p>
-                {(!gmailConnected || !calendarConnected) && (
-                  <div className="px-4 py-3 bg-rose-500/10 border border-rose-500/20 text-rose-350 rounded-xl text-xs max-w-sm font-semibold flex flex-col gap-1">
-                    <span className="font-bold">⚠️ Integration Required</span>
-                    <span>
-                      Please connect your{" "}
-                      {!gmailConnected && !calendarConnected
-                        ? "Gmail account and Google Calendar"
-                        : !gmailConnected
-                          ? "Gmail account"
-                          : "Google Calendar"}{" "}
-                      to enable full agent automation.
-                    </span>
-                  </div>
-                )}
               </div>
-            )}
-            {chatMessages.map((msg) => {
-              const isUser = msg.role === "user";
-              return (
-                <div
-                  key={msg.id}
-                  className={`flex ${isUser ? "justify-end" : "justify-start"} mb-1`}
-                >
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs shadow-[0_1px_2px_rgba(0,0,0,0.02)] border ${
-                      isUser
-                        ? isDark
-                          ? "bg-cyan-950/40 border-cyan-800/50 text-cyan-200 rounded-tr-none"
-                          : "bg-cyan-50 border-cyan-200 text-cyan-950 rounded-tr-none"
-                        : isDark
-                          ? "bg-black/35 border-white/5 text-slate-300 font-mono rounded-tl-none"
-                          : "bg-white/80 border-slate-200 text-slate-800 rounded-tl-none"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-1.5 opacity-60 text-[9px] uppercase tracking-wider font-bold">
-                        <span>{msg.role}</span>
-                        <span>•</span>
+            ) : (
+              <>
+                {chatMessages.length === 0 && (
+                  <div className="flex-1 flex flex-col items-center justify-center py-16 text-center">
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-b from-purple-400 to-purple-700 flex items-center justify-center mb-4 shadow-lg">
+                      <span className="text-white text-xl font-bold">C</span>
+                    </div>
+                    <h4 className={`text-sm font-bold ${textWhiteClass} mb-1`}>
+                      Welcome to Ciel AI
+                    </h4>
+                    <p className={`text-xs ${textMutedClass} max-w-sm mb-4`}>
+                      Ask me to send emails, check your calendar, schedule meetings,
+                      or answer any question.
+                    </p>
+                    {(!gmailConnected || !calendarConnected) && (
+                      <div className="px-4 py-3 bg-rose-500/10 border border-rose-500/20 text-rose-350 rounded-xl text-xs max-w-sm font-semibold flex flex-col gap-1">
+                        <span className="font-bold">⚠️ Integration Required</span>
                         <span>
-                          {mounted && msg.timestamp
-                            ? new Date(msg.timestamp).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
-                            : ""}
+                          Please connect your{" "}
+                          {!gmailConnected && !calendarConnected
+                            ? "Gmail account and Google Calendar"
+                            : !gmailConnected
+                              ? "Gmail account"
+                              : "Google Calendar"}{" "}
+                          to enable full agent automation.
                         </span>
                       </div>
-                    </div>
+                    )}
+                  </div>
+                )}
+                {chatMessages.map((msg) => {
+                  const isUser = msg.role === "user";
+                  return (
                     <div
-                      className={
-                        isUser
-                          ? "font-sans leading-relaxed"
-                          : "font-mono leading-relaxed"
-                      }
+                      key={msg.id}
+                      className={`flex ${isUser ? "justify-end" : "justify-start"} mb-1`}
                     >
-                      <MarkdownRenderer content={msg.content} isDark={isDark} />
+                      <div
+                        className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs shadow-[0_1px_2px_rgba(0,0,0,0.02)] border ${
+                          isUser
+                            ? isDark
+                              ? "bg-cyan-950/40 border-cyan-800/50 text-cyan-200 rounded-tr-none"
+                              : "bg-cyan-50 border-cyan-200 text-cyan-950 rounded-tr-none"
+                            : isDark
+                              ? "bg-black/35 border-white/5 text-slate-300 font-mono rounded-tl-none"
+                              : "bg-white/80 border-slate-200 text-slate-800 rounded-tl-none"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-1.5 opacity-60 text-[9px] uppercase tracking-wider font-bold">
+                            <span>{msg.role}</span>
+                            <span>•</span>
+                            <span>
+                              {mounted && msg.timestamp
+                                ? new Date(msg.timestamp).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : ""}
+                            </span>
+                          </div>
+                        </div>
+                        <div
+                          className={
+                            isUser
+                              ? "font-sans leading-relaxed"
+                              : "font-mono leading-relaxed"
+                          }
+                        >
+                          <MarkdownRenderer content={msg.content} isDark={isDark} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {isSendingChat && (
+                  <div className="flex justify-start">
+                    <div
+                      className={`rounded-2xl rounded-tl-none px-4 py-2.5 text-xs border bg-slate-100/30 dark:bg-white/5 border-slate-900/5 dark:border-white/5 text-slate-400 dark:text-slate-500 animate-pulse`}
+                    >
+                      <span>Thinking and generating tool responses...</span>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-            {isSendingChat && (
-              <div className="flex justify-start">
-                <div
-                  className={`rounded-2xl rounded-tl-none px-4 py-2.5 text-xs border bg-slate-100/30 dark:bg-white/5 border-slate-900/5 dark:border-white/5 text-slate-400 dark:text-slate-500 animate-pulse`}
-                >
-                  <span>Thinking and generating tool responses...</span>
-                </div>
-              </div>
+                )}
+                <div ref={messagesEndRef} />
+              </>
             )}
-            <div ref={messagesEndRef} />
           </div>
 
           {/* Limit Banner */}

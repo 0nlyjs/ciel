@@ -49,9 +49,9 @@ interface CielState {
   logout: () => void;
   updateUserName: (name: string) => void;
 
-  // integration state
   gmailConnected: boolean;
   calendarConnected: boolean;
+  isIntegrationStatusLoaded: boolean;
   fetchIntegrationStatus: () => Promise<void>;
 
   // view state
@@ -151,6 +151,7 @@ export const useCielStore = create<CielState>((set, get) => ({
   user: null,
   gmailConnected: false,
   calendarConnected: false,
+  isIntegrationStatusLoaded: false,
   login: (name, email) => set({ user: { name, email } }),
   updateUserName: (name) =>
     set((state) => ({ user: state.user ? { ...state.user, name } : null })),
@@ -160,6 +161,7 @@ export const useCielStore = create<CielState>((set, get) => ({
       activeTab: "chat",
       gmailConnected: false,
       calendarConnected: false,
+      isIntegrationStatusLoaded: false,
       emails: [],
       emailsTotal: 0,
       emailsPage: 1,
@@ -168,15 +170,7 @@ export const useCielStore = create<CielState>((set, get) => ({
       selectedEmailIndex: null,
       searchQuery: "",
       activeFolder: "inbox",
-      chatMessages: [
-        {
-          id: "init",
-          role: "assistant",
-          content:
-            "Hello, I am Ciel, your sentient AI workspace mind. I have established synchronization with your Gmail and Google Calendar. How may I assist you with your inbox or schedule today?",
-          timestamp: new Date(),
-        },
-      ],
+      chatMessages: [],
       cielStatus: "idle",
       currentVolume: 0,
       selectedDate: null,
@@ -469,15 +463,7 @@ export const useCielStore = create<CielState>((set, get) => ({
   },
 
   // chat data
-  chatMessages: [
-    {
-      id: "init",
-      role: "assistant",
-      content:
-        "Hello, I am Ciel, your sentient AI workspace mind. I have established synchronization with your Gmail and Google Calendar. How may I assist you with your inbox or schedule today?",
-      timestamp: new Date(),
-    },
-  ],
+  chatMessages: [],
   addChatMessage: (msg) =>
     set((state) => ({
       chatMessages: [
@@ -492,7 +478,6 @@ export const useCielStore = create<CielState>((set, get) => ({
     })),
   clearChat: () => set({ chatMessages: [] }),
 
-  // integration status action
   fetchIntegrationStatus: async () => {
     try {
       const res = await fetch("/api/auth/corsair/status");
@@ -501,10 +486,14 @@ export const useCielStore = create<CielState>((set, get) => ({
         set({
           gmailConnected: !!data.gmailConnected,
           calendarConnected: !!data.calendarConnected,
+          isIntegrationStatusLoaded: true,
         });
+      } else {
+        set({ isIntegrationStatusLoaded: true });
       }
     } catch (error) {
       console.error("[Store] Failed to fetch integration status:", error);
+      set({ isIntegrationStatusLoaded: true });
     }
   },
 
