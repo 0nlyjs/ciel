@@ -32,6 +32,8 @@ export function Sidebar({ onShowShortcuts, onOpenProfile }: SidebarProps) {
   const activeTab = useCielStore((s) => s.activeTab);
   const setActiveTab = useCielStore((s) => s.setActiveTab);
   const logout = useCielStore((s) => s.logout);
+  const gmailConnected = useCielStore((s) => s.gmailConnected);
+  const calendarConnected = useCielStore((s) => s.calendarConnected);
   const isDark = true;
 
   const handleSignOutClick = async () => {
@@ -88,6 +90,28 @@ export function Sidebar({ onShowShortcuts, onOpenProfile }: SidebarProps) {
 
       {/* Footer Controls */}
       <div className="pt-4 border-t border-slate-200/20 dark:border-white/5 space-y-2">
+        {/* Connection status display */}
+        <div className="px-3 py-2.5 bg-black/20 dark:bg-black/35 rounded-xl border border-white/5 flex flex-col gap-1.5 text-[9px] font-semibold tracking-wider font-mono">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400">GMAIL:</span>
+            <div className="flex items-center gap-1.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${gmailConnected ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+              <span className={gmailConnected ? "text-emerald-450" : "text-rose-400"}>
+                {gmailConnected ? "CONNECTED" : "NOT CONNECTED"}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400">CALENDAR:</span>
+            <div className="flex items-center gap-1.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${calendarConnected ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+              <span className={calendarConnected ? "text-emerald-450" : "text-rose-400"}>
+                {calendarConnected ? "CONNECTED" : "NOT CONNECTED"}
+              </span>
+            </div>
+          </div>
+        </div>
+
         <button
           onClick={onShowShortcuts}
           className={`w-full px-3 py-2.5 border border-slate-200/20 dark:border-white/5 rounded-xl text-[10px] uppercase font-bold cursor-pointer transition-all hover:scale-[1.02] flex items-center justify-center gap-1.5 ${

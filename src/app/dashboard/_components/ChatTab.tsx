@@ -5,11 +5,25 @@ import { useCielStore } from "@/store/useCielStore";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { useTextToSpeech } from "@/lib/speech";
 
+const getWelcomeMessage = (gmailConnected: boolean, calendarConnected: boolean) => {
+  if (gmailConnected && calendarConnected) {
+    return "Hello, I am Ciel, your sentient AI workspace mind. I have established synchronization with your Gmail and Google Calendar. How may I assist you with your inbox or schedule today?";
+  } else if (gmailConnected) {
+    return "Hello, I am Ciel, your sentient AI workspace mind. I have established synchronization with your Gmail. Please connect your Google Calendar integration if you also want to enable calendar scheduling. How may I assist you with your inbox today?";
+  } else if (calendarConnected) {
+    return "Hello, I am Ciel, your sentient AI workspace mind. I have established synchronization with your Google Calendar. Please connect your Gmail integration if you also want to enable email automation. How may I assist you with your schedule today?";
+  } else {
+    return "Hello, I am Ciel, your sentient AI workspace mind. Please connect your Gmail and Google Calendar integrations to enable email automation and calendar scheduling. How may I assist you today?";
+  }
+};
+
 export function ChatTab() {
   const chatMessages = useCielStore((s) => s.chatMessages);
   const clearChat = useCielStore((s) => s.clearChat);
   const fetchEmails = useCielStore((s) => s.fetchEmails);
   const fetchCalendarEvents = useCielStore((s) => s.fetchCalendarEvents);
+  const gmailConnected = useCielStore((s) => s.gmailConnected);
+  const calendarConnected = useCielStore((s) => s.calendarConnected);
 
   const isDark = true;
 
@@ -32,6 +46,23 @@ export function ChatTab() {
   useEffect(() => {
     textareaRef.current?.focus();
   }, [isSendingChat, chatMessages]);
+
+  // Dynamically update the initial greeting content when connection status resolves
+  useEffect(() => {
+    if (chatMessages.length === 1 && chatMessages[0].id.startsWith("init")) {
+      const welcomeMsg = getWelcomeMessage(gmailConnected, calendarConnected);
+      if (chatMessages[0].content !== welcomeMsg) {
+        useCielStore.setState({
+          chatMessages: [
+            {
+              ...chatMessages[0],
+              content: welcomeMsg,
+            }
+          ]
+        });
+      }
+    }
+  }, [gmailConnected, calendarConnected, chatMessages]);
 
   // Global keydown handler to keep textarea active when typing anywhere
   useEffect(() => {
@@ -229,8 +260,7 @@ export function ChatTab() {
         {
           id: "init-" + Math.random().toString(36).substring(2, 9),
           role: "assistant",
-          content:
-            "Hello, I am Ciel, your sentient AI workspace mind. I have established synchronization with your Gmail and Google Calendar. How may I assist you with your inbox or schedule today?",
+          content: getWelcomeMessage(gmailConnected, calendarConnected),
           timestamp: new Date(),
         },
       ],
@@ -609,10 +639,24 @@ export function ChatTab() {
                 <h4 className={`text-sm font-bold ${textWhiteClass} mb-1`}>
                   Welcome to Ciel AI
                 </h4>
-                <p className={`text-xs ${textMutedClass} max-w-sm`}>
+                <p className={`text-xs ${textMutedClass} max-w-sm mb-4`}>
                   Ask me to send emails, check your calendar, schedule meetings,
                   or answer any question.
                 </p>
+                {(!gmailConnected || !calendarConnected) && (
+                  <div className="px-4 py-3 bg-rose-500/10 border border-rose-500/20 text-rose-350 rounded-xl text-xs max-w-sm font-semibold flex flex-col gap-1">
+                    <span className="font-bold">⚠️ Integration Required</span>
+                    <span>
+                      Please connect your{" "}
+                      {!gmailConnected && !calendarConnected
+                        ? "Gmail account and Google Calendar"
+                        : !gmailConnected
+                          ? "Gmail account"
+                          : "Google Calendar"}{" "}
+                      to enable full agent automation.
+                    </span>
+                  </div>
+                )}
               </div>
             )}
             {chatMessages.map((msg) => {

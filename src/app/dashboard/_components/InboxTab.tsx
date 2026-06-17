@@ -377,42 +377,7 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
     <div className="flex h-full w-full gap-5 overflow-hidden p-2 text-slate-100 font-sans">
       {/* 1st STAGE GUARD: Gmail OAuth connection status check */}
       {!gmailConnected ? (
-        <div className={`flex-1 flex flex-col justify-center items-center p-8 text-center relative overflow-hidden ${glassPanelClass}`}>
-          {/* Animated pulsing background rings */}
-          <div className="absolute w-[400px] h-[400px] rounded-full bg-purple-500/5 border border-purple-500/10 animate-ping duration-[3000ms] pointer-events-none" />
-          <div className="absolute w-[200px] h-[200px] rounded-full bg-purple-500/5 border border-purple-500/10 animate-pulse pointer-events-none" />
-
-          <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-purple-500/10 to-cyan-500/10 border border-white/10 flex items-center justify-center text-4xl mb-6 shadow-[0_0_30px_rgba(168,85,247,0.2)] animate-pulse">
-            ✉️
-          </div>
-          
-          <h2 className="text-2xl font-black mb-3 tracking-tight bg-gradient-to-r from-purple-400 via-indigo-300 to-cyan-400 bg-clip-text text-transparent">
-            Establish Gmail Synchronization
-          </h2>
-          
-          <p className="text-slate-400 text-xs max-w-md mb-8 leading-relaxed">
-            Connect your Gmail account to cache emails into your secure Neon database. Enable local vector search, automatic AI importance classification, and smart quick replies.
-          </p>
-
-          <div className="grid grid-cols-2 gap-4 max-w-sm w-full mb-8 text-left text-[11px] font-mono text-slate-400">
-            <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg border border-white/5">
-              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>OAuth 2.0 Secure</span>
-            </div>
-            <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg border border-white/5">
-              <Zap className="w-4 h-4 text-purple-400 shrink-0" />
-              <span>Neon Cache (100+)</span>
-            </div>
-            <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg border border-white/5">
-              <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
-              <span>AI Classifier</span>
-            </div>
-            <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg border border-white/5">
-              <Info className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>Corsair Pub/Sub</span>
-            </div>
-          </div>
-
+        <div className={`flex-1 flex flex-col justify-center items-center p-8 text-center ${glassPanelClass}`}>
           <button
             onClick={async () => {
               try {
@@ -426,7 +391,7 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
                 toast.error("Authentication setup failed");
               }
             }}
-            className="px-8 py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:via-indigo-500 hover:to-cyan-500 text-white rounded-xl text-xs uppercase font-extrabold tracking-widest shadow-[0_0_20px_rgba(147,51,234,0.3)] hover:shadow-[0_0_35px_rgba(147,51,234,0.5)] transition-all duration-300 transform hover:scale-[1.03] cursor-pointer"
+            className="px-10 py-5 bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/10 hover:border-white/20 text-white rounded-2xl text-sm uppercase font-black tracking-widest shadow-lg transition-all duration-300 transform hover:scale-[1.03] cursor-pointer"
           >
             Connect Gmail Account
           </button>

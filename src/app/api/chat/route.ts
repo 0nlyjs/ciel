@@ -11,6 +11,7 @@ import {
   conversations,
   chatMessages,
   searchDocuments,
+  userIntegrations,
 } from "@/lib/schema";
 import {
   eq,
@@ -74,6 +75,31 @@ export async function POST(req: Request) {
 
     const currentDateTime = new Date().toISOString();
 
+    // Query connection statuses of Gmail and Google Calendar integrations
+    let gmailConnected = false;
+    let calendarConnected = false;
+
+    try {
+      const { corsair } = await import("@/lib/corsair");
+      const status = await corsair.manage.connectionStatus.get({ tenantId: userEmail });
+      gmailConnected = status.gmail === "connected";
+      calendarConnected = status.googlecalendar === "connected";
+    } catch (e) {
+      console.warn("[Chat API] Corsair status check failed, checking db cache:", e);
+      // Fallback to local db cache
+      try {
+        const integrations = await db
+          .select()
+          .from(userIntegrations)
+          .where(eq(userIntegrations.userId, userId));
+        
+        gmailConnected = integrations.some(i => i.provider === "gmail" && i.status === "connected");
+        calendarConnected = integrations.some(i => i.provider === "googlecalendar" && i.status === "connected");
+      } catch (dbErr) {
+        console.error("[Chat API] DB check for integrations status failed:", dbErr);
+      }
+    }
+
     // 2. Stream Setup with Agentic Loop
     const result = streamText({
       model: openai("gpt-4o-mini"),
@@ -82,6 +108,15 @@ Your task is to help the user manage their email and calendar workflows.
 You have access to tools that connect to Gmail and Google Calendar.
 You have direct access to the user's local, high-speed PostgreSQL cache of their Gmail and Google Calendar.
 Do not ask permission to read data, just execute the tools to find the answer.
+
+INTEGRATION CONNECTION STATUS:
+- Gmail Connection: ${gmailConnected ? "CONNECTED" : "DISCONNECTED"}
+- Google Calendar Connection: ${calendarConnected ? "CONNECTED" : "DISCONNECTED"}
+
+INTEGRATION WORKFLOW RULES:
+- Gmail access is ${gmailConnected ? "ENABLED. You can read, list, search, draft, and send emails using your email tools." : "DISABLED. If Master asks you to read, search, list, draft, or send emails, you MUST politely inform Master that they must first connect their Gmail integration from the Settings tab before you can proceed."}
+- Google Calendar access is ${calendarConnected ? "ENABLED. You can read, list, create, and manage calendar events using your calendar tools." : "DISABLED. If Master asks you to list, search, view, draft, or schedule calendar events or meetings, you MUST politely inform Master that they must first connect their Google Calendar integration from the Settings tab before you can proceed."}
+
 
 USER IDENTITY:
 - The current user is ${userName} (${userEmail}).
@@ -135,7 +170,8 @@ The current system date and time is ${new Date().toString()} (ISO: ${currentDate
             limit: z.number().max(10).optional().default(10),
             category: z
               .enum(["work", "personal", "updates", "promotions"])
-              .optional(),
+              .optional()
+              .describe("Filter by category. Leave undefined to query all emails across all categories. Do NOT filter by category unless the user explicitly requested a specific category (like work, personal, updates, promotions)."),
             unreadOnly: z.boolean().optional(),
           }),
           execute: async ({ limit, category, unreadOnly }) => {

@@ -191,9 +191,7 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
   const textWhiteClass = isDark ? "text-white" : "text-slate-900";
   const textMutedClass = isDark ? "text-slate-400" : "text-slate-500";
   const borderClass = isDark ? "border-white/5" : "border-white/20";
-  const cardBgClass = isDark 
-    ? "bg-transparent backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.15)]"
-    : "bg-transparent backdrop-blur-2xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.04)]";
+  const glassPanelClass = "bg-white/5 dark:bg-black/25 backdrop-blur-2xl border border-white/10 shadow-2xl rounded-2xl";
   const innerCardBgClass = isDark ? "bg-black/15" : "bg-white/20";
   const accordionHeaderBgClass = isDark ? "bg-black/15" : "bg-white/20";
   const buttonBgClass = isDark 
@@ -204,24 +202,24 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
     : "bg-white/35 focus:bg-white/55 border-white/40 focus:border-cyan-500/50 text-slate-900";
 
   return (
-    <div className={`rounded-2xl flex flex-col ${cardBgClass} overflow-hidden h-full min-h-0 w-full`}>
-      <div className="h-[72px] px-5 flex items-center justify-between shrink-0 border-b border-white/5">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-1">
-            <h2 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Google Calendar</h2>
-            <div className="flex items-center gap-2">
-              <span className={`inline-block w-2.5 h-2.5 rounded-full ${calendarConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
-              <span className={`text-[10px] font-semibold uppercase ${calendarConnected ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>{calendarConnected ? "CONNECTED" : "DISCONNECTED"}</span>
+    <div className="flex h-full w-full gap-5 overflow-hidden p-2 text-slate-100 font-sans">
+      <div className={`flex-1 rounded-2xl flex flex-col ${glassPanelClass} overflow-hidden h-full min-h-0 w-full`}>
+        {calendarConnected ? (
+        <>
+          <div className="h-[72px] px-5 flex items-center justify-between shrink-0 border-b border-white/5">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-1">
+                <h2 className={`text-xs font-bold ${textWhiteClass} uppercase tracking-normal leading-tight`}>Google Calendar</h2>
+                <div className="flex items-center gap-2">
+                  <span className={`inline-block w-2.5 h-2.5 rounded-full ${calendarConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
+                  <span className={`text-[10px] font-semibold uppercase ${calendarConnected ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>{calendarConnected ? "CONNECTED" : "DISCONNECTED"}</span>
+                </div>
+              </div>
+              <p className={`text-[11px] ${textMutedClass} truncate`}>Corsair synchronization status for user schedules.</p>
             </div>
           </div>
-          <p className={`text-[11px] ${textMutedClass} truncate`}>Corsair synchronization status for user schedules.</p>
-        </div>
-      </div>
 
-      <div className="flex-1 flex flex-col min-h-0 mt-3">
-        {calendarConnected ? (
-          <div className="flex-1 flex flex-col min-h-0">
-            {/* Calendar Action & Navigation Bar */}
+          <div className="flex-1 flex flex-col min-h-0 mt-3">
             <div className="px-5 pb-3 flex flex-col gap-2 shrink-0">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <button
@@ -241,7 +239,6 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
                   {isRefreshing ? "..." : "Refresh"}
                 </button>
                 
-                {/* View Selectors */}
                 <div className="flex rounded-lg border border-white/10 overflow-hidden bg-black/10">
                   {(["day", "week", "month"] as const).map((view) => (
                     <button
@@ -259,7 +256,6 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
                 </div>
               </div>
 
-              {/* Date Navigation & Label */}
               <div className={`pt-2 border-t ${borderClass} flex items-center justify-between gap-2`}>
                 <span className={`text-[10px] ${textWhiteClass} font-mono font-bold uppercase`}>
                   {(() => {
@@ -488,29 +484,29 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
               )}
             </div>
           </div>
-        ) : (
-          <div className="px-5 pb-5 pt-2 shrink-0">
-            <button
-              onClick={async () => {
-                try {
-                  const res = await fetch("/api/auth/corsair/connect?plugin=googlecalendar");
-                  const data = await res.json();
-                  if (data.authorizeUrl) window.location.href = data.authorizeUrl;
-                } catch (e) { console.error("Failed to connect calendar:", e); }
-              }}
-              className={`text-center w-full py-2.5 ${buttonBgClass} border border-slate-900/10 dark:border-white/5 rounded-xl text-xs uppercase font-bold cursor-pointer`}
-            >
-              Connect Calendar
-            </button>
-          </div>
-        )}
-      </div>
+        </>
+      ) : (
+        <div className="flex-1 flex items-center justify-center p-8 text-center">
+          <button
+            onClick={async () => {
+              try {
+                const res = await fetch("/api/auth/corsair/connect?plugin=googlecalendar");
+                const data = await res.json();
+                if (data.authorizeUrl) window.location.href = data.authorizeUrl;
+              } catch (e) { console.error("Failed to connect calendar:", e); }
+            }}
+            className="px-10 py-5 bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/10 hover:border-white/20 text-white rounded-2xl text-sm uppercase font-black tracking-widest shadow-lg transition-all duration-300 transform hover:scale-[1.03] cursor-pointer"
+          >
+            Connect Calendar
+          </button>
+        </div>
+      )}
 
       {/* Edit Event Modal */}
       {showEditEventModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowEditEventModal(false)}>
           <div 
-            className={`w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[400px] ${cardBgClass} transition-transform duration-300 transform scale-100`}
+            className={`w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col min-h-[400px] ${glassPanelClass} transition-transform duration-300 transform scale-100`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className={`p-4 border-b ${borderClass} flex items-center justify-between ${accordionHeaderBgClass}`}>
@@ -596,6 +592,7 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

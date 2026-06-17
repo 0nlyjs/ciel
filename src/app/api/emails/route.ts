@@ -92,7 +92,7 @@ export async function GET(req: Request) {
       .where(and(...conditions));
     let localTotal = Number(countResultBefore?.count || 0);
 
-    // Asynchronous Sync Strategy (Non-blocking for instant UI load times)
+    // Sync Strategy: Blocking if database is empty, asynchronous otherwise
     if (sync && userEmail) {
       let q = "label:INBOX";
       if (folder === "sent") {
@@ -115,12 +115,12 @@ export async function GET(req: Request) {
         q = "category:updates";
       }
 
-      console.log(`[API EMAILS GET] Triggering non-blocking background sync for folder ${folder} and query ${q}...`);
-      (async () => {
+      console.log(`[API EMAILS GET] Triggering sync for folder ${folder} and query ${q} (blocking if database empty)...`);
+      const syncPromise = (async () => {
         try {
           const result = await syncUserEmails(userId, userEmail, undefined, syncLimit, q);
           if (result && result.count > 0) {
-            console.log(`[API EMAILS GET] Async sync finished. Saving ${result.count} new emails. Broadcasting new_email...`);
+            console.log(`[API EMAILS GET] Sync finished. Saving ${result.count} new emails. Broadcasting new_email...`);
             const { activeClients } = await import("@/app/api/sync/stream/route");
             const clientControllers = activeClients.get(userEmail);
             if (clientControllers && clientControllers.length > 0) {
@@ -135,9 +135,21 @@ export async function GET(req: Request) {
             }
           }
         } catch (syncErr) {
-          console.error("[API EMAILS GET] Background sync error:", syncErr);
+          console.error("[API EMAILS GET] Sync error:", syncErr);
         }
       })();
+
+      // If we have no local emails at all, wait for the sync to complete before querying database
+      if (localTotal === 0) {
+        console.log(`[API EMAILS GET] Database cache is empty. Blocking request until sync completes...`);
+        await syncPromise;
+        // Re-calculate the local count
+        const [countResultAfter] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(emails)
+          .where(and(...conditions));
+        localTotal = Number(countResultAfter?.count || 0);
+      }
     }
 
     const total = localTotal;
