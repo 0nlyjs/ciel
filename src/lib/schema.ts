@@ -173,6 +173,10 @@ export const userSettings = pgTable("user_settings", {
   theme: varchar("theme", { length: 50 }).default("light").notNull(),
   syncIntervalMinutes: integer("sync_interval_minutes").default(60).notNull(),
   aiAutoPriority: boolean("ai_auto_priority").default(true).notNull(),
+  aiTone: varchar("ai_tone", { length: 50 }).default("professional").notNull(),
+  aiDirective: text("ai_directive").default("").notNull(),
+  ttsVoice: varchar("tts_voice", { length: 255 }).default("Google UK English Female").notNull(),
+  ttsSpeed: varchar("tts_speed", { length: 50 }).default("1.0").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

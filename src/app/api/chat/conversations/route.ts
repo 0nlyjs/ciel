@@ -4,6 +4,35 @@ import { db } from "@/lib/db";
 import { conversations, chatMessages } from "@/lib/schema";
 import { eq, desc, inArray, asc, and } from "drizzle-orm";
 
+function cleanMessageContent(content: string): string {
+  if (!content) return "";
+  const trimmed = content.trim();
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((part) => {
+            if (part && typeof part === "object") {
+              if (part.type === "text" && typeof part.text === "string") {
+                return part.text;
+              }
+              if (typeof part.content === "string") {
+                return part.content;
+              }
+            }
+            return "";
+          })
+          .filter(Boolean)
+          .join("\n");
+      }
+    } catch (e) {
+      // Fallback to original content
+    }
+  }
+  return content;
+}
+
 export async function GET() {
   try {
     const session = await getServerSession();
@@ -46,7 +75,7 @@ export async function GET() {
         messagesMap[msg.conversationId].push({
           id: msg.id.toString(),
           role: msg.role as "user" | "assistant",
-          content: msg.content,
+          content: cleanMessageContent(msg.content),
           timestamp: msg.createdAt,
         });
       });

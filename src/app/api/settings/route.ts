@@ -18,6 +18,10 @@ export async function GET() {
         user_id: userSettings.userId,
         sync_interval_minutes: userSettings.syncIntervalMinutes,
         ai_auto_priority: userSettings.aiAutoPriority,
+        ai_tone: userSettings.aiTone,
+        ai_directive: userSettings.aiDirective,
+        tts_voice: userSettings.ttsVoice,
+        tts_speed: userSettings.ttsSpeed,
         created_at: userSettings.createdAt,
       })
       .from(userSettings)
@@ -29,13 +33,21 @@ export async function GET() {
         .insert(userSettings)
         .values({
           userId,
-          syncIntervalMinutes: 60,
+          syncIntervalMinutes: 15,
           aiAutoPriority: true,
+          aiTone: "professional",
+          aiDirective: "",
+          ttsVoice: "Google UK English Female",
+          ttsSpeed: "1.0",
         })
         .returning({
           user_id: userSettings.userId,
           sync_interval_minutes: userSettings.syncIntervalMinutes,
           ai_auto_priority: userSettings.aiAutoPriority,
+          ai_tone: userSettings.aiTone,
+          ai_directive: userSettings.aiDirective,
+          tts_voice: userSettings.ttsVoice,
+          tts_speed: userSettings.ttsSpeed,
           created_at: userSettings.createdAt,
         });
       return NextResponse.json(defaultSettings[0]);
@@ -60,7 +72,7 @@ export async function POST(req: Request) {
     }
 
     const userId = session.user.id;
-    const { sync_interval_minutes, ai_auto_priority } = await req.json();
+    const { sync_interval_minutes, ai_auto_priority, ai_tone, ai_directive, tts_voice, tts_speed } = await req.json();
 
     // Validate parameters
     const updated = await db
@@ -70,9 +82,13 @@ export async function POST(req: Request) {
         syncIntervalMinutes:
           sync_interval_minutes !== undefined
             ? parseInt(sync_interval_minutes, 10)
-            : 60,
+            : 15,
         aiAutoPriority:
           ai_auto_priority !== undefined ? !!ai_auto_priority : true,
+        aiTone: ai_tone !== undefined ? ai_tone : "professional",
+        aiDirective: ai_directive !== undefined ? ai_directive : "",
+        ttsVoice: tts_voice !== undefined ? tts_voice : "Google UK English Female",
+        ttsSpeed: tts_speed !== undefined ? String(tts_speed) : "1.0",
       })
       .onConflictDoUpdate({
         target: [userSettings.userId],
@@ -80,15 +96,23 @@ export async function POST(req: Request) {
           syncIntervalMinutes:
             sync_interval_minutes !== undefined
               ? parseInt(sync_interval_minutes, 10)
-              : 60,
+              : 15,
           aiAutoPriority:
             ai_auto_priority !== undefined ? !!ai_auto_priority : true,
+          aiTone: ai_tone !== undefined ? ai_tone : "professional",
+          aiDirective: ai_directive !== undefined ? ai_directive : "",
+          ttsVoice: tts_voice !== undefined ? tts_voice : "Google UK English Female",
+          ttsSpeed: tts_speed !== undefined ? String(tts_speed) : "1.0",
         },
       })
       .returning({
         user_id: userSettings.userId,
         sync_interval_minutes: userSettings.syncIntervalMinutes,
         ai_auto_priority: userSettings.aiAutoPriority,
+        ai_tone: userSettings.aiTone,
+        ai_directive: userSettings.aiDirective,
+        tts_voice: userSettings.ttsVoice,
+        tts_speed: userSettings.ttsSpeed,
         created_at: userSettings.createdAt,
       });
 

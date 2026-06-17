@@ -108,11 +108,19 @@ interface CielState {
   // settings state
   syncInterval: number;
   aiAutoPriority: boolean;
+  aiTone: string;
+  aiDirective: string;
+  ttsVoice: string;
+  ttsSpeed: string;
   fetchSettings: () => Promise<void>;
   updateSettings: (
     settings: Partial<{
       syncInterval: number;
       aiAutoPriority: boolean;
+      aiTone: string;
+      aiDirective: string;
+      ttsVoice: string;
+      ttsSpeed: string;
     }>,
   ) => Promise<void>;
 
@@ -498,8 +506,12 @@ export const useCielStore = create<CielState>((set, get) => ({
   },
 
   // settings default state
-  syncInterval: 60,
+  syncInterval: 15,
   aiAutoPriority: true,
+  aiTone: "professional",
+  aiDirective: "",
+  ttsVoice: "Google UK English Female",
+  ttsSpeed: "1.0",
   localIntegrations: [],
 
   fetchSettings: async () => {
@@ -508,11 +520,15 @@ export const useCielStore = create<CielState>((set, get) => ({
       if (res.ok) {
         const data = await res.json();
         set({
-          syncInterval: data.sync_interval_minutes || 60,
+          syncInterval: data.sync_interval_minutes || 15,
           aiAutoPriority:
             data.ai_auto_priority !== undefined
                ? !!data.ai_auto_priority
                : true,
+          aiTone: data.ai_tone || "professional",
+          aiDirective: data.ai_directive || "",
+          ttsVoice: data.tts_voice || "Google UK English Female",
+          ttsSpeed: data.tts_speed || "1.0",
         });
       }
     } catch (error) {
@@ -532,6 +548,22 @@ export const useCielStore = create<CielState>((set, get) => ({
         settings.aiAutoPriority !== undefined
           ? settings.aiAutoPriority
           : state.aiAutoPriority,
+      aiTone:
+        settings.aiTone !== undefined
+          ? settings.aiTone
+          : state.aiTone,
+      aiDirective:
+        settings.aiDirective !== undefined
+          ? settings.aiDirective
+          : state.aiDirective,
+      ttsVoice:
+        settings.ttsVoice !== undefined
+          ? settings.ttsVoice
+          : state.ttsVoice,
+      ttsSpeed:
+        settings.ttsSpeed !== undefined
+          ? settings.ttsSpeed
+          : state.ttsSpeed,
     }));
 
     // push to API
@@ -548,6 +580,22 @@ export const useCielStore = create<CielState>((set, get) => ({
             settings.aiAutoPriority !== undefined
               ? settings.aiAutoPriority
               : state.aiAutoPriority,
+          ai_tone:
+            settings.aiTone !== undefined
+              ? settings.aiTone
+              : state.aiTone,
+          ai_directive:
+            settings.aiDirective !== undefined
+              ? settings.aiDirective
+              : state.aiDirective,
+          tts_voice:
+            settings.ttsVoice !== undefined
+              ? settings.ttsVoice
+              : state.ttsVoice,
+          tts_speed:
+            settings.ttsSpeed !== undefined
+              ? settings.ttsSpeed
+              : state.ttsSpeed,
         }),
       });
     } catch (error) {

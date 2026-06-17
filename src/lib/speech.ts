@@ -206,6 +206,8 @@ export function useSpeechToText(onTranscriptComplete?: (text: string) => void) {
 export function useTextToSpeech() {
   const setCielStatus = useCielStore((s) => s.setCielStatus);
   const setCurrentVolume = useCielStore((s) => s.setCurrentVolume);
+  const ttsVoice = useCielStore((s) => s.ttsVoice);
+  const ttsSpeed = useCielStore((s) => s.ttsSpeed);
   const animationFrameRef = useRef<number | null>(null);
 
   // Stop TTS when the hook/component unmounts (e.g. changing tabs)
@@ -277,8 +279,12 @@ export function useTextToSpeech() {
     const voices = window.speechSynthesis.getVoices();
     const voice = voices.find((v) => v.name === voiceName);
     if (voice) utterance.voice = voice;
-    utterance.rate = 1.0;
+    
+    // Apply speed settings from the store
+    const speedVal = parseFloat(ttsSpeed);
+    utterance.rate = isNaN(speedVal) ? 1.0 : speedVal;
     utterance.pitch = 1.0;
+    
     utterance.onstart = () => {
       setCielStatus("speaking");
       simulateSpeakingPulses();
@@ -306,15 +312,16 @@ export function useTextToSpeech() {
 
     // Resolve the voice to use
     let selectedVoice: SpeechSynthesisVoice | null = null;
+    const resolvedVoiceName = voiceName || ttsVoice;
 
-    if (voiceName && voiceName.trim()) {
-      // Use the explicitly requested voice
-      selectedVoice = voices.find((v) => v.name === voiceName.trim()) || null;
+    if (resolvedVoiceName && resolvedVoiceName.trim()) {
+      // Use the explicitly requested voice or saved preferred voice
+      selectedVoice = voices.find((v) => v.name === resolvedVoiceName.trim()) || null;
     }
 
     // Strict voice selection fallback (prefers Google UK English Female as default)
     if (!selectedVoice) {
-      const isMaleRequest = voiceName?.toLowerCase().includes("male") || false;
+      const isMaleRequest = resolvedVoiceName?.toLowerCase().includes("male") || false;
       if (isMaleRequest) {
         selectedVoice =
           voices.find((v) => v.name === "Google UK English Male") ||
@@ -335,7 +342,8 @@ export function useTextToSpeech() {
     }
 
     // Calm voice settings
-    utterance.rate = 1.0;
+    const speedVal = parseFloat(ttsSpeed);
+    utterance.rate = isNaN(speedVal) ? 1.0 : speedVal;
     utterance.pitch = 1.0;
 
     utterance.onstart = () => {

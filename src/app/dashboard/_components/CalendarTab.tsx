@@ -487,7 +487,7 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
           </div>
         </>
       ) : (
-        <div className={`flex-1 flex flex-col p-0 overflow-hidden ${glassPanelClass}`}>
+        <div className="flex-1 flex flex-col p-0 overflow-hidden">
           {/* Dark shaded top banner */}
           <div className="bg-black/40 border-b border-white/10 px-6 py-4 flex items-center justify-between gap-4">
             <h3 className="text-sm font-black uppercase tracking-wider text-white">
