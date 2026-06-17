@@ -36,7 +36,7 @@ export function SettingsTab() {
   const localIntegrations = useCielStore((s) => s.localIntegrations);
   const updateSettings = useCielStore((s) => s.updateSettings);
 
-  const { getAvailableVoices } = useTextToSpeech();
+  const { getAvailableVoices, previewVoice } = useTextToSpeech();
   const [voices, setVoices] = useState<Array<{ name: string; lang: string; gender: string }>>([]);
   const [newRuleText, setNewRuleText] = useState("");
   const [randomSuggestions, setRandomSuggestions] = useState<typeof ALL_SUGGESTIONS>([]);
@@ -270,17 +270,15 @@ export function SettingsTab() {
             <label className="text-[10px] text-slate-500 uppercase font-bold block">Default TTS Voice</label>
             <select
               value={ttsVoice}
-              onChange={(e) => updateSettings({ ttsVoice: e.target.value })}
+              onChange={(e) => {
+                const val = e.target.value;
+                updateSettings({ ttsVoice: val });
+                previewVoice(val);
+              }}
               className={`w-full text-xs px-3 py-2 border ${border900Class} rounded-xl outline-none transition-all duration-300 ${inputBgClass}`}
             >
-              {voices.map((v) => (
-                <option key={v.name} value={v.name}>
-                  {v.name} ({v.gender === "female" ? "Female" : "Male"})
-                </option>
-              ))}
-              {voices.length === 0 && (
-                <option value="Google UK English Female">Google UK English Female (Female)</option>
-              )}
+              <option value="Google UK English Female">Google UK English Female (Female)</option>
+              <option value="Google UK English Male">Google UK English Male (Male)</option>
             </select>
           </div>
 

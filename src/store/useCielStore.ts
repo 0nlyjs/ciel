@@ -182,6 +182,12 @@ export const useCielStore = create<CielState>((set, get) => ({
       cielStatus: "idle",
       currentVolume: 0,
       selectedDate: null,
+      syncInterval: 15,
+      aiAutoPriority: true,
+      aiTone: "professional",
+      aiDirective: "",
+      ttsVoice: "Google UK English Female",
+      ttsSpeed: "1.0",
     }),
 
   // view state

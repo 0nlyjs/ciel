@@ -315,8 +315,12 @@ export function useTextToSpeech() {
     const resolvedVoiceName = voiceName || ttsVoice;
 
     if (resolvedVoiceName && resolvedVoiceName.trim()) {
-      // Use the explicitly requested voice or saved preferred voice
-      selectedVoice = voices.find((v) => v.name === resolvedVoiceName.trim()) || null;
+      // Use the explicitly requested voice or saved preferred voice, cleaning any suffixes
+      const cleanVoiceName = resolvedVoiceName.replace(/\s*\((?:Female|Male)\)/i, "").trim();
+      selectedVoice =
+        voices.find((v) => v.name === resolvedVoiceName.trim()) ||
+        voices.find((v) => v.name === cleanVoiceName) ||
+        null;
     }
 
     // Strict voice selection fallback (prefers Google UK English Female as default)
