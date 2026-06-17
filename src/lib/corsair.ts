@@ -467,7 +467,10 @@ export class CorsairClient {
 
     try {
       const client = this.getTenant(tenantId);
+      const startISO = start.includes("Z") || start.includes("+") ? start : new Date(start).toISOString();
+      const endISO = end.includes("Z") || end.includes("+") ? end : new Date(end).toISOString();
       const attendeesList = attendees.map(email => ({ email }));
+
       const item = await client.googlecalendar.api.events.create({
         calendarId: "primary",
         event: {
@@ -475,10 +478,10 @@ export class CorsairClient {
           description: description || "",
           location: location || "",
           start: {
-            dateTime: start,
+            dateTime: startISO,
           },
           end: {
-            dateTime: end,
+            dateTime: endISO,
           },
           attendees: attendeesList,
         }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { syncUserEmails } from "@/lib/sync";
+import { syncUserEmails, syncCalendarEvents } from "@/lib/sync";
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
 
 async function workerHandler(req: Request) {
@@ -18,10 +18,20 @@ async function workerHandler(req: Request) {
     );
 
     // Execute our optimized high-speed chunked synchronization engine
-    const result = await syncUserEmails(userId, userEmail, historyId);
+    const emailResult = await syncUserEmails(userId, userEmail, historyId);
+    let calendarResult = { success: true, count: 0 };
+    try {
+      calendarResult = await syncCalendarEvents(userId, userEmail);
+    } catch (calErr) {
+      console.error("[QUEUE WORKER] Calendar sync failed:", calErr);
+    }
 
     return NextResponse.json(
-      { success: true, processed: result.count },
+      {
+        success: true,
+        processedEmailsCount: emailResult.count,
+        processedEventsCount: calendarResult.count,
+      },
       { status: 200 },
     );
   } catch (error) {

@@ -88,6 +88,15 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
     }
   }, [selectedDate]);
 
+  useEffect(() => {
+    if (!calendarConnected) return;
+    // Periodically poll the DB cache (non-blocking sync) for updates every 10 seconds
+    const interval = setInterval(() => {
+      fetchCalendarEvents(false);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [calendarConnected, fetchCalendarEvents]);
+
   const handleInitiateEditEvent = (evt: any) => {
     setEditingEventId(evt.id);
     setEditEventTitle(evt.title || "");
@@ -219,7 +228,7 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
                   onClick={async () => {
                     setIsRefreshing(true);
                     try {
-                      await fetchCalendarEvents();
+                      await fetchCalendarEvents(true);
                     } catch (e) {
                       console.error(e);
                     } finally {
@@ -407,7 +416,7 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
                                 return (
                                   <div 
                                     key={evt.id} 
-                                    className="p-1 rounded bg-purple-500/10 border border-purple-500/20 text-[9px] text-purple-300 truncate"
+                                    className="p-1.5 rounded bg-purple-500/10 border border-purple-500/20 text-[11px] text-purple-300 truncate"
                                     title={`${evt.title} (${timeStr})`}
                                   >
                                     <span className="font-mono font-bold mr-1">{timeStr}</span>
@@ -459,7 +468,7 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
                             {dayEvts.slice(0, 2).map((evt) => (
                               <div 
                                 key={evt.id} 
-                                className="text-[8px] bg-purple-500/10 text-purple-350 border border-purple-500/20 px-0.5 rounded truncate w-full"
+                                className="text-[9.5px] bg-purple-500/10 text-purple-350 border border-purple-500/20 px-1 py-0.5 rounded truncate w-full"
                                 title={evt.title}
                               >
                                 {evt.title}

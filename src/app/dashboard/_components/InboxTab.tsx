@@ -26,7 +26,9 @@ import {
   Zap,
   Info,
   CheckSquare,
-  Square
+  Square,
+  Mailbox,
+  AlertOctagon
 } from "lucide-react";
 
 interface InboxTabProps {
@@ -290,7 +292,9 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
   };
 
   // Generate a distinct visual gradient for sender initials avatar
-  const getAvatarColor = (name: string) => {
+  const getAvatarColor = (name?: string | null) => {
+    const fallbackColor = "from-blue-500 to-indigo-600";
+    if (!name) return fallbackColor;
     const colors = [
       "from-blue-500 to-indigo-600",
       "from-purple-500 to-pink-600",
@@ -316,6 +320,9 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
       if (folder === "starred") return labels.includes("STARRED");
       if (folder === "sent") return labels.includes("SENT");
       if (folder === "drafts") return labels.includes("DRAFT");
+      if (folder === "spam") return labels.includes("SPAM");
+      if (folder === "trash") return labels.includes("TRASH");
+      if (folder === "all") return !labels.includes("SPAM") && !labels.includes("TRASH");
       if (folder === "social") return labels.includes("CATEGORY_SOCIAL");
       if (folder === "promotions") return labels.includes("CATEGORY_PROMOTIONS");
       if (folder === "updates") return labels.includes("CATEGORY_UPDATES");
@@ -509,6 +516,58 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
                 {getFolderUnreadCount("drafts") > 0 && (
                   <span className="bg-cyan-500/30 text-cyan-300 text-[9px] font-extrabold px-2 py-0.5 rounded-full font-mono">
                     {getFolderUnreadCount("drafts")}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => handleFolderSwitch("all")}
+                className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between cursor-pointer transition-all duration-200 border border-transparent ${
+                  activeFolder === "all"
+                    ? "bg-white/10 text-white border-l-2 border-purple-500 shadow-sm"
+                    : "text-slate-400 hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Mailbox className="w-4 h-4 shrink-0 text-indigo-400" />
+                  <span>All Mail</span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => handleFolderSwitch("spam")}
+                className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between cursor-pointer transition-all duration-200 border border-transparent ${
+                  activeFolder === "spam"
+                    ? "bg-white/10 text-white border-l-2 border-purple-500 shadow-sm"
+                    : "text-slate-400 hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <AlertOctagon className="w-4 h-4 shrink-0 text-orange-400" />
+                  <span>Spam</span>
+                </div>
+                {getFolderUnreadCount("spam") > 0 && (
+                  <span className="bg-orange-500/30 text-orange-300 text-[9px] font-extrabold px-2 py-0.5 rounded-full font-mono">
+                    {getFolderUnreadCount("spam")}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => handleFolderSwitch("trash")}
+                className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between cursor-pointer transition-all duration-200 border border-transparent ${
+                  activeFolder === "trash"
+                    ? "bg-white/10 text-white border-l-2 border-purple-500 shadow-sm"
+                    : "text-slate-400 hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Trash2 className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>Trash</span>
+                </div>
+                {getFolderUnreadCount("trash") > 0 && (
+                  <span className="bg-red-500/30 text-red-350 text-[9px] font-extrabold px-2 py-0.5 rounded-full font-mono">
+                    {getFolderUnreadCount("trash")}
                   </span>
                 )}
               </button>
@@ -809,7 +868,7 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
 
                             {/* Sender Info */}
                             <span className={`text-xs truncate w-[160px] shrink-0 ${unread ? "text-white font-extrabold" : "text-slate-350"}`}>
-                              {email.from}
+                              {email.from || email.fromName || "Unknown"}
                             </span>
 
                             {/* Subject + Snippet text */}
@@ -819,7 +878,7 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
                               </span>
                               <span className="text-slate-500 font-normal shrink-0">-</span>
                               <span className="text-slate-500 font-normal truncate">
-                                {email.body ? email.body.replace(/<[^>]*>/g, '').substring(0, 120) : ""}
+                                {email.body ? email.body.replace(/<style([\s\S]*?)<\/style>/gi, '').replace(/<script([\s\S]*?)<\/script>/gi, '').replace(/<[^>]*>/g, '').trim().substring(0, 120) : ""}
                               </span>
                             </div>
 
@@ -931,11 +990,11 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
                 <div className="flex items-center justify-between border border-white/5 bg-white/5 p-4 rounded-xl">
                   <div className="flex items-center gap-3 min-w-0">
                     {/* Circle Avatar with Colored Initials Gradient */}
-                    <div className={`w-9 h-9 rounded-full bg-gradient-to-tr ${getAvatarColor(activeEmail.from)} flex items-center justify-center text-white font-black text-xs shrink-0 shadow-md`}>
-                      {activeEmail.from ? activeEmail.from.charAt(0).toUpperCase() : "?"}
+                    <div className={`w-9 h-9 rounded-full bg-gradient-to-tr ${getAvatarColor(activeEmail.from || activeEmail.fromName)} flex items-center justify-center text-white font-black text-xs shrink-0 shadow-md`}>
+                      {(activeEmail.from || activeEmail.fromName || "?").charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <span className="font-extrabold text-white text-xs block truncate">{activeEmail.from}</span>
+                      <span className="font-extrabold text-white text-xs block truncate">{activeEmail.from || activeEmail.fromName || "Unknown"}</span>
                       <span className="text-slate-500 text-[10px] font-mono block truncate">{activeEmail.fromEmail}</span>
                     </div>
                   </div>
@@ -960,12 +1019,12 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
                     : `<html><head><style>body { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13.5px; line-height: 1.6; color: #1f2937; background: #ffffff; white-space: pre-wrap; word-break: break-word; padding: 24px; margin: 0; }</style></head><body>${activeEmail.body}</body></html>`;
 
                   return (
-                    <div className="w-full min-h-[400px] border border-white/10 rounded-2xl overflow-hidden bg-white shadow-2xl relative">
+                    <div className="w-full min-h-[600px] h-[650px] border border-white/10 rounded-2xl overflow-hidden bg-white shadow-2xl relative">
                       <iframe
                         title="Email Body Content"
                         srcDoc={iframeSrcDoc}
-                        className="w-full h-full border-none min-h-[400px] bg-white"
-                        sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+                        className="w-full h-full border-none bg-white"
+                        referrerPolicy="no-referrer"
                       />
                     </div>
                   );

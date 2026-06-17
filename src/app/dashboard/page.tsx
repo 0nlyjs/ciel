@@ -9,7 +9,6 @@ import toast from "react-hot-toast";
 // Sub-components
 import { DashboardLayout } from "./_components/DashboardLayout";
 import { Sidebar } from "./_components/Sidebar";
-import { OverviewTab } from "./_components/OverviewTab";
 import { InboxTab } from "./_components/InboxTab";
 import { CalendarTab } from "./_components/CalendarTab";
 import { ChatTab } from "./_components/ChatTab";
@@ -40,10 +39,181 @@ export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [showComposeModal, setShowComposeModal] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isClearingData, setIsClearingData] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
+  // Custom confirmation dialog state
+  const [confirmModal, setConfirmModal] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    isDanger?: boolean;
+  } | null>(null);
+
+  const requestConfirm = (title: string, message: string, onConfirm: () => void, isDanger = false) => {
+    setConfirmModal({
+      show: true,
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmModal(null);
+      },
+      isDanger,
+    });
+  };
+
+  const updateUserName = useCielStore((s) => s.updateUserName);
+  const gmailConnected = useCielStore((s) => s.gmailConnected);
+  const calendarConnected = useCielStore((s) => s.calendarConnected);
+  const localIntegrations = useCielStore((s) => s.localIntegrations);
+
   const [composeTo, setComposeTo] = useState("");
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
   const [isSendingCompose, setIsSendingCompose] = useState(false);
+
+  // Initialize profile name when user changes
+  useEffect(() => {
+    if (user?.name) {
+      setProfileName(user.name);
+    }
+  }, [user]);
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profileName.trim() || isSavingProfile) return;
+    setIsSavingProfile(true);
+    try {
+      const res = await fetch("/api/auth/profile/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: profileName.trim() }),
+      });
+      if (res.ok) {
+        updateUserName(profileName.trim());
+        toast.success("Profile name updated successfully!");
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Failed to update profile");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error updating profile");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleDisconnectPlugin = async (plugin: "gmail" | "googlecalendar") => {
+    requestConfirm(
+      "Disconnect Integration",
+      `Are you sure you want to disconnect ${plugin === "gmail" ? "Gmail" : "Google Calendar"}?`,
+      async () => {
+        try {
+          const res = await fetch("/api/auth/corsair/disconnect", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plugin }),
+          });
+          if (res.ok) {
+            toast.success(`${plugin === "gmail" ? "Gmail" : "Google Calendar"} disconnected successfully.`);
+            fetchIntegrationStatus();
+            fetchLocalIntegrations();
+          } else {
+            const data = await res.json();
+            toast.error(data.error || "Failed to disconnect");
+          }
+        } catch (err) {
+          console.error(err);
+          toast.error("Error disconnecting integration");
+        }
+      }
+    );
+  };
+
+  const handleConnectPlugin = async (plugin: "gmail" | "googlecalendar") => {
+    try {
+      const res = await fetch(`/api/auth/corsair/connect?plugin=${plugin}`);
+      const data = await res.json();
+      if (data.authorizeUrl) {
+        window.location.href = data.authorizeUrl;
+      } else {
+        toast.error("Failed to fetch connection URL");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error starting connection flow");
+    }
+  };
+
+  const handleClearWorkspaceData = async () => {
+    requestConfirm(
+      "Clear Workspace Cache",
+      "Are you sure you want to clear your local workspace cache? This will delete all emails, calendar events, and chat histories from our database (Google account data remains untouched).",
+      async () => {
+        setIsClearingData(true);
+        try {
+          const res = await fetch("/api/auth/profile/clear-data", { method: "POST" });
+          if (res.ok) {
+            toast.success("Local database cache cleared successfully!");
+            await fetchEmails(false);
+            await fetchCalendarEvents(false);
+            useCielStore.getState().clearChat();
+            router.refresh();
+          } else {
+            const data = await res.json();
+            toast.error(data.error || "Failed to clear workspace data");
+          }
+        } catch (err) {
+          console.error(err);
+          toast.error("Error clearing data");
+        } finally {
+          setIsClearingData(false);
+        }
+      },
+      true
+    );
+  };
+
+  const handleDeleteAccount = async () => {
+    requestConfirm(
+      "Delete Ciel Account",
+      "CRITICAL ACTION: Are you sure you want to delete your Ciel account? This will permanently delete your user account and all connected records. This action cannot be undone.",
+      async () => {
+        setIsDeletingAccount(true);
+        try {
+          const res = await fetch("/api/auth/profile/delete", { method: "POST" });
+          if (res.ok) {
+            toast.success("Account deleted successfully.");
+            const { signOut } = await import("@/lib/auth-client");
+            await signOut({
+              fetchOptions: {
+                onSuccess: () => {
+                  logout();
+                  router.push("/");
+                }
+              }
+            });
+          } else {
+            const data = await res.json();
+            toast.error(data.error || "Failed to delete account");
+          }
+        } catch (err) {
+          console.error(err);
+          toast.error("Error deleting account");
+        } finally {
+          setIsDeletingAccount(false);
+        }
+      },
+      true
+    );
+  };
+
 
   // Auth Redirect Guard
   useEffect(() => {
@@ -122,13 +292,13 @@ export default function DashboardPage() {
           window.history.replaceState({}, "", "/dashboard");
           setActiveTab("calendar");
           toast.success("Calendar connected successfully!");
-          fetchCalendarEvents();
+          fetchCalendarEvents(true);
         }
       }
 
       if (!isOAuthSuccess) {
         fetchEmails();
-        fetchCalendarEvents();
+        fetchCalendarEvents(true);
       }
     }
   }, [session, fetchIntegrationStatus, fetchSettings, fetchLocalIntegrations, fetchEmails, fetchCalendarEvents, loadEmailsFromCache, setActiveTab]);
@@ -274,18 +444,16 @@ export default function DashboardPage() {
   // Switch statement rendering the tabs based on activeTab
   const renderTab = () => {
     switch (activeTab) {
-      case "overview":
-        return <OverviewTab />;
+      case "chat":
+        return <ChatTab />;
       case "inbox":
         return <InboxTab onInitiateCompose={handleInitiateCompose} />;
       case "calendar":
         return <CalendarTab onInitiateCompose={handleInitiateCompose} />;
-      case "chat":
-        return <ChatTab />;
       case "settings":
         return <SettingsTab />;
       default:
-        return <OverviewTab />;
+        return <ChatTab />;
     }
   };
 
@@ -300,7 +468,7 @@ export default function DashboardPage() {
   const accordionHeaderBgClass = isDark ? "bg-black/15" : "bg-white/20";
 
   return (
-    <DashboardLayout sidebar={<Sidebar onShowShortcuts={() => setShowShortcutsModal(true)} />}>
+    <DashboardLayout sidebar={<Sidebar onShowShortcuts={() => setShowShortcutsModal(true)} onOpenProfile={() => setShowProfileModal(true)} />}>
       {renderTab()}
 
       {/* Compose Email Modal - Gmail-Style Floating Box */}
@@ -470,6 +638,210 @@ export default function DashboardPage() {
               <span className="italic font-sans">
                 * Hotkeys are disabled when writing inside form inputs.
               </span>
+            </div>
+          </div>
+        </div>
+      )}
+      {showProfileModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200" 
+          onClick={() => setShowProfileModal(false)}
+        >
+          <div 
+            className="w-full max-w-lg border border-white/10 bg-slate-950/15 backdrop-blur-2xl text-white rounded-2xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.15)] p-6 space-y-6 transition-transform duration-300 transform scale-100" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <span className="text-sm font-black tracking-widest uppercase text-white">Profile</span>
+              <button 
+                onClick={() => setShowProfileModal(false)} 
+                className="px-3.5 py-1.5 text-xs bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg text-slate-300 uppercase font-bold transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
+            {/* Profile Avatar & Info */}
+            <div className="flex flex-col items-center justify-center gap-3 py-4 bg-black/30 rounded-xl border border-white/5">
+              <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-20 h-20 rounded-full bg-purple-900/40 border border-white/10 shadow-inner shrink-0">
+                {/* Head/Face shape */}
+                <circle cx="18" cy="16" r="8" fill="#FDBA74" />
+                {/* Hair */}
+                <path d="M10 16C10 11.5817 13.5817 8 18 8C22.4183 8 26 11.5817 26 16V17H10V16Z" fill="#1E293B" />
+                {/* Eyes */}
+                <circle cx="15.5" cy="16" r="1" fill="#0F172A" />
+                <circle cx="20.5" cy="16" r="1" fill="#0F172A" />
+                {/* Smile */}
+                <path d="M16 19.5C16.5 20.2 19.5 20.2 20 19.5" stroke="#0F172A" strokeWidth="1" strokeLinecap="round" />
+                {/* Body/Clothes */}
+                <path d="M8 30C8 25.5817 11.5817 22 16 22H20C24.4183 22 28 25.5817 28 30V32H8V30Z" fill="#6366F1" />
+              </svg>
+              <div className="text-center">
+                <span className="text-sm font-extrabold block text-white">{user?.name || "User"}</span>
+                <span className="text-xs text-slate-400 font-mono block mt-0.5">{user?.email || ""}</span>
+              </div>
+            </div>
+
+            {/* Profile Edit Form */}
+            <form onSubmit={handleUpdateProfile} className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs text-slate-400 uppercase font-extrabold tracking-wider">Display Name</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    placeholder="Enter new display name"
+                    required
+                    className={`flex-1 text-sm p-3 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={isSavingProfile || !profileName.trim() || profileName.trim() === user?.name}
+                    className="px-5 py-3 bg-purple-600/80 hover:bg-purple-700/80 disabled:bg-slate-800 disabled:text-slate-650 text-white rounded-xl font-bold uppercase text-xs cursor-pointer transition-colors"
+                  >
+                    {isSavingProfile ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            {/* Sync Integrations Statuses */}
+            <div className="space-y-3">
+              <label className="text-xs text-slate-400 uppercase font-extrabold tracking-wider block">Connection Integrations</label>
+              
+              <div className="space-y-2.5">
+                {/* Gmail Integration */}
+                <div className="p-3.5 bg-black/20 border border-white/5 rounded-xl flex justify-between items-center text-sm">
+                  <div>
+                    <span className="font-extrabold block text-white uppercase tracking-wider text-xs">Gmail Integration</span>
+                    <span className="text-xs text-slate-400 block mt-0.5">
+                      {gmailConnected 
+                        ? `Connected to Workspace` 
+                        : "Disconnected"}
+                    </span>
+                  </div>
+                  <div>
+                    {gmailConnected ? (
+                      <button
+                        onClick={() => handleDisconnectPlugin("gmail")}
+                        className="px-3.5 py-2 text-xs bg-rose-955/20 text-rose-300/80 hover:bg-rose-900/30 border border-rose-900/20 rounded-lg font-extrabold uppercase cursor-pointer transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleConnectPlugin("gmail")}
+                        className="px-3.5 py-2 text-xs bg-green-650/25 text-green-400 hover:bg-green-500/30 border border-green-500/20 rounded-lg font-extrabold uppercase cursor-pointer transition-colors"
+                      >
+                        Connect
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Calendar Integration */}
+                <div className="p-3.5 bg-black/20 border border-white/5 rounded-xl flex justify-between items-center text-sm">
+                  <div>
+                    <span className="font-extrabold block text-white uppercase tracking-wider text-xs">Google Calendar</span>
+                    <span className="text-xs text-slate-400 block mt-0.5">
+                      {calendarConnected 
+                        ? `Connected to Workspace` 
+                        : "Disconnected"}
+                    </span>
+                  </div>
+                  <div>
+                    {calendarConnected ? (
+                      <button
+                        onClick={() => handleDisconnectPlugin("googlecalendar")}
+                        className="px-3.5 py-2 text-xs bg-rose-955/20 text-rose-300/80 hover:bg-rose-900/30 border border-rose-900/20 rounded-lg font-extrabold uppercase cursor-pointer transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleConnectPlugin("googlecalendar")}
+                        className="px-3.5 py-2 text-xs bg-green-650/25 text-green-400 hover:bg-green-500/30 border border-green-500/20 rounded-lg font-extrabold uppercase cursor-pointer transition-colors"
+                      >
+                        Connect
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Danger Zone */}
+            <div className="border border-red-950/20 bg-red-950/5 rounded-xl p-4.5 space-y-3">
+              <label className="text-xs text-red-400/60 uppercase font-extrabold tracking-wider block">Danger Zone</label>
+              
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  disabled={isClearingData}
+                  onClick={handleClearWorkspaceData}
+                  className="flex-1 px-4 py-2.5 bg-red-950/10 hover:bg-red-900/10 border border-red-950/20 text-red-400/65 rounded-lg font-extrabold uppercase text-xs cursor-pointer transition-all disabled:opacity-50"
+                >
+                  {isClearingData ? "Clearing Cache..." : "Clear Local Cache Data"}
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeletingAccount}
+                  onClick={handleDeleteAccount}
+                  className="flex-1 px-4 py-2.5 bg-red-950/30 hover:bg-red-900/30 border border-red-900/25 text-red-400/80 rounded-lg font-extrabold uppercase text-xs cursor-pointer transition-all disabled:opacity-50"
+                >
+                  {isDeletingAccount ? "Deleting Account..." : "Delete Ciel Account"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Themed Confirmation Modal */}
+      {confirmModal && confirmModal.show && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200"
+          onClick={() => setConfirmModal(null)}
+        >
+          <div 
+            className="w-full max-w-sm border border-white/10 bg-slate-950/40 backdrop-blur-2xl text-white rounded-2xl p-6 space-y-5 shadow-[0_8px_32px_rgba(0,0,0,0.2)] transform scale-100 transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Title */}
+            <div className="flex items-center gap-2.5 pb-2 border-b border-white/10">
+              <span className="text-base">{confirmModal.isDanger ? "⚠️" : "❓"}</span>
+              <h4 className={`text-xs font-bold uppercase tracking-wider ${confirmModal.isDanger ? "text-red-450" : "text-purple-400"}`}>
+                {confirmModal.title}
+              </h4>
+            </div>
+
+            {/* Message */}
+            <p className="text-xs text-slate-300 leading-relaxed font-sans font-medium">
+              {confirmModal.message}
+            </p>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2 border border-white/10 hover:bg-white/5 text-slate-400 hover:text-white rounded-xl font-bold uppercase text-[10px] tracking-wider transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmModal.onConfirm}
+                className={`px-4 py-2 rounded-xl font-bold uppercase text-[10px] tracking-wider text-white transition-colors cursor-pointer ${
+                  confirmModal.isDanger 
+                    ? "bg-red-650 hover:bg-red-700" 
+                    : "bg-purple-650 hover:bg-purple-700"
+                }`}
+              >
+                Confirm
+              </button>
             </div>
           </div>
         </div>

@@ -5,6 +5,7 @@ export interface Email {
   id: string;
   from: string;
   fromEmail: string;
+  fromName?: string;
   subject: string;
   body: string;
   date: string;
@@ -54,9 +55,9 @@ interface CielState {
   fetchIntegrationStatus: () => Promise<void>;
 
   // view state
-  activeTab: "overview" | "inbox" | "calendar" | "chat" | "settings";
+  activeTab: "inbox" | "calendar" | "chat" | "settings";
   setActiveTab: (
-    tab: "overview" | "inbox" | "calendar" | "chat" | "settings",
+    tab: "inbox" | "calendar" | "chat" | "settings",
   ) => void;
 
   // email data
@@ -67,13 +68,13 @@ interface CielState {
   emailsHasMore: boolean;
   selectedEmailIndex: number | null;
   searchQuery: string;
-  activeFolder: "inbox" | "starred" | "sent" | "drafts" | "social" | "promotions" | "updates";
+  activeFolder: "inbox" | "starred" | "sent" | "drafts" | "social" | "promotions" | "updates" | "all" | "spam" | "trash";
   setEmails: (emails: Email[]) => void;
   setEmailsPage: (page: number) => void;
   setSelectedEmailIndex: (index: number | null) => void;
   setSearchQuery: (query: string) => void;
   setActiveFolder: (
-    folder: "inbox" | "starred" | "sent" | "drafts" | "social" | "promotions" | "updates",
+    folder: "inbox" | "starred" | "sent" | "drafts" | "social" | "promotions" | "updates" | "all" | "spam" | "trash",
   ) => void;
   toggleStarEmail: (id: string, starred: boolean) => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
@@ -89,7 +90,7 @@ interface CielState {
 
   // db synchronization actions
   fetchEmails: (forceSync?: boolean, page?: number) => Promise<void>;
-  fetchCalendarEvents: () => Promise<void>;
+  fetchCalendarEvents: (forceSync?: boolean) => Promise<void>;
   performSearch: (query: string) => Promise<void>;
   loadEmailsFromCache: () => void;
 
@@ -156,7 +157,7 @@ export const useCielStore = create<CielState>((set, get) => ({
   logout: () =>
     set({
       user: null,
-      activeTab: "overview",
+      activeTab: "chat",
       gmailConnected: false,
       calendarConnected: false,
       emails: [],
@@ -182,7 +183,7 @@ export const useCielStore = create<CielState>((set, get) => ({
     }),
 
   // view state
-  activeTab: "overview",
+  activeTab: "chat",
   setActiveTab: (tab) => set({ activeTab: tab }),
 
   // email data (starts empty in real production environment)
@@ -367,13 +368,25 @@ export const useCielStore = create<CielState>((set, get) => ({
             selectedEmailIndex: data.emails.length > 0 ? 0 : null,
           });
 
-          // Cache first page to localStorage
+          // Cache first page to localStorage (with stripped-down fields to avoid QuotaExceededError)
           if (targetPage === 1 && typeof window !== "undefined") {
             try {
-              const recent200 = data.emails.slice(0, 200);
+              const cachedData = data.emails.slice(0, 200).map((email: any) => ({
+                id: email.id,
+                from: email.from || email.fromName || "",
+                fromEmail: email.fromEmail,
+                subject: email.subject,
+                // Only cache a small plain text snippet of the body to preserve space
+                body: email.body ? email.body.replace(/<style([\s\S]*?)<\/style>/gi, '').replace(/<script([\s\S]*?)<\/script>/gi, '').replace(/<[^>]*>/g, '').trim().substring(0, 150) : "",
+                date: email.date,
+                read: email.read,
+                priority: email.priority,
+                category: email.category,
+                labelIds: email.labelIds,
+              }));
               localStorage.setItem(
                 `ciel_emails_cache_${state.activeFolder}`,
-                JSON.stringify(recent200),
+                JSON.stringify(cachedData),
               );
             } catch (cacheErr) {
               console.error("[Store] Failed to cache emails:", cacheErr);
@@ -416,13 +429,14 @@ export const useCielStore = create<CielState>((set, get) => ({
     }
   },
 
-  fetchCalendarEvents: async () => {
+  fetchCalendarEvents: async (forceSync?: boolean) => {
     try {
-      const res = await fetch(`/api/calendar?t=${Date.now()}`);
+      const query = forceSync ? `?sync=true&t=${Date.now()}` : `?t=${Date.now()}`;
+      const res = await fetch(`/api/calendar${query}`);
       if (res.ok) {
         const data = await res.json();
-        if (data.calendarEvents) {
-          set({ calendarEvents: data.calendarEvents });
+        if (data.calendarEvents || data.data) {
+          set({ calendarEvents: data.calendarEvents || data.data });
         }
       }
     } catch (error) {

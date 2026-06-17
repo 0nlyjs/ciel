@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getEmbedding } from "@/lib/embeddings";
 import { CorsairClient } from "@/lib/corsair";
 import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
 import {
   emails,
   calendarEvents,
@@ -513,10 +514,16 @@ The current system date and time is ${new Date().toString()} (ISO: ${currentDate
       },
     });
 
-    // 4. Return the streaming pipeline instantly
-    return result.toTextStreamResponse();
+    // 4. Await streaming completion and return JSON for the frontend
+    const text = await result.text;
+    const usage = await result.usage;
+
+    return NextResponse.json({
+      text: text || "I have processed your request.",
+      tokens: usage.totalTokens || 0,
+    });
   } catch (error) {
     console.error("[API CHAT] Streaming pipeline failed:", error);
-    return new Response("Internal Server Error", { status: 500 });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

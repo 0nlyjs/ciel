@@ -20,7 +20,20 @@ export async function GET(req: Request) {
     }
 
     const userId = session.user.id;
+    const userEmail = session.user.email;
     const { searchParams } = new URL(req.url);
+
+    // Sync Strategy: Only sync calendar events when sync=true is explicitly passed
+    const syncParam = searchParams.get("sync");
+    if (syncParam === "true" && userEmail) {
+      console.log(`[API CALENDAR GET] Triggering blocking calendar sync for ${userEmail}...`);
+      try {
+        const { syncCalendarEvents } = await import("@/lib/sync");
+        await syncCalendarEvents(userId, userEmail);
+      } catch (syncErr) {
+        console.error("[API CALENDAR GET] Blocking calendar sync error:", syncErr);
+      }
+    }
 
     // 2. Extract Time Window (Defaults to roughly a 60-day operational view)
     const startParam = searchParams.get("start");
@@ -41,15 +54,28 @@ export async function GET(req: Request) {
     ];
 
     // 4. Fetch instantly from the local Neon cache hitting idx_calendar_user_time
-    const data = await db
+    const rows = await db
       .select()
       .from(calendarEvents)
       .where(and(...conditions))
       .orderBy(asc(calendarEvents.startTime));
 
+    // Map database columns to the frontend interface (startTime -> start, endTime -> end)
+    const data = rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      start: row.startTime.toISOString(),
+      end: row.endTime.toISOString(),
+      location: row.location || "",
+      attendees: row.attendees || [],
+      description: row.description || "",
+      contextTag: row.contextTag,
+    }));
+
     return NextResponse.json(
       {
         data,
+        calendarEvents: data,
         totalReturned: data.length,
       },
       { status: 200 },

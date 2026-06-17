@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { syncUserEmails } from "@/lib/sync";
+import { syncUserEmails, syncCalendarEvents } from "@/lib/sync";
 
 export async function POST(req: Request) {
   try {
@@ -14,13 +14,20 @@ export async function POST(req: Request) {
 
     console.log(`[MANUAL SYNC] Refresh triggered by user: ${userEmail}`);
 
-    // Execute the high-speed batch engine
-    const result = await syncUserEmails(userId, userEmail);
+    // Execute the high-speed batch engines
+    const emailResult = await syncUserEmails(userId, userEmail);
+    let calendarResult = { success: true, count: 0 };
+    try {
+      calendarResult = await syncCalendarEvents(userId, userEmail);
+    } catch (calErr) {
+      console.error("[API MANUAL SYNC] Calendar sync failed:", calErr);
+    }
 
     return NextResponse.json(
       {
         success: true,
-        newEmailsCount: result.count,
+        newEmailsCount: emailResult.count,
+        newEventsCount: calendarResult.count,
       },
       { status: 200 },
     );

@@ -51,6 +51,12 @@ export async function GET(req: Request) {
       conditions.push(sql`${ilike(emails.labelIds, "%STARRED%")}`);
     } else if (folder === "drafts") {
       conditions.push(sql`${ilike(emails.labelIds, "%DRAFT%")}`);
+    } else if (folder === "spam") {
+      conditions.push(sql`${ilike(emails.labelIds, "%SPAM%")}`);
+    } else if (folder === "trash") {
+      conditions.push(sql`${ilike(emails.labelIds, "%TRASH%")}`);
+    } else if (folder === "all") {
+      conditions.push(sql`${and(not(ilike(emails.labelIds, "%SPAM%")), not(ilike(emails.labelIds, "%TRASH%")))}`);
     } else if (folder === "social") {
       conditions.push(sql`${ilike(emails.labelIds, "%CATEGORY_SOCIAL%")}`);
     } else if (folder === "promotions") {
@@ -58,9 +64,13 @@ export async function GET(req: Request) {
     } else if (folder === "updates") {
       conditions.push(sql`${ilike(emails.labelIds, "%CATEGORY_UPDATES%")}`);
     } else {
-      // Default: inbox
+      // Default: inbox (exclude trash and spam as well)
       conditions.push(
-        sql`${or(ilike(emails.labelIds, "%INBOX%"), and(sql`${emails.labelIds} IS NULL`, not(ilike(emails.labelIds, "%SENT%"))))}`,
+        sql`${and(
+          or(ilike(emails.labelIds, "%INBOX%"), and(sql`${emails.labelIds} IS NULL`, not(ilike(emails.labelIds, "%SENT%")))),
+          not(ilike(emails.labelIds, "%SPAM%")),
+          not(ilike(emails.labelIds, "%TRASH%"))
+        )}`,
       );
     }
 
@@ -91,6 +101,12 @@ export async function GET(req: Request) {
         q = "label:STARRED";
       } else if (folder === "drafts") {
         q = "label:DRAFT";
+      } else if (folder === "spam") {
+        q = "label:SPAM";
+      } else if (folder === "trash") {
+        q = "label:TRASH";
+      } else if (folder === "all") {
+        q = ""; // All Mail sync
       } else if (folder === "social") {
         q = "category:social";
       } else if (folder === "promotions") {
@@ -139,10 +155,16 @@ export async function GET(req: Request) {
     const nextCursor =
       data.length === limit ? data[data.length - 1].date.toISOString() : null;
 
+    // Map response data fromName to from
+    const mappedEmails = data.map((email) => ({
+      ...email,
+      from: email.fromName || email.fromEmail || "",
+    }));
+
     return NextResponse.json(
       {
-        emails: data,
-        data, // compatibility fallback
+        emails: mappedEmails,
+        data: mappedEmails, // compatibility fallback
         total,
         nextCursor,
         hasMore: offset + data.length < total || !!nextCursor,

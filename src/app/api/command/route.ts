@@ -32,7 +32,7 @@ Respond with a raw JSON object conforming to this schema:
     "subject": string (for compose, e.g. subject line),
     "body": string (for compose, e.g. body text),
     "query": string (for search, e.g. vector search keyword/phrase),
-    "tab": "overview" | "inbox" | "calendar" | "chat" | "settings" (for navigation)
+    "tab": "inbox" | "calendar" | "chat" | "settings" (for navigation)
   }
 }
 

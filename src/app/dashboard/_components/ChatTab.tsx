@@ -23,6 +23,7 @@ export function ChatTab() {
   const [showHistory, setShowHistory] = useState(false);
   const [tokensConsumed, setTokensConsumed] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const [deletingIds, setDeletingIds] = useState<string[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -31,6 +32,34 @@ export function ChatTab() {
   useEffect(() => {
     textareaRef.current?.focus();
   }, [isSendingChat, chatMessages]);
+
+  // Global keydown handler to keep textarea active when typing anywhere
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === "INPUT" ||
+          activeEl.tagName === "TEXTAREA" ||
+          (activeEl as HTMLElement).isContentEditable)
+      ) {
+        return;
+      }
+
+      if (e.metaKey || e.ctrlKey || e.altKey) {
+        return;
+      }
+
+      if (e.key.length === 1 || e.key === "Enter" || e.key === "Backspace") {
+        textareaRef.current?.focus();
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleGlobalKeyDown);
+    };
+  }, []);
 
   const fetchConversations = async () => {
     try {
@@ -71,6 +100,7 @@ export function ChatTab() {
     if (!activeConversationId) {
       setActiveConversationId(Math.random().toString(36).substring(2, 15));
       setTokensConsumed(0);
+      shouldSpeakRef.current = true;
     }
   }, [activeConversationId]);
 
@@ -105,6 +135,7 @@ export function ChatTab() {
     const updatedMessagesWithUser = [...currentMessages, newUserMessage];
     useCielStore.setState({ chatMessages: updatedMessagesWithUser });
     setIsSendingChat(true);
+    shouldSpeakRef.current = true;
 
     const freshConvId = Math.random().toString(36).substring(2, 15);
     const currentConvId = isFreshStart
@@ -192,7 +223,44 @@ export function ChatTab() {
     const newId = Math.random().toString(36).substring(2, 15);
     setActiveConversationId(newId);
     setTokensConsumed(0);
-    useCielStore.setState({ chatMessages: [] });
+    shouldSpeakRef.current = true;
+    useCielStore.setState({
+      chatMessages: [
+        {
+          id: "init-" + Math.random().toString(36).substring(2, 9),
+          role: "assistant",
+          content:
+            "Hello, I am Ciel, your sentient AI workspace mind. I have established synchronization with your Gmail and Google Calendar. How may I assist you with your inbox or schedule today?",
+          timestamp: new Date(),
+        },
+      ],
+    });
+  };
+
+  const handleDeleteConversation = async (e: React.MouseEvent, convId: string) => {
+    e.stopPropagation();
+    if (deletingIds.includes(convId)) return;
+
+    setDeletingIds((prev) => [...prev, convId]);
+    try {
+      const res = await fetch("/api/chat/conversations", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: convId }),
+      });
+      if (res.ok) {
+        await fetchConversations();
+        if (activeConversationId === convId) {
+          handleStartFreshChat();
+        }
+      } else {
+        alert("Failed to delete chat history.");
+      }
+    } catch (err) {
+      console.error("Failed to delete conversation", err);
+    } finally {
+      setDeletingIds((prev) => prev.filter((id) => id !== convId));
+    }
   };
 
   const lastAssistantMsg = [...chatMessages]
@@ -265,18 +333,21 @@ export function ChatTab() {
 
   // Track last spoken message ID to auto-speak new assistant messages
   const lastSpokenIdRef = useRef<string | null>(null);
+  const shouldSpeakRef = useRef(false);
 
   // Auto-speak new assistant messages when TTS is enabled
   useEffect(() => {
     if (!ttsEnabled) return;
     if (isSendingChat) return;
     if (!selectedLocalVoice) return; // Wait until local voice selection is resolved
+    if (!shouldSpeakRef.current) return;
 
     const lastMsg = chatMessages[chatMessages.length - 1];
     if (!lastMsg) return;
     if (lastMsg.role !== "assistant") return;
     if (lastSpokenIdRef.current === lastMsg.id) return;
 
+    shouldSpeakRef.current = false;
     lastSpokenIdRef.current = lastMsg.id;
     speak(lastMsg.content, selectedLocalVoice);
   }, [chatMessages, isSendingChat, ttsEnabled, speak, selectedLocalVoice]);
@@ -672,9 +743,9 @@ export function ChatTab() {
             <div className="absolute bottom-2.5 right-3 flex items-center gap-2">
               <button
                 type="button"
-                onClick={clearChat}
-                disabled={isInputDisabled}
-                className={`text-xs px-3 py-1.5 font-bold uppercase rounded-xl transition-colors disabled:opacity-50 cursor-pointer ${
+                onClick={() => setChatInput("")}
+                disabled={isInputDisabled || !chatInput.trim()}
+                className={`text-xs px-3 py-1.5 font-bold uppercase rounded-xl transition-colors disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer ${
                   isDark
                     ? "text-slate-500 hover:text-white"
                     : "text-slate-400 hover:text-slate-950"
@@ -720,29 +791,66 @@ export function ChatTab() {
                   No saved chats.
                 </div>
               ) : (
-                conversationsList.map((conv) => {
+                 conversationsList.map((conv) => {
                   const isSelected = activeConversationId === conv.id;
+                  const isDeleting = deletingIds.includes(conv.id);
                   return (
-                    <button
+                    <div
                       key={conv.id}
                       onClick={() => {
+                        if (isDeleting) return;
                         setActiveConversationId(conv.id);
                         setTokensConsumed(conv.tokens_used || 0);
                         useCielStore.setState({
                           chatMessages: conv.messages || [],
                         });
                       }}
-                      className={`w-full text-left p-3 border rounded-xl transition-all duration-200 flex flex-col gap-1 cursor-pointer text-xs ${
-                        isSelected
+                      role="button"
+                      tabIndex={0}
+                      className={`w-full text-left p-3 border rounded-xl transition-all duration-200 flex flex-col gap-1 text-xs group relative ${
+                        isDeleting
+                          ? "opacity-40 pointer-events-none select-none bg-slate-900/10 dark:bg-black/10 border-white/5 text-slate-500"
+                          : "cursor-pointer"
+                      } ${
+                        isSelected && !isDeleting
                           ? isDark
                             ? "bg-purple-950/30 border-purple-800 text-white"
                             : "bg-purple-55 border-purple-300 text-purple-950"
-                          : isDark
-                            ? "bg-black/20 border-white/5 text-slate-400 hover:bg-black/35 hover:text-white"
-                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-black"
+                          : !isDeleting
+                            ? isDark
+                              ? "bg-black/20 border-white/5 text-slate-400 hover:bg-black/35 hover:text-white"
+                              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-black"
+                            : ""
                       }`}
                     >
-                      <span className="font-bold truncate text-[11px] block">
+                      <button
+                        onClick={(e) => handleDeleteConversation(e, conv.id)}
+                        disabled={isDeleting}
+                        className={`absolute top-2.5 right-2.5 transition-opacity p-1 bg-red-500/10 text-slate-400 rounded-md border-0 outline-none ${
+                          isDeleting
+                            ? "opacity-50 cursor-not-allowed text-red-500/55"
+                            : "opacity-0 group-hover:opacity-100 hover:bg-red-500/20 hover:text-red-500 cursor-pointer"
+                        }`}
+                        title="Delete Chat"
+                      >
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          <line x1="10" y1="11" x2="10" y2="17" />
+                          <line x1="14" y1="11" x2="14" y2="17" />
+                        </svg>
+                      </button>
+
+                      <span className="font-bold truncate text-[11px] block pr-6">
                         {conv.title || "Untitled Chat"}
                       </span>
                       <span className="text-[9px] text-slate-500 font-mono truncate">
@@ -758,7 +866,7 @@ export function ChatTab() {
                           {new Date(conv.updated_at).toLocaleString()}
                         </span>
                       </span>
-                    </button>
+                    </div>
                   );
                 })
               )}
