@@ -26,6 +26,78 @@ const CartoonAvatar = () => (
   </svg>
 );
 
+const CielLogoInline = ({ height = "88px" }: { height?: string }) => (
+  <svg 
+    style={{ height, width: "auto", display: "block" }} 
+    viewBox="0 0 340 150" 
+    version="1.1" 
+    xmlns="http://www.w3.org/2000/svg" 
+    xmlnsXlink="http://www.w3.org/1999/xlink" 
+    xmlSpace="preserve"
+    className="object-contain"
+  >
+    <style dangerouslySetInnerHTML={{__html: `
+        .yellow-glow {
+            filter: url(#glow-circle-3x);
+        }
+        .glowing-layer {
+            filter: url(#glow-blur);
+            opacity: 0.45;
+        }
+    `}} />
+
+    {/* Glow Backdrop Layer (Static Middle-Ground Glow - Recentered with margins) */}
+    <g className="glowing-layer">
+        {/* Glowing duplicate of border with thicker stroke for soft edges */}
+        <rect x="38" y="27" width="264" height="97" rx="22" ry="22" style={{ fill: "none", stroke: "url(#_Linear1)", strokeWidth: "12px" }} />
+        {/* Glowing duplicate of letters with thicker stroke */}
+        <g transform="matrix(0.88785,0,0,0.88785,3.971963,8.635514)">
+            <path d="M120,45L80,45L80,105L120,105M150.137,45L150.137,105M180,45L180,105L220,105M180,75L210,75M180,45L220,45M250,45L250,105L290,105" style={{ fill: "none", stroke: "url(#_Linear1)", strokeWidth: "12px" }} />
+        </g>
+    </g>
+
+    {/* Sharp Foreground Layers (Recentered for safety spacing) */}
+    <g id="text" transform="matrix(0.88785,0,0,0.88785,3.971963,8.635514)">
+        <path d="M120,45L80,45L80,105L120,105M150.137,45L150.137,105M180,45L180,105L220,105M180,75L210,75M180,45L220,45M250,45L250,105L290,105" fill="none" fillRule="nonzero" stroke="url(#_Linear1)" strokeWidth={8} />
+    </g>
+    <g id="circle" transform="matrix(0.88785,0,0,0.88785,3.971963,8.635514)">
+        <circle className="yellow-glow" cx={290} cy={105} r={4} style={{ fill: "rgb(237,255,0)" }} />
+    </g>
+    <g id="boarder">
+        <rect x="38" y="27" width="264" height="97" rx="22" ry="22" fill="none" stroke="url(#_Linear1)" strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" strokeMiterlimit={5} />
+    </g>
+
+    <defs>
+        {/* Horizontal gradient rotated 30 degrees down (#3BB5CD to #E08C08) */}
+        <linearGradient id="_Linear1" x1={114} y1={11} x2={296} y2={116} gradientUnits="userSpaceOnUse">
+            <stop offset="0" stopColor="#3BB5CD" stopOpacity={1} />
+            <stop offset="1" stopColor="#E08C08" stopOpacity={1} />
+        </linearGradient>
+        {/* Expanded Glow Blur Filter region to prevent edge cutoffs --> */}
+        <filter id="glow-blur" x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur stdDeviation={8} />
+        </filter>
+        {/* Intense 3x Yellow Glow Filter */}
+        <filter id="glow-circle-3x" x="-300%" y="-300%" width="700%" height="700%">
+            <feGaussianBlur stdDeviation={6} result="blur1" />
+            <feGaussianBlur stdDeviation={2.5} result="blur2" />
+            {/* Color matrix with high alpha multiplier (3x) to intensify yellow glow */}
+            <feColorMatrix type="matrix" values="
+                1.0 0.0 0.0 0.0 0.9
+                0.0 1.0 0.0 0.0 1.0
+                0.0 0.0 1.0 0.0 0.0
+                0.0 0.0 0.0 3.0 0.0" in="blur1" result="colored-blur1" />
+            <feMerge>
+                <feMergeNode in="colored-blur1" />
+                <feMergeNode in="colored-blur1" />
+                <feMergeNode in="blur2" />
+                <feMergeNode in="SourceGraphic" />
+            </feMerge>
+        </filter>
+    </defs>
+  </svg>
+);
+
 export function Sidebar({ onShowShortcuts, onOpenProfile }: SidebarProps) {
   const { data: session } = useSession();
   const router = useRouter();
@@ -66,8 +138,8 @@ export function Sidebar({ onShowShortcuts, onOpenProfile }: SidebarProps) {
   return (
     <aside className="w-64 flex flex-col p-4 transition-all duration-300 bg-white/5 dark:bg-black/10 backdrop-blur-xl border border-white/10 dark:border-white/5 shadow-2xl rounded-2xl">
       {/* Brand Header */}
-      <div className="px-3 py-4 mb-6">
-        <span className={`font-black tracking-widest text-lg uppercase block ${textWhiteClass}`}>CIEL</span>
+      <div className="w-full py-5 mb-4 flex items-center justify-center">
+        <CielLogoInline height="88px" />
       </div>
 
       {/* Navigation Menu */}

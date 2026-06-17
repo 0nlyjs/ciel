@@ -62,10 +62,7 @@ export default function LandingPage() {
       }`}>
         <div className="w-full px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-cyan-600/20 border border-cyan-500/30 flex items-center justify-center font-bold text-cyan-200 tracking-tighter shadow-sm">
-              C
-            </div>
-            <span className="text-white font-bold tracking-widest text-sm uppercase">Ceil.</span>
+            <img src="/ciel.svg" alt="CIEL Logo" className="h-10 w-auto object-contain" />
           </div>
 
           <div className="flex items-center gap-4">
