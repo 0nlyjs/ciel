@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect, useState, Suspense } from "react";
 import { useFrame, Canvas } from "@react-three/fiber";
 import { useGLTF, Stars } from "@react-three/drei";
 import * as THREE from "three";
@@ -134,8 +134,18 @@ const CyclingDirectionalLight: FC = () => {
   );
 };
 
+// ─── Loading State Notifier ──────────────────────────────────────────────────
+const LoadingNotifier: FC<{ onLoad: () => void }> = ({ onLoad }) => {
+  useEffect(() => {
+    onLoad();
+  }, [onLoad]);
+  return null;
+};
+
 // ─── Main Scene Component ────────────────────────────────────────────────────
 const Scene3D: FC = () => {
+  const [modelLoaded, setModelLoaded] = useState(false);
+
   return (
     <div
       style={{
@@ -150,12 +160,27 @@ const Scene3D: FC = () => {
           "linear-gradient(to bottom, #010617 0%, #080d33 45%, #18195a 75%, #4b2b93 100%)",
       }}
     >
+      {/* Solid loading color background (#4C7280) that fades out when 3D model is loaded */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          zIndex: 10,
+          backgroundColor: "#564980",
+          opacity: modelLoaded ? 0 : 1,
+          transition: "opacity 1.5s ease-in-out",
+          pointerEvents: "none",
+        }}
+      />
+
       <Canvas
         camera={{ position: [0, -1.0, 0], fov: 65, near: 0.1, far: 200 }}
         dpr={[1, 1.5]}
         gl={{ antialias: true, alpha: true }}
       >
-        {/* Fog matching the horizon purple glow */}
         <fog attach="fog" args={["#4b2b93", 15, 85]} />
 
         {/* Layer 1: The Cosmic Background. Dense, tiny, and static for deep space depth. */}
@@ -176,7 +201,10 @@ const Scene3D: FC = () => {
           />
         </mesh>
 
-        <CielModel />
+        <Suspense fallback={null}>
+          <CielModel />
+          <LoadingNotifier onLoad={() => setModelLoaded(true)} />
+        </Suspense>
 
         {/* ── Lighting Rig ──────────────────────────────────────────────── */}
         {/* Hemisphere light simulating HDRI sky/ground ambient reflection */}
