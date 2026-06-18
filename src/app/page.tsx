@@ -289,6 +289,142 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Section: The Manifesto */}
+        <section className="w-full max-w-5xl mx-auto py-32 flex flex-col items-center justify-center px-6">
+          <div className="text-center space-y-6 mb-16">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs font-mono text-[#D28F17] tracking-widest uppercase animate-pulse">
+              [ SYSTEM OVERRIDE: MONK MODE ENGAGED ]
+            </div>
+            <h2 className="text-5xl md:text-7xl font-extrabold tracking-tighter text-white">
+              KILL COGNITIVE NOISE.
+            </h2>
+            <p className="max-w-2xl mx-auto text-lg md:text-xl text-slate-400 leading-relaxed">
+              Every context switch is a tax on your genius. Ciel runs silently in the background, routing alerts and scheduling events so you can remain locked in your IDE.
+            </p>
+          </div>
+
+          {/* Monk Mode Bento Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full text-left">
+            {/* Card 1: Cognitive Load Filter */}
+            <div className="group relative p-8 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl space-y-6 border-t-[#D28F17]/50 shadow-[0_8px_40px_rgba(0,0,0,0.3)] transition-all duration-500 hover:scale-[1.01] hover:border-white/20 hover:shadow-[0_12px_40px_rgba(210,143,23,0.15)] flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="w-12 h-12 rounded-xl bg-[#D28F17]/10 border border-[#D28F17]/20 flex items-center justify-center drop-shadow-[0_0_15px_rgba(210,143,23,0.2)]">
+                  <Filter className="w-6 h-6 text-[#D28F17]" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-50 uppercase tracking-wider">
+                  Cognitive Load Filter
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Intercept and prioritize incoming traffic. Ciel's semantic firewall automatically intercepts low-priority noise, letting only high-criticality signals pierce through while consolidating others into daily digests.
+                </p>
+              </div>
+              <div className="mt-6 pt-4 border-t border-white/5 flex items-center gap-3">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span className="text-[10px] font-mono text-slate-400">Noise Reduction: -87% / Active Triage</span>
+              </div>
+            </div>
+
+            {/* Card 2: Attention Lock & Batching */}
+            <div className="group relative p-8 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl space-y-6 border-t-[#D28F17]/50 shadow-[0_8px_40px_rgba(0,0,0,0.3)] transition-all duration-500 hover:scale-[1.01] hover:border-white/20 hover:shadow-[0_12px_40px_rgba(210,143,23,0.15)] flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="w-12 h-12 rounded-xl bg-[#D28F17]/10 border border-[#D28F17]/20 flex items-center justify-center drop-shadow-[0_0_15px_rgba(210,143,23,0.2)]">
+                  <Clock className="w-6 h-6 text-[#D28F17]" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-50 uppercase tracking-wider">
+                  Attention Lock
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Establish deep focus windows. Block external app pings, stack non-essential tasks in temporary execution buffers, and sync back only when you choose to pause.
+                </p>
+              </div>
+              <div className="mt-6 pt-4 border-t border-white/5 flex items-center gap-3">
+                <span className="w-2 h-2 rounded-full bg-[#D28F17]" />
+                <span className="text-[10px] font-mono text-slate-400">State: Buffered / Interval: 90min</span>
+              </div>
+            </div>
+
+            {/* Card 3: Context Preserver */}
+            <div className="group relative p-8 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl space-y-6 border-t-[#D28F17]/50 shadow-[0_8px_40px_rgba(0,0,0,0.3)] transition-all duration-500 hover:scale-[1.01] hover:border-white/20 hover:shadow-[0_12px_40px_rgba(210,143,23,0.15)] flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="w-12 h-12 rounded-xl bg-[#D28F17]/10 border border-[#D28F17]/20 flex items-center justify-center drop-shadow-[0_0_15px_rgba(210,143,23,0.2)]">
+                  <Layers className="w-6 h-6 text-[#D28F17]" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-50 uppercase tracking-wider">
+                  Context Preserver
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Never lose your train of thought. Ciel captures and mirrors your current programming environment and notes, ensuring instant resumption of complex tasks without starting from scratch.
+                </p>
+              </div>
+              <div className="mt-6 pt-4 border-t border-white/5 flex items-center gap-3">
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                <span className="text-[10px] font-mono text-slate-400">Resume Latency: &lt;2s / Active Snapshot</span>
+              </div>
+            </div>
+
+            {/* Card 4: Autonomous Execution Layer */}
+            <div className="group relative p-8 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl space-y-6 border-t-[#D28F17]/50 shadow-[0_8px_40px_rgba(0,0,0,0.3)] transition-all duration-500 hover:scale-[1.01] hover:border-white/20 hover:shadow-[0_12px_40px_rgba(210,143,23,0.15)] flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="w-12 h-12 rounded-xl bg-[#D28F17]/10 border border-[#D28F17]/20 flex items-center justify-center drop-shadow-[0_0_15px_rgba(210,143,23,0.2)]">
+                  <Zap className="w-6 h-6 text-[#D28F17]" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-50 uppercase tracking-wider">
+                  Autonomous Dispatch
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Offload micro-operations. Allow Ciel to schedule callbacks, draft responses, and auto-archive junk in real-time, letting your subconscious focus solely on high-value execution.
+                </p>
+              </div>
+              <div className="mt-6 pt-4 border-t border-white/5 flex items-center gap-3">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span className="text-[10px] font-mono text-slate-400">Efficiency: 2.4x Multiplier / Active</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Section: The Workflow Grid */}
+        <section className="w-full max-w-6xl mx-auto py-20 px-6">
+          <h3 className="text-3xl font-bold text-center text-white mb-16">
+            THE COMMAND-LINE FOR YOUR REALITY.
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="relative p-8 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 hover:border-[#D28F17]/30 shadow-[0_8px_40px_rgba(0,0,0,0.3)] transition-all duration-300 hover:scale-[1.01] group">
+              <span className="block text-xs font-mono text-[#D28F17] mb-6">
+                01 // PARSE
+              </span>
+              <h4 className="text-xl font-bold text-slate-100 mb-3">
+                Asynchronous Intent Processing
+              </h4>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Stream raw language prompts directly into our low-overhead syntactic analyzer. Ciel translates ambiguous text into functional schemas without interrupting active loops.
+              </p>
+            </div>
+            <div className="relative p-8 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 hover:border-[#D28F17]/30 shadow-[0_8px_40px_rgba(0,0,0,0.3)] transition-all duration-300 hover:scale-[1.01] group">
+              <span className="block text-xs font-mono text-[#D28F17] mb-6">
+                02 // ORCHESTRATE
+              </span>
+              <h4 className="text-xl font-bold text-slate-100 mb-3">
+                Autonomous Dispatchers
+              </h4>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Background synchronization fibers reconcile tasks across multiple APIs concurrently. Updates propagate silently via webhooks, preserving local execution speed.
+              </p>
+            </div>
+            <div className="relative p-8 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 hover:border-[#D28F17]/30 shadow-[0_8px_40px_rgba(0,0,0,0.3)] transition-all duration-300 hover:scale-[1.01] group">
+              <span className="block text-xs font-mono text-[#D28F17] mb-6">
+                03 // SECURE
+              </span>
+              <h4 className="text-xl font-bold text-slate-100 mb-3">
+                Zero-Knowledge Boundary
+              </h4>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Encrypt sensitive communication blocks locally prior to transport. Maintain absolute privacy controls over key workflows and operational secrets.
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* Pricing Section */}
         <section className="py-16 border-t border-white/10 space-y-12">
           <div className="text-center max-w-2xl mx-auto space-y-4">
