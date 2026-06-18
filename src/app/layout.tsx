@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { CommandPalette } from "@/components/CommandPalette";
+import Scene3D from "@/components/Scene3D";
 
 export const metadata: Metadata = {
   title: "Ciel",
@@ -125,6 +126,7 @@ export default function RootLayout({
         </svg>
         <Providers>
           <CommandPalette />
+          <Scene3D />
           {children}
         </Providers>
       </body>
