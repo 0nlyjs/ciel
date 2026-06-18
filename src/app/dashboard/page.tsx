@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useCielStore } from "@/store/useCielStore";
 import { useSession } from "@/lib/auth-client";
 import toast from "react-hot-toast";
@@ -946,6 +947,25 @@ export default function DashboardPage() {
                     : "Delete Ciel Account"}
                 </button>
               </div>
+            </div>
+
+            {/* Legal Links Footer */}
+            <div className="flex items-center justify-center gap-4 text-[10px] uppercase tracking-wider font-mono text-slate-400 border-t border-white/5 pt-4">
+              <Link
+                href="/privacy"
+                target="_blank"
+                className="hover:text-cyan-400 transition-colors duration-200"
+              >
+                Privacy Policy
+              </Link>
+              <span className="text-white/10">|</span>
+              <Link
+                href="/terms"
+                target="_blank"
+                className="hover:text-cyan-400 transition-colors duration-200"
+              >
+                Terms & Conditions
+              </Link>
             </div>
           </div>
         </div>
