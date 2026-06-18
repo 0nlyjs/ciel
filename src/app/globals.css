@@ -5,6 +5,15 @@
   --font-mono:
     var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
     Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* Remap slate and gray utility colors to bright grey-whites for secondary text readability */
+  --color-slate-300: #f8fafc;
+  --color-slate-400: #f1f5f9;
+  --color-slate-500: #e2e8f0;
+  
+  --color-gray-300: #f8fafc;
+  --color-gray-400: #f1f5f9;
+  --color-gray-500: #e2e8f0;
 }
 
 :root {

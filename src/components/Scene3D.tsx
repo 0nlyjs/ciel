@@ -5,6 +5,7 @@ import { useFrame, Canvas } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { FC } from "react";
+import { useCielStore } from "@/store/useCielStore";
 
 // ─── Custom GLTF Model (Ciel Landscape) ──────────────────────────────────────
 const CielModel: FC = () => {
@@ -144,6 +145,7 @@ const CameraRig: FC = () => {
   );
   const scrollVelocity = useRef(0);
   const mouseVelocity = useRef(0);
+  const bgRotate = useCielStore((s) => s.bgRotate);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -181,11 +183,12 @@ const CameraRig: FC = () => {
     const scrollContribution = scrollVelocity.current * 0.064;
 
     // Calculate mouse speedup factor (capped at 30% / 0.30)
-    const mouseContribution = Math.min(0.6, mouseVelocity.current * 0.012);
+    const mouseContribution = Math.min(0.3, mouseVelocity.current * 0.012);
 
-    // Apply the 15% speed increase multiplier when cursor moves
-    const currentSpeed =
-      (baseSpeed + scrollContribution) * (1.0 + mouseContribution);
+    // Apply the rotation speed only if bgRotate animation is enabled
+    const currentSpeed = bgRotate
+      ? (baseSpeed + scrollContribution) * (1.0 + mouseContribution)
+      : 0;
 
     rotationY.current += delta * currentSpeed;
 
@@ -201,14 +204,24 @@ const CameraRig: FC = () => {
 // ─── Pastel Color-Cycling Directional Light ──────────────────────────────────
 const CyclingDirectionalLight: FC = () => {
   const lightRef = useRef<THREE.DirectionalLight>(null);
+  const bgColorCycle = useCielStore((s) => s.bgColorCycle);
+  const bgHue = useCielStore((s) => s.bgHue);
 
   useFrame((state) => {
     if (!lightRef.current) return;
-    const t = state.clock.elapsedTime;
-    // Cycle hue smoothly over time (0.04 controls the speed)
-    const hue = (t * 0.1) % 1.0;
-    // Set color with HSL (hue, pastel saturation 0.8, pastel lightness 0.8)
-    lightRef.current.color.setHSL(hue, 0.3, 0.3);
+
+    let hue = bgHue;
+    if (bgColorCycle) {
+      const t = state.clock.elapsedTime;
+      // Cycle hue smoothly over time
+      hue = (t * 0.04) % 1.0;
+    }
+
+    // Set color with HSL (Hue, Saturation, Lightness)
+
+    const s = bgColorCycle ? 0.3 : 0.3;
+    const l = bgColorCycle ? 0.3 : 0.3;
+    lightRef.current.color.setHSL(hue, s, l);
   });
 
   return (

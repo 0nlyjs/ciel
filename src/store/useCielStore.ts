@@ -144,9 +144,35 @@ interface CielState {
   // calendar date state
   selectedDate: Date | null;
   initializeClientDate: () => void;
+
+  // 3D background animation settings
+  bgRotate: boolean;
+  bgColorCycle: boolean;
+  bgHue: number;
+  updateBgSettings: (settings: Partial<{ bgRotate: boolean; bgColorCycle: boolean; bgHue: number }>) => void;
 }
 
 export const useCielStore = create<CielState>((set, get) => ({
+  // 3D background animation settings initial values
+  bgRotate: typeof window !== "undefined" ? (localStorage.getItem("ciel_bg_rotate") !== "false") : true,
+  bgColorCycle: typeof window !== "undefined" ? (localStorage.getItem("ciel_bg_color_cycle") !== "false") : true,
+  bgHue: typeof window !== "undefined" ? parseFloat(localStorage.getItem("ciel_bg_hue") || "0.0") : 0.0,
+  updateBgSettings: (settings) => {
+    set((state) => {
+      const bgRotate = settings.bgRotate !== undefined ? settings.bgRotate : state.bgRotate;
+      const bgColorCycle = settings.bgColorCycle !== undefined ? settings.bgColorCycle : state.bgColorCycle;
+      const bgHue = settings.bgHue !== undefined ? settings.bgHue : state.bgHue;
+      
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ciel_bg_rotate", bgRotate.toString());
+        localStorage.setItem("ciel_bg_color_cycle", bgColorCycle.toString());
+        localStorage.setItem("ciel_bg_hue", bgHue.toString());
+      }
+      
+      return { bgRotate, bgColorCycle, bgHue };
+    });
+  },
+
   // 3D Canvas states initial values
   isSyncing: false,
   isSearching: false,
