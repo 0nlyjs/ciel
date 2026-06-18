@@ -264,7 +264,12 @@ Do not wrap in markdown code blocks.`,
 
         const cleanText = response.text.trim().replace(/^```json/gi, "").replace(/```$/, "").trim();
         const parsed = JSON.parse(cleanText);
-        return NextResponse.json({ success: true, suggestions: parsed.suggestions });
+        if (parsed && Array.isArray(parsed.suggestions) && parsed.suggestions.length > 0) {
+          return NextResponse.json({ success: true, suggestions: parsed.suggestions });
+        } else if (Array.isArray(parsed) && parsed.length > 0) {
+          return NextResponse.json({ success: true, suggestions: parsed });
+        }
+        throw new Error("Invalid suggestions format from AI");
       } catch (err: any) {
         console.error("[Emails API] AI reply generation failed, falling back to templates:", err);
         const suggestions = handleFallbackReplies(subject, fromName || "there");

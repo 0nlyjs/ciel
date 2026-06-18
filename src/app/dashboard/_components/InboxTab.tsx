@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, FormEvent, MouseEvent } from "react";
+import { useState, useEffect, useRef, FormEvent, MouseEvent } from "react";
 import { useCielStore, Email } from "@/store/useCielStore";
 import toast from "react-hot-toast";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -75,6 +75,71 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
   const [replyBody, setReplyBody] = useState("");
   const [isSendingReply, setIsSendingReply] = useState(false);
   const [activeReplyEmailId, setActiveReplyEmailId] = useState<string | null>(null);
+  const emailDetailScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollToDetailTop = () => {
+    if (emailDetailScrollRef.current) {
+      emailDetailScrollRef.current.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    }
+  };
+
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Automatically adjust height of the iframe to fit its content exactly.
+  // This eliminates internal scrollbars within the iframe, resolving the nested scrollbars UX anti-pattern.
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    let observer: ResizeObserver | null = null;
+
+    const handleIframeLoad = () => {
+      try {
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (!iframeDoc) return;
+
+        const adjustHeight = () => {
+          const body = iframeDoc.body;
+          const html = iframeDoc.documentElement;
+          if (!body || !html) return;
+
+          iframe.style.height = "auto";
+          const newHeight = Math.max(
+            body.scrollHeight,
+            body.offsetHeight,
+            html.clientHeight,
+            html.scrollHeight,
+            html.offsetHeight
+          );
+          iframe.style.height = `${newHeight}px`;
+        };
+
+        if (observer) observer.disconnect();
+
+        observer = new ResizeObserver(() => {
+          adjustHeight();
+        });
+
+        if (iframeDoc.body) {
+          observer.observe(iframeDoc.body);
+        }
+        adjustHeight();
+      } catch (err) {
+        console.warn("Failed to set up iframe height observer", err);
+      }
+    };
+
+    iframe.addEventListener("load", handleIframeLoad);
+    handleIframeLoad();
+
+    return () => {
+      iframe.removeEventListener("load", handleIframeLoad);
+      if (observer) observer.disconnect();
+    };
+  }, [activeEmailId, activeReplyEmailId]);
 
   // Trigger mounted flag on client
   useEffect(() => {
@@ -133,13 +198,17 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
     }
   };
 
-  // Handle smart reply suggestions from AI
   const handleInitiateSmartReply = async (email: Email) => {
     setActiveReplyEmailId(email.id);
     setIsGeneratingReplies(true);
     setAiSuggestions([]);
     setSelectedReplyIndex(null);
     setReplyBody("");
+    
+    // Scroll to top to focus the suggestions section
+    setTimeout(() => {
+      scrollToDetailTop();
+    }, 60);
 
     try {
       const res = await fetch("/api/emails", {
@@ -156,6 +225,10 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
       if (res.ok) {
         const data = await res.json();
         setAiSuggestions(data.suggestions || []);
+        // Scroll to top to focus new suggestions when loaded
+        setTimeout(() => {
+          scrollToDetailTop();
+        }, 100);
       } else {
         toast.error("Failed to load smart replies.");
       }
@@ -163,6 +236,10 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
       console.error("Smart replies error", err);
     } finally {
       setIsGeneratingReplies(false);
+      // Ensure positioning is stable after state changes
+      setTimeout(() => {
+        scrollToDetailTop();
+      }, 100);
     }
   };
 
@@ -913,165 +990,78 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
               // ==========================================
               // EMAIL DETAIL VIEW WORKSPACE
               // ==========================================
-              <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-6 space-y-5">
-                {/* Detail view toolbar */}
-                <div className="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
-                  <button
-                    onClick={() => setActiveEmailId(null)}
-                    className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-slate-350 hover:text-white transition-all cursor-pointer"
-                  >
-                    <ArrowLeft className="w-4 h-4 text-purple-400" />
-                    Back to list
-                  </button>
-
-                  <div className="flex items-center gap-2">
+              <div className="flex-1 flex flex-col min-h-0 bg-transparent">
+                 {/* Pinned Toolbar & Quick Actions Header */}
+                <div className="p-6 pb-4 border-b border-white/10 shrink-0 space-y-3 bg-transparent backdrop-blur-md z-10">
+                  {/* Detail view toolbar */}
+                  <div className="flex items-center justify-between gap-4">
                     <button
-                      onClick={(e) => handleToggleStar(activeEmail, e)}
-                      className={`p-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all cursor-pointer ${
-                        isEmailStarred(activeEmail) ? "text-yellow-500 hover:text-yellow-400 shadow-sm" : "text-slate-400 hover:text-slate-200"
-                      }`}
-                      title={isEmailStarred(activeEmail) ? "Starred" : "Star message"}
+                      onClick={() => setActiveEmailId(null)}
+                      className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-slate-350 hover:text-white transition-all cursor-pointer shrink-0"
                     >
-                      <Star className={`w-4 h-4 ${isEmailStarred(activeEmail) ? "fill-yellow-500 text-yellow-500" : ""}`} />
+                      <ArrowLeft className="w-4 h-4 text-purple-400" />
+                      Back to list
                     </button>
-                    
-                    <button
-                      onClick={(e) => handleToggleRead(activeEmail, e)}
-                      className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
-                      title={isEmailUnread(activeEmail) ? "Mark as read" : "Mark as unread"}
-                    >
-                      {isEmailUnread(activeEmail) ? <MailOpen className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
-                    </button>
-                    
-                    <button
-                      onClick={(e) => handleDelete(activeEmail, e)}
-                      className="p-2 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/20 rounded-xl text-slate-400 hover:text-red-400 transition-all cursor-pointer"
-                      title="Delete email"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
 
-                {/* Email Subject Heading */}
-                <div className="space-y-1">
-                  <h2 className="text-xl font-black text-white tracking-tight leading-tight">
-                    {activeEmail.subject}
-                  </h2>
-                  <div className="flex gap-4 text-[9px] text-slate-500 uppercase font-black font-mono tracking-wider">
-                    <span>
-                      Folder: <span className="text-purple-400">{activeFolder}</span>
-                    </span>
-                    <span>
-                      Priority: <span className={activeEmail.priority === "high" ? "text-red-400 font-bold" : "text-slate-400"}>{activeEmail.priority}</span>
-                    </span>
-                    {activeEmail.category && (
-                      <span>
-                        Category: <span className="text-emerald-400">{activeEmail.category}</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Sender Header info */}
-                <div className="flex items-center justify-between border border-white/5 bg-white/5 p-4 rounded-xl">
-                  <div className="flex items-center gap-3 min-w-0">
-                    {/* Circle Avatar with Colored Initials Gradient */}
-                    <div className={`w-9 h-9 rounded-full bg-gradient-to-tr ${getAvatarColor(activeEmail.from || activeEmail.fromName)} flex items-center justify-center text-white font-black text-xs shrink-0 shadow-md`}>
-                      {(activeEmail.from || activeEmail.fromName || "?").charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0">
-                      <span className="font-extrabold text-white text-xs block truncate">{activeEmail.from || activeEmail.fromName || "Unknown"}</span>
-                      <span className="text-slate-500 text-[10px] font-mono block truncate">{activeEmail.fromEmail}</span>
-                    </div>
-                  </div>
-                  
-                  <span className="text-slate-500 text-xs font-bold font-mono">
-                    {mounted && new Date(activeEmail.date).toLocaleString()}
-                  </span>
-                </div>
-
-                {/* Render Mail content body inside sandboxed iframe container */}
-                {(() => {
-                  const isHtml =
-                    activeEmail.body.includes("<html") ||
-                    activeEmail.body.includes("<div") ||
-                    activeEmail.body.includes("<p>") ||
-                    activeEmail.body.includes("<br") ||
-                    activeEmail.body.includes("<table") ||
-                    activeEmail.body.includes("<style");
-                  
-                  const iframeSrcDoc = isHtml
-                    ? activeEmail.body
-                    : `<html><head><style>body { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13.5px; line-height: 1.6; color: #1f2937; background: #ffffff; white-space: pre-wrap; word-break: break-word; padding: 24px; margin: 0; }</style></head><body>${activeEmail.body}</body></html>`;
-
-                  return (
-                    <div className="w-full min-h-[600px] h-[650px] border border-white/10 rounded-2xl overflow-hidden bg-white shadow-2xl relative">
-                      <iframe
-                        title="Email Body Content"
-                        srcDoc={iframeSrcDoc}
-                        className="w-full h-full border-none bg-white"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                  );
-                })()}
-
-                {/* Smart AI Quick replies section */}
-                <div className="pt-4 border-t border-white/10 space-y-4">
-                  {activeReplyEmailId !== activeEmail.id ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2.5">
-                        <button
-                          onClick={() => handleInitiateSmartReply(activeEmail)}
-                          className="px-5 py-2.5 bg-gradient-to-r from-purple-500/20 to-indigo-500/20 hover:from-purple-500/30 hover:to-indigo-500/30 text-purple-300 hover:text-white border border-purple-500/30 rounded-xl font-bold uppercase text-[10px] tracking-wider cursor-pointer flex items-center gap-2 transition-all duration-300 shadow-sm"
-                        >
-                          <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
-                          Reply with AI suggestion
-                        </button>
-                        
-                        <button
-                          onClick={() =>
-                            onInitiateCompose(
-                              activeEmail.fromEmail,
-                              `Re: ${activeEmail.subject}`,
-                            )
-                          }
-                          className="px-5 py-2.5 border border-white/5 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl font-bold uppercase text-[10px] tracking-wider cursor-pointer transition-all duration-300 shadow-sm"
-                        >
-                          Manual Composition
-                        </button>
-                      </div>
-
-                      {activeEmail.quickReplies && activeEmail.quickReplies.length > 0 && (
-                        <div className="space-y-2 bg-white/5 p-4 rounded-xl border border-white/5">
-                          <span className="text-[9px] uppercase font-bold text-slate-500 tracking-widest font-mono block">Context Suggestions:</span>
-                          <div className="flex flex-wrap gap-2">
-                            {activeEmail.quickReplies.map((replyText: string, idx: number) => (
-                              <button
-                                key={idx}
-                                onClick={() =>
-                                  onInitiateCompose(
-                                    activeEmail.fromEmail,
-                                    `Re: ${activeEmail.subject}`,
-                                    replyText,
-                                  )
-                                }
-                                className="text-[10px] px-3.5 py-2 border border-white/5 text-slate-300 hover:text-white bg-white/5 hover:bg-purple-500/20 rounded-xl font-medium cursor-pointer transition-all duration-200"
-                              >
-                                <span className="text-purple-400 font-bold mr-1.5 font-mono">[{idx + 1}]</span>
-                                {replyText}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      {activeReplyEmailId !== activeEmail.id && (
+                        <>
+                          <button
+                            onClick={() => handleInitiateSmartReply(activeEmail)}
+                            className="px-4 py-2 bg-gradient-to-r from-purple-500/20 to-indigo-500/20 hover:from-purple-500/30 hover:to-indigo-500/30 text-purple-300 hover:text-white border border-purple-500/30 rounded-xl font-bold uppercase text-[10px] tracking-wider cursor-pointer flex items-center gap-2 transition-all duration-300 shadow-sm"
+                          >
+                            <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
+                            Reply with AI suggestion
+                          </button>
+                          
+                          <button
+                            onClick={() =>
+                              onInitiateCompose(
+                                activeEmail.fromEmail,
+                                `Re: ${activeEmail.subject}`,
+                              )
+                            }
+                            className="px-4 py-2 border border-white/5 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl font-bold uppercase text-[10px] tracking-wider cursor-pointer transition-all duration-300 shadow-sm"
+                          >
+                            Manual Composition
+                          </button>
+                        </>
                       )}
+
+                      <button
+                        onClick={(e) => handleToggleStar(activeEmail, e)}
+                        className={`p-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all cursor-pointer ${
+                          isEmailStarred(activeEmail) ? "text-yellow-500 hover:text-yellow-400 shadow-sm" : "text-slate-400 hover:text-slate-200"
+                        }`}
+                        title={isEmailStarred(activeEmail) ? "Starred" : "Star message"}
+                      >
+                        <Star className={`w-4 h-4 ${isEmailStarred(activeEmail) ? "fill-yellow-500 text-yellow-500" : ""}`} />
+                      </button>
+                      
+                      <button
+                        onClick={(e) => handleToggleRead(activeEmail, e)}
+                        className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
+                        title={isEmailUnread(activeEmail) ? "Mark as read" : "Mark as unread"}
+                      >
+                        {isEmailUnread(activeEmail) ? <MailOpen className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
+                      </button>
+                      
+                      <button
+                        onClick={(e) => handleDelete(activeEmail, e)}
+                        className="p-2 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/20 rounded-xl text-slate-400 hover:text-red-400 transition-all cursor-pointer"
+                        title="Delete email"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                  ) : (
+                  </div>
+
+                  {/* AI drafting workspace or Context suggestions below toolbar row */}
+                  {activeReplyEmailId === activeEmail.id ? (
                     // ==========================================
                     // AI DRAFT REPLY WORKSPACE
                     // ==========================================
-                    <div className="space-y-3 bg-white/5 p-4 rounded-xl border border-white/5">
+                    <div className="pt-3 border-t border-white/5 space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] uppercase font-bold text-purple-400 tracking-wider flex items-center gap-1.5">
                           <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
@@ -1092,7 +1082,7 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
                           <span>Drafting context replies...</span>
                         </div>
                       ) : (
-                        <div className="flex flex-wrap gap-2">
+                        <div className="grid grid-cols-1 gap-2.5">
                           {aiSuggestions.map((sug, idx) => (
                             <button
                               key={idx}
@@ -1100,13 +1090,21 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
                                 setSelectedReplyIndex(idx);
                                 setReplyBody(sug.body);
                               }}
-                              className={`text-[10px] px-3.5 py-1.5 border rounded-xl font-bold uppercase cursor-pointer transition-all duration-200 ${
+                              className={`text-left text-xs p-3.5 border rounded-xl font-medium cursor-pointer transition-all duration-200 flex flex-col gap-1.5 ${
                                 selectedReplyIndex === idx
-                                  ? "bg-purple-600 border-purple-500 text-white shadow-md shadow-purple-500/20"
-                                  : "border-white/5 text-slate-400 hover:text-white bg-white/5"
+                                  ? "bg-purple-600/30 border-purple-500 text-white shadow-md shadow-purple-500/10"
+                                  : "border-white/5 text-slate-300 hover:text-white bg-white/5 hover:bg-white/10"
                               }`}
                             >
-                              {sug.label}
+                              <div className="flex items-center gap-2">
+                                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold font-mono">
+                                  {idx + 1}
+                                </span>
+                                <span className="font-bold text-[10px] uppercase tracking-wider">{sug.label}</span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 line-clamp-2 pl-7 font-mono font-medium leading-relaxed">
+                                {sug.body}
+                              </p>
                             </button>
                           ))}
                         </div>
@@ -1137,7 +1135,105 @@ export function InboxTab({ onInitiateCompose }: InboxTabProps) {
                         </div>
                       )}
                     </div>
+                  ) : (
+                    activeEmail.quickReplies && activeEmail.quickReplies.length > 0 && (
+                      <div className="pt-3 border-t border-white/5 space-y-2 bg-white/5 p-4 rounded-xl border border-white/5">
+                        <span className="text-[9px] uppercase font-bold text-slate-500 tracking-widest font-mono block">Context Suggestions:</span>
+                        <div className="flex flex-wrap gap-2">
+                          {activeEmail.quickReplies.map((replyText: string, idx: number) => (
+                            <button
+                              key={idx}
+                              onClick={() =>
+                                onInitiateCompose(
+                                  activeEmail.fromEmail,
+                                  `Re: ${activeEmail.subject}`,
+                                  replyText,
+                                )
+                              }
+                              className="text-[10px] px-3.5 py-2 border border-white/5 text-slate-300 hover:text-white bg-white/5 hover:bg-purple-500/20 rounded-xl font-medium cursor-pointer transition-all duration-200"
+                            >
+                              <span className="text-purple-400 font-bold mr-1.5 font-mono">[{idx + 1}]</span>
+                              {replyText}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )
                   )}
+                </div>
+
+                {/* Scrollable details view content */}
+                <div ref={emailDetailScrollRef} className="flex-1 overflow-y-auto p-6 space-y-5">
+                  {/* Merged Subject and Sender Header Info */}
+                  <div className="flex flex-col gap-2 pb-2">
+                    {/* Top Row: User Info and Date */}
+                    <div className="flex items-center justify-between gap-4 pb-2 border-b border-white/5">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {/* Circle Avatar with Colored Initials Gradient */}
+                        <div className={`w-8 h-8 rounded-full bg-gradient-to-tr ${getAvatarColor(activeEmail.from || activeEmail.fromName)} flex items-center justify-center text-white font-black text-xs shrink-0 shadow-md`}>
+                          {(activeEmail.from || activeEmail.fromName || "?").charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-extrabold text-white text-xs block truncate">{activeEmail.from || activeEmail.fromName || "Unknown"}</span>
+                          <span className="text-slate-500 text-[10px] font-mono block truncate">{activeEmail.fromEmail}</span>
+                        </div>
+                      </div>
+                      
+                      <span className="text-slate-500 text-[10px] font-bold font-mono shrink-0">
+                        {mounted && new Date(activeEmail.date).toLocaleString()}
+                      </span>
+                    </div>
+
+                    {/* Bottom Row: Subject (left) and Metadata (right) with flex-wrap wrapping */}
+                    <div className="flex flex-wrap flex-row-reverse items-center justify-between gap-x-4 gap-y-2 pt-1">
+                      {/* Metadata Section (placed first in reverse order, lands on the right side) */}
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[9px] text-slate-500 uppercase font-black font-mono tracking-wider shrink-0">
+                        <span>
+                          Folder: <span className="text-purple-400">{activeFolder}</span>
+                        </span>
+                        <span>
+                          Priority: <span className={activeEmail.priority === "high" ? "text-red-400 font-bold" : "text-slate-400"}>{activeEmail.priority}</span>
+                        </span>
+                        {activeEmail.category && (
+                          <span>
+                            Category: <span className="text-emerald-400">{activeEmail.category}</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Subject (placed second in reverse order, lands on the left side) */}
+                      <h2 className="text-sm font-black text-white tracking-tight leading-tight max-w-full">
+                        {activeEmail.subject}
+                      </h2>
+                    </div>
+                  </div>
+
+                  {/* Render Mail content body inside sandboxed iframe container */}
+                  {(() => {
+                    const isHtml =
+                      activeEmail.body.includes("<html") ||
+                      activeEmail.body.includes("<div") ||
+                      activeEmail.body.includes("<p>") ||
+                      activeEmail.body.includes("<br") ||
+                      activeEmail.body.includes("<table") ||
+                      activeEmail.body.includes("<style");
+                    
+                    const iframeSrcDoc = isHtml
+                      ? activeEmail.body
+                      : `<html><head><style>body { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13.5px; line-height: 1.6; color: #1f2937; background: #ffffff; white-space: pre-wrap; word-break: break-word; padding: 24px; margin: 0; }</style></head><body>${activeEmail.body}</body></html>`;
+
+                    return (
+                      <div className="w-full min-h-[350px] border border-white/10 rounded-2xl overflow-hidden bg-white shadow-2xl relative">
+                        <iframe
+                          ref={iframeRef}
+                          title="Email Body Content"
+                          srcDoc={iframeSrcDoc}
+                          className="w-full border-none bg-white block"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}

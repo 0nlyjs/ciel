@@ -530,20 +530,20 @@ export default function DashboardPage() {
       {/* Compose Email Modal - Gmail-Style Floating Box */}
       {showComposeModal && (
         <div
-          className={`fixed bottom-4 right-4 z-50 w-full max-w-lg rounded-2xl shadow-[0_15px_40px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden flex flex-col min-h-[420px] max-h-[550px] ${cardBgClass} transition-all duration-300 transform scale-100`}
+          className="fixed bottom-4 right-4 z-50 w-full max-w-lg rounded-2xl shadow-[0_15px_40px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden flex flex-col min-h-[420px] max-h-[550px] bg-black/60 backdrop-blur-2xl transition-all duration-300 transform scale-100"
           onClick={(e) => e.stopPropagation()}
         >
           <div
-            className={`p-4 border-b ${borderClass} flex items-center justify-between ${accordionHeaderBgClass}`}
+            className="p-4 border-b border-white/10 flex items-center justify-between bg-black/20"
           >
             <h3
-              className={`text-xs font-bold ${isDark ? "text-white" : "text-slate-900"} uppercase tracking-normal leading-tight`}
+              className="text-xs font-black text-white uppercase tracking-wider leading-tight"
             >
               Compose New Message
             </h3>
             <button
               onClick={() => setShowComposeModal(false)}
-              className="text-slate-500 hover:text-slate-950 dark:hover:text-white font-bold text-lg cursor-pointer"
+              className="text-white/60 hover:text-white font-bold text-lg cursor-pointer transition-colors"
             >
               ×
             </button>
@@ -553,7 +553,7 @@ export default function DashboardPage() {
             className="flex-1 flex flex-col p-4 space-y-4"
           >
             <div className="space-y-1">
-              <label className="text-[10px] text-slate-500 uppercase font-bold">
+              <label className="text-[10px] text-white/50 uppercase font-extrabold tracking-wider">
                 To:
               </label>
               <input
@@ -562,11 +562,11 @@ export default function DashboardPage() {
                 onChange={(e) => setComposeTo(e.target.value)}
                 placeholder="recipient@example.com"
                 required
-                className={`w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
+                className="w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 bg-white/5 focus:bg-white/10 border-white/10 focus:border-purple-500/50 text-white placeholder-white/30"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-slate-500 uppercase font-bold">
+              <label className="text-[10px] text-white/50 uppercase font-extrabold tracking-wider">
                 Subject:
               </label>
               <input
@@ -575,11 +575,11 @@ export default function DashboardPage() {
                 onChange={(e) => setComposeSubject(e.target.value)}
                 placeholder="Enter email subject"
                 required
-                className={`w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 ${inputBgClass}`}
+                className="w-full text-xs p-2.5 outline-none rounded-xl border transition-all duration-300 bg-white/5 focus:bg-white/10 border-white/10 focus:border-purple-500/50 text-white placeholder-white/30"
               />
             </div>
             <div className="flex-1 flex flex-col space-y-1">
-              <label className="text-[10px] text-slate-500 uppercase font-bold">
+              <label className="text-[10px] text-white/50 uppercase font-extrabold tracking-wider">
                 Message:
               </label>
               <textarea
@@ -588,16 +588,16 @@ export default function DashboardPage() {
                 placeholder="Type your message here..."
                 rows={8}
                 required
-                className={`flex-1 text-xs p-3 outline-none rounded-xl border transition-all duration-300 ${inputBgClass} resize-none`}
+                className="flex-1 text-xs p-3 outline-none rounded-xl border transition-all duration-300 bg-white/5 focus:bg-white/10 border-white/10 focus:border-purple-500/50 text-white placeholder-white/30 resize-none"
               />
             </div>
             <div
-              className={`pt-3 border-t border-slate-900/10 dark:border-white/10 flex justify-end gap-2 shrink-0`}
+              className="pt-3 border-t border-white/10 flex justify-end gap-2 shrink-0"
             >
               <button
                 type="button"
                 onClick={() => setShowComposeModal(false)}
-                className="px-3.5 py-2 text-slate-500 hover:text-slate-950 dark:hover:text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer"
+                className="px-3.5 py-2 text-white/60 hover:text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors"
               >
                 Cancel
               </button>
@@ -609,7 +609,7 @@ export default function DashboardPage() {
                   !composeSubject.trim() ||
                   !composeBody.trim()
                 }
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-zinc-800 disabled:text-slate-400 dark:disabled:text-zinc-600 text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-colors"
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-white/5 disabled:text-white/20 text-white rounded-xl font-bold uppercase text-[10px] cursor-pointer transition-all"
               >
                 {isSendingCompose ? "Sending..." : "Send Email"}
               </button>
