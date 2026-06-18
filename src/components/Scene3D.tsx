@@ -40,8 +40,6 @@ const CielModel: FC = () => {
 
 useGLTF.preload("/ciel.glb");
 
-
-
 // ─── Camera Rig: Stationary Center Yaw Rotation ──────────────────────────────
 const CameraRig: FC = () => {
   const rotationY = useRef(0);
@@ -169,7 +167,7 @@ const Scene3D: FC = () => {
           width: "100%",
           height: "100%",
           zIndex: 10,
-          backgroundColor: "#564980",
+          backgroundColor: "#564980", //startup color
           opacity: modelLoaded ? 0 : 1,
           transition: "opacity 1.5s ease-in-out",
           pointerEvents: "none",
@@ -184,10 +182,26 @@ const Scene3D: FC = () => {
         <fog attach="fog" args={["#4b2b93", 15, 85]} />
 
         {/* Layer 1: The Cosmic Background. Dense, tiny, and static for deep space depth. */}
-        <Stars radius={100} depth={50} count={4000} factor={2} saturation={0} fade={false} speed={0} />
-        
+        <Stars
+          radius={100}
+          depth={50}
+          count={4000}
+          factor={2}
+          saturation={0}
+          fade={false}
+          speed={0}
+        />
+
         {/* Layer 2: The Atmospheric Layer. Sparser, slightly larger, with smooth, noise-based twinkling. */}
-        <Stars radius={90} depth={50} count={1500} factor={4} saturation={0} fade={true} speed={2.5} />
+        <Stars
+          radius={90}
+          depth={50}
+          count={1500}
+          factor={4}
+          saturation={0}
+          fade={true}
+          speed={2.5}
+        />
 
         <CameraRig />
 
