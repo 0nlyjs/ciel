@@ -128,7 +128,7 @@ export default function LandingPage() {
 
             {/* Sub-Headline */}
             <p className="text-sm md:text-base text-slate-300 leading-relaxed">
-              Your time is valuable. Ceil clears the noise and handles the busywork, so you can stay in the zone and get things done.
+              Your time is valuable. Ciel clears the noise and handles the busywork, so you can stay in the zone and get things done.
             </p>
 
             {/* Action Button */}
@@ -146,7 +146,7 @@ export default function LandingPage() {
                 }}
                 className="px-8 py-4 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 hover:border-cyan-500/40 text-cyan-200 hover:text-white rounded-full text-xs tracking-widest flex items-center gap-2 group transition-all duration-200 shadow-sm cursor-pointer"
               >
-                {isAuthenticated ? "Go to Dashboard" : "Launch Ceil"}
+                {isAuthenticated ? "Go to Dashboard" : "Launch Ciel"}
                 <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </button>
             </div>
@@ -172,11 +172,11 @@ export default function LandingPage() {
             </div>
 
             <h2 className="text-3xl md:text-5xl font-bold text-white tracking-normal leading-tight uppercase relative z-10">
-              Just Tell Ceil What to Do.
+              Just Tell Ciel What to Do.
             </h2>
 
             <p className="text-xs md:text-sm text-slate-300 leading-relaxed relative z-10">
-              Press <kbd className="px-1.5 py-0.5 rounded bg-white/10 border border-white/20 text-white text-[10px] font-mono">Cmd + K</kbd> and just type. Need to set up a meeting for Thursday? Want to clear out your junk mail? Just ask. Ceil understands plain English and handles the complex steps for you. It is like having a real assistant built right into your screen.
+              Press <kbd className="px-1.5 py-0.5 rounded bg-white/10 border border-white/20 text-white text-[10px] font-mono">Cmd + K</kbd> and just type. Need to set up a meeting for Thursday? Want to clear out your junk mail? Just ask. Ciel understands plain English and handles the complex steps for you. It is like having a real assistant built right into your screen.
             </p>
 
             {/* Vertical Stack Mini-Cards */}
@@ -215,7 +215,7 @@ export default function LandingPage() {
             </h2>
 
             <p className="text-xs md:text-sm text-slate-300 leading-relaxed relative z-10">
-              Waiting for pages to load is frustrating. Ceil solves this by saving your data locally. This means you can search your entire email history and find any calendar event in less than one second. No loading bars. It is just always ready.
+              Waiting for pages to load is frustrating. Ciel solves this by saving your data locally. This means you can search your entire email history and find any calendar event in less than one second. No loading bars. It is just always ready.
             </p>
 
             {/* Vertical Stack Mini-Cards */}

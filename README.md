@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ciel
 
-## Getting Started
+<p align="center">
+  <img src="./public/ciel.svg" alt="Ciel Logo" width="120" />
+</p>
 
-First, run the development server:
+> [!NOTE]
+> **Live Site:** [ciel.mistjs.com](https://ciel.mistjs.com/)
 
+Ciel is a premium, AI-powered personal assistant designed to clear the noise and handle your day-to-day busywork. It integrates with your email (Gmail) and calendar (Google Calendar) to fetch, prioritize, search, and action your data in under a second using a local caching system.
+
+---
+
+## 🛠️ Tech Stack & Tools
+
+- **Framework:** Next.js 16 (App Router) & React 19
+- **Styling:** TailwindCSS 4, Lucide Icons, and Three.js (React Three Fiber) for dynamic glassmorphic backgrounds.
+- **Database & ORM:** Neon Database (Serverless Postgres) with Drizzle ORM.
+- **Authentication:** Better Auth (with Google & Corsair OAuth adapters).
+- **AI Engine:** Vercel AI SDK, OpenAI models, and Corsair MCP Layer (Gmail & Google Calendar tools).
+- **Background Sync:** Upstash QStash & Upstash Redis.
+- **Speech Engine:** Google Cloud Text-to-Speech & Web Speech API.
+
+---
+
+## 🗄️ Database Schema
+
+Ciel uses Drizzle ORM to define the following Postgres tables:
+
+| Table Name | Description | Key Columns |
+|---|---|---|
+| `users` | Stores basic profile information. | `id`, `email`, `name`, `image` |
+| `session` / `account` / `verification` | Better Auth tables to handle sessions, OAuth provider tokens, and email verification. | `userId`, `accessToken`, `refreshToken` |
+| `emails` | Local cache of synced emails with AI priority tags and category labels. | `id`, `userId`, `subject`, `body`, `read`, `priority` |
+| `calendar_events` | Local cache of synced calendar meetings and guest details. | `id`, `userId`, `startTime`, `endTime`, `attendees` |
+| `conversations` / `chat_messages` | Tracks user chats and AI agent messaging history. | `conversationId`, `role`, `content` |
+| `search_documents` | Stores embeddings and content for fast semantic search. | `id`, `sourceType`, `embedding`, `content` |
+| `user_settings` | Holds user preferences like sync frequency, theme, voice speed, and voice choice. | `userId`, `theme`, `syncIntervalMinutes`, `ttsVoice` |
+| `user_integrations` | Manages status of connected third-party providers. | `userId`, `provider`, `connectedEmail`, `status` |
+| `corsair_integrations` / `corsair_accounts` / `corsair_entities` / `corsair_events` | Internal SDK tables powering background mail and calendar sync events. | `accountId`, `payload`, `status` |
+
+---
+
+## ⚙️ Installation & Setup
+
+### 1. Clone the repository
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/0nlyjs/ciel.git
+cd ciel
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Install dependencies
+```bash
+pnpm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Configure environment variables
+Create a `.env` file in the root directory and configure the database connection, Better Auth credentials, Google client keys, Corsair variables, and OpenAI keys as outlined in `.env.example`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 4. Run database migrations
+```bash
+pnpm drizzle-kit push
+```
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 5. Launch the local development server
+```bash
+pnpm dev
+```
+Open [http://localhost:3000](http://localhost:3000) to view the application.
