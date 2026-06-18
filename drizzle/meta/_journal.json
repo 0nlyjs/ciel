@@ -15,6 +15,20 @@
       "when": 1781623740432,
       "tag": "0001_spotty_ego",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781805247493,
+      "tag": "0002_nasty_spyke",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781805453422,
+      "tag": "0003_fantastic_doomsday",
+      "breakpoints": true
     }
   ]
 }

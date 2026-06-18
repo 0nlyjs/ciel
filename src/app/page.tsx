@@ -743,8 +743,9 @@ export default function LandingPage() {
                             setAuthLoading(false);
                           },
                           onSuccess: () => {
-                            setIsVerificationSent(true);
                             setAuthLoading(false);
+                            setShowAuthModal(false);
+                            router.push("/dashboard");
                           },
                         },
                       );

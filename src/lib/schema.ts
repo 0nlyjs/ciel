@@ -16,7 +16,7 @@ export const users = pgTable("users", {
   id: varchar("id", { length: 255 }).primaryKey(),
   name: varchar("name", { length: 255 }),
   email: varchar("email", { length: 255 }).notNull().unique(),
-  verified: boolean("verified").default(false).notNull(),
+  verified: boolean("verified").default(true).notNull(),
   image: varchar("image", { length: 255 }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
@@ -58,6 +58,7 @@ export const accounts = pgTable(
     expiresAt: timestamp("expires_at"),
     accessTokenExpiresAt: timestamp("access_token_expires_at"),
     scope: text("scope"),
+    password: text("password"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
