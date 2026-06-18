@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="100%" height="100%" viewBox="0 0 150 150" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- White Circular Background -->
+    <circle cx="75" cy="75" r="70" fill="#FFFFFF" />
+
+    <!-- Ciel Logo Group (Scaled and Centered) -->
+    <g transform="translate(18, 50) scale(0.335)">
+        <style>
+            .yellow-glow {
+                filter: url(#glow-circle-3x);
+            }
+            .glowing-layer {
+                filter: url(#glow-blur);
+                opacity: 0.45;
+            }
+        </style>
+
+        <!-- Glow Backdrop Layer -->
+        <g class="glowing-layer">
+            <rect x="38" y="27" width="264" height="97" rx="22" ry="22" style="fill:none;stroke:url(#_Linear1);stroke-width:12px;"/>
+            <g transform="matrix(0.88785,0,0,0.88785,3.971963,8.635514)">
+                <path d="M120,45L80,45L80,105L120,105M150.137,45L150.137,105M180,45L180,105L220,105M180,75L210,75M180,45L220,45M250,45L250,105L290,105" style="fill:none;stroke:url(#_Linear1);stroke-width:12px;"/>
+            </g>
+        </g>
+
+        <!-- Sharp Foreground Layers -->
+        <g id="text" transform="matrix(0.88785,0,0,0.88785,3.971963,8.635514)">
+            <path d="M120,45L80,45L80,105L120,105M150.137,45L150.137,105M180,45L180,105L220,105M180,75L210,75M180,45L220,45M250,45L250,105L290,105" style="fill:none;fill-rule:nonzero;stroke:url(#_Linear1);stroke-width:8px;"/>
+        </g>
+        <g id="circle" transform="matrix(0.88785,0,0,0.88785,3.971963,8.635514)">
+            <circle class="yellow-glow" cx="290" cy="105" r="4" style="fill:rgb(237,255,0);"/>
+        </g>
+        <g id="boarder">
+            <rect x="38" y="27" width="264" height="97" rx="22" ry="22" style="fill:none;stroke:url(#_Linear1);stroke-width:7px;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:5;"/>
+        </g>
+
+        <defs>
+            <linearGradient id="_Linear1" x1="114" y1="11" x2="296" y2="116" gradientUnits="userSpaceOnUse">
+                <stop offset="0" style="stop-color:#3BB5CD;stop-opacity:1"/>
+                <stop offset="1" style="stop-color:#E08C08;stop-opacity:1"/>
+            </linearGradient>
+            <filter id="glow-blur" x="-100%" y="-100%" width="300%" height="300%">
+                <feGaussianBlur stdDeviation="8" />
+            </filter>
+            <filter id="glow-circle-3x" x="-300%" y="-300%" width="700%" height="700%">
+                <feGaussianBlur stdDeviation="6" result="blur1" />
+                <feGaussianBlur stdDeviation="2.5" result="blur2" />
+                <feColorMatrix type="matrix" values="
+                    1.0 0.0 0.0 0.0 0.9
+                    0.0 1.0 0.0 0.0 1.0
+                    0.0 0.0 1.0 0.0 0.0
+                    0.0 0.0 0.0 3.0 0.0" in="blur1" result="colored-blur1" />
+                <feMerge>
+                    <feMergeNode in="colored-blur1" />
+                    <feMergeNode in="colored-blur1" />
+                    <feMergeNode in="blur2" />
+                    <feMergeNode in="SourceGraphic" />
+                </feMerge>
+            </filter>
+        </defs>
+    </g>
+</svg>

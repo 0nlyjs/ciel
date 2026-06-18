@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   title: "Ciel",
   description:
     "AI-driven Gmail and Google Calendar coordination dashboard, built with Corsair integration layer.",
+  icons: {
+    icon: "/ciel-favicon.svg",
+  },
 };
 
 export default function RootLayout({
