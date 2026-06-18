@@ -84,7 +84,7 @@ export function SettingsTab() {
   const textMutedClass = "text-slate-400";
   const borderClass = "border-white/5";
   const border900Class = "border-white/10";
-  const cardBgClass = "bg-transparent backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.15)]";
+  const cardBgClass = "bg-black/25 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.15)]";
   const innerCardBgClass = isDark ? "bg-black/15" : "bg-white/20";
   const buttonBgClass = isDark 
     ? "bg-white/5 hover:bg-white/10 text-white border border-white/10" 

@@ -13,7 +13,7 @@ export function OverviewTab() {
 
   const textWhiteClass = "text-white";
   const textMutedClass = "text-slate-400";
-  const cardBgClass = "bg-transparent backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.15)]";
+  const cardBgClass = "bg-black/25 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.15)]";
 
   return (
     <div className="space-y-6">

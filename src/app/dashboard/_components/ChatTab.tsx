@@ -301,7 +301,7 @@ export function ChatTab() {
   const textMutedClass = isDark ? "text-slate-400" : "text-slate-500";
   const borderClass = isDark ? "border-white/5" : "border-white/20";
   const cardBgClass = isDark
-    ? "bg-transparent backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.15)]"
+    ? "bg-black/25 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.15)]"
     : "bg-transparent backdrop-blur-2xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.04)]";
   const inputBgClass = isDark
     ? "bg-black/20 focus:bg-black/35 border-white/10 focus:border-purple-500/50 text-white"
