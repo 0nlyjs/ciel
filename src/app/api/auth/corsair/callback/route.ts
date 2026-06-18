@@ -12,6 +12,15 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const code = searchParams.get("code");
     const state = searchParams.get("state");
+    const oauthError = searchParams.get("error");
+    const oauthErrorDescription = searchParams.get("error_description");
+
+    if (oauthError) {
+      console.error(`[Corsair Callback] OAuth error from provider: ${oauthError} - ${oauthErrorDescription}`);
+      return NextResponse.redirect(
+        `${process.env.BETTER_AUTH_URL || "http://localhost:3000"}/dashboard?error=${encodeURIComponent(oauthError)}`,
+      );
+    }
 
     if (!code || !state) {
       return NextResponse.json(
