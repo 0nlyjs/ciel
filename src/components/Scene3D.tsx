@@ -174,6 +174,24 @@ const Scene3D: FC = () => {
         }}
       />
 
+      {/* Gradual blur overlay at the bottom half of the screen */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          width: "100%",
+          height: "80%",
+          zIndex: 50,
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          maskImage: "linear-gradient(to top, black 0%, transparent 100%)",
+          WebkitMaskImage:
+            "linear-gradient(to top, black 0%, transparent 100%)",
+          pointerEvents: "none",
+        }}
+      />
+
       <Canvas
         camera={{ position: [0, -1.0, 0], fov: 65, near: 0.1, far: 200 }}
         dpr={[1, 1.5]}
