@@ -167,7 +167,7 @@ const Scene3D: FC = () => {
           width: "100%",
           height: "100%",
           zIndex: 10,
-          backgroundColor: "#564980", //startup color
+          backgroundColor: "#000000ff", //startup color
           opacity: modelLoaded ? 0 : 1,
           transition: "opacity 1.5s ease-in-out",
           pointerEvents: "none",
