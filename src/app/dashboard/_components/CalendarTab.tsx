@@ -67,7 +67,7 @@ export function CalendarTab({ onInitiateCompose }: CalendarTabProps) {
 
   // Local state
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("day");
+  const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("month");
   const [calendarAnchorDate, setCalendarAnchorDate] = useState<Date | null>(null);
   const [mounted, setMounted] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
